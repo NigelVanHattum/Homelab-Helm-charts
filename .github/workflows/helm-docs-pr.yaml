@@ -5,10 +5,10 @@ jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        ref: ${{ github.event.pull_request.head.ref }}
-      - name: Run helm-docs
-        uses: losisin/helm-docs-github-action@v1
+      - uses: actions/checkout@v4
         with:
-          git-push: true
+          ref: ${{ github.event.pull_request.head.ref }}
+        - name: Run helm-docs
+          uses: losisin/helm-docs-github-action@v1
+          with:
+            git-push: true
