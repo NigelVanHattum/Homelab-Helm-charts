@@ -1,0 +1,14 @@
+{{- if not .Values.floatplane.persistence.db.useExistingPvc }}
+# templates/pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Chart.Name }}-db
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "floatplane-downloader.labels" . | nindent 4 }}
+{{- with .Values.floatplane.persistence.db.spec }}
+spec:
+{{ toYaml . | nindent 2 }}
+{{- end }}
+{{- end }}

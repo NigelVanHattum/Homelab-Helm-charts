@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "floatplane-downloader.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "floatplane-downloader.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "floatplane-downloader.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        # Make sure to always restart the deployment for each change (in case of credential changes)
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "floatplane-downloader.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: inrix/floatplane-downloader:{{ .Values.image.tag | default "latest"}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env: 
+            - name: headless
+              value: "true"
+            - name: username
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default ( "floatplane-credentials" ) .Values.floatplane.credentials.useExistingSecret }}
+                  key: username
+            - name: password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default ( "floatplane-credentials" ) .Values.floatplane.credentials.useExistingSecret }}
+                  key: password
+            - name: token
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default ( "floatplane-credentials" ) .Values.floatplane.credentials.useExistingSecret }}
+                  key: mfa 
+            - name: plex_token
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default ( "floatplane-credentials" ) .Values.floatplane.credentials.useExistingSecret }}
+                  key: plex-token 
+          volumeMounts:
+            - mountPath: "/fp/db"
+              name: {{ .Chart.Name }}-db
+            - mountPath: "/fp/videos"
+              name: {{ .Chart.Name }}-media
+      volumes:
+        - name: {{ .Chart.Name }}-db
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-db" .Chart.Name) .Values.floatplane.persistence.db.useExistingPvc }}
+        - name: {{ .Chart.Name }}-media
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-media" .Chart.Name) .Values.floatplane.persistence.media.useExistingPvc }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

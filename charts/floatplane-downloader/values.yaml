@@ -1,0 +1,64 @@
+# Default values for floatplane-downloader.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+image:
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+floatplane: 
+  credentials: 
+    # If using an existing secret, this will ignore all other fields below - keep in mind that your OTP token (mfa) only has a lifespan of 30 sec. 
+    useExistingSecret: ""
+    username: ""
+    password: ""
+    mfa: ""
+    plexToken: ""
+
+  persistence:
+    media:
+      # This will not create a new pvc
+      useExistingPvc: ""
+      # Use the normal k8s pvc spec here
+      spec: {}
+    db: 
+      # This will not create a new pvc
+      useExistingPvc: ""
+      # Use the normal k8s pvc spec here
+      spec: {}
