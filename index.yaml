@@ -3,6 +3,17 @@ entries:
   floatplane-downloader:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-05-18T19:00:37.81550676Z"
+    description: A Helm chart for deploying the Inrixia/Floatplan-downloader on a
+      kubernetes cluster
+    digest: 3db243c39404b0cced8b8b7aa172c9c66561ad4207fc2d72befd76e395c6dc17
+    name: floatplane-downloader
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/floatplane-downloader-0.2.0/floatplane-downloader-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-05-14T11:30:39.839065382Z"
     description: A Helm chart for deploying the Inrixia/Floatplan-downloader on a
       kubernetes cluster
@@ -12,4 +23,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/floatplane-downloader-0.1.0/floatplane-downloader-0.1.0.tgz
     version: 0.1.0
-generated: "2024-05-14T11:30:39.839075451Z"
+generated: "2024-05-18T19:00:37.815543318Z"
