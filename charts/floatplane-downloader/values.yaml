@@ -55,10 +55,15 @@ floatplane:
     media:
       # This will not create a new pvc
       useExistingPvc: ""
-      # Use the normal k8s pvc spec here
-      spec: {}
+      storageClassName: ""
+      existingVolume: ""
+      matchLabels: {}
+      matchExpressions: {}
+      size: "25Gi"
     db: 
-      # This will not create a new pvc
       useExistingPvc: ""
-      # Use the normal k8s pvc spec here
-      spec: {}
+      storageClassName: ""
+      existingVolume: ""
+      matchLabels: {}
+      matchExpressions: {}
+      size: "1Gi"
