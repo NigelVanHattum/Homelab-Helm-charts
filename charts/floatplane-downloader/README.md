@@ -1,6 +1,6 @@
 # floatplane-downloader
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
+![Version: 0.2.0](https://img.shields.io/badge/Version-0.2.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
 
 A Helm chart for deploying the Inrixia/Floatplan-downloader on a kubernetes cluster
 
@@ -14,9 +14,17 @@ A Helm chart for deploying the Inrixia/Floatplan-downloader on a kubernetes clus
 | floatplane.credentials.plexToken | string | `""` |  |
 | floatplane.credentials.useExistingSecret | string | `""` |  |
 | floatplane.credentials.username | string | `""` |  |
-| floatplane.persistence.db.spec | object | `{}` |  |
+| floatplane.persistence.db.existingVolume | string | `""` |  |
+| floatplane.persistence.db.matchExpressions | object | `{}` |  |
+| floatplane.persistence.db.matchLabels | object | `{}` |  |
+| floatplane.persistence.db.size | string | `"1Gi"` |  |
+| floatplane.persistence.db.storageClassName | string | `""` |  |
 | floatplane.persistence.db.useExistingPvc | string | `""` |  |
-| floatplane.persistence.media.spec | object | `{}` |  |
+| floatplane.persistence.media.existingVolume | string | `""` |  |
+| floatplane.persistence.media.matchExpressions | object | `{}` |  |
+| floatplane.persistence.media.matchLabels | object | `{}` |  |
+| floatplane.persistence.media.size | string | `"25Gi"` |  |
+| floatplane.persistence.media.storageClassName | string | `""` |  |
 | floatplane.persistence.media.useExistingPvc | string | `""` |  |
 | fullnameOverride | string | `""` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |

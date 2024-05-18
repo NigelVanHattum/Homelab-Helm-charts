@@ -1,11 +1,12 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ include "floatplane-downloader.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "floatplane-downloader.labels" . | nindent 4 }}
 spec:
+  replicas: 1
   selector:
     matchLabels:
       {{- include "floatplane-downloader.selectorLabels" . | nindent 6 }}
@@ -81,3 +82,48 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+    name: {{ .Chart.Name }}-media
+  spec:
+    accessModes: [ "ReadWriteOnce" ]
+    storageClassName: {{ .Values.floatplane.persistence.media.storageClassName }}
+    {{- if .Values.floatplane.persistence.media.existingVolume }}
+    volumeName: {{ .Values.floatplane.persistence.media.existingVolume }}
+    {{- end }}
+    {{- if or .Values.floatplane.persistence.media.matchLabels (.Values.floatplane.persistence.media.matchExpressions) }}
+    selector:
+    {{- if .Values.floatplane.persistence.media.matchLabels }}
+      matchLabels:
+      {{ toYaml .Values.floatplane.persistence.media.matchLabels | indent 8 }}
+    {{- end -}}
+    {{- if .Values.floatplane.persistence.media.matchExpressions }}
+      matchExpressions:
+        {{ toYaml .Values.floatplane.persistence.media.matchExpressions | indent 8 }}
+      {{- end -}}
+    {{- end }}
+    resources:
+      requests:
+        storage: {{ .Values.floatplane.persistence.media.size }}
+  - metadata:
+    name: {{ .Chart.Name }}-db
+  spec:
+    accessModes: [ "ReadWriteOnce" ]
+    storageClassName: {{ .Values.floatplane.persistence.db.storageClassName }}
+    {{- if .Values.floatplane.persistence.db.existingVolume }}
+    volumeName: {{ .Values.floatplane.persistence.db.existingVolume }}
+    {{- end }}
+    {{- if or .Values.floatplane.persistence.db.matchLabels (.Values.floatplane.persistence.db.matchExpressions) }}
+    selector:
+    {{- if .Values.floatplane.persistence.db.matchLabels }}
+      matchLabels:
+      {{ toYaml .Values.floatplane.persistence.db.matchLabels | indent 8 }}
+    {{- end -}}
+    {{- if .Values.floatplane.persistence.db.matchExpressions }}
+      matchExpressions:
+        {{ toYaml .Values.floatplane.persistence.db.matchExpressions | indent 8 }}
+      {{- end -}}
+    {{- end }}
+    resources:
+      requests:
+        storage: {{ .Values.floatplane.persistence.db.size }}
