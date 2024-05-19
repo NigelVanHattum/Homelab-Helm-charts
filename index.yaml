@@ -34,4 +34,15 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/floatplane-downloader-0.1.0/floatplane-downloader-0.1.0.tgz
     version: 0.1.0
-generated: "2024-05-18T19:31:01.093803492Z"
+  jackett:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-05-19T23:01:45.059156348Z"
+    description: A Helm chart for Kubernetes
+    digest: 72a04c11e34ba9efa69d33e8f89374038bf87975b48313ff374c7cc920b73ba8
+    name: jackett
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/jackett-0.1.0/jackett-0.1.0.tgz
+    version: 0.1.0
+generated: "2024-05-19T23:01:45.059168781Z"
