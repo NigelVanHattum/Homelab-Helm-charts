@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "jackett.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "jackett.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "jackett.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        # Make sure to always restart the deployment for each change (in case of credential changes)
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "jackett.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: lscr.io/linuxserver/jackett:{{ .Values.image.tag | default "latest"}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env: 
+            - name: PUID
+              value: {{ default ( "1001" ) .Values.jackett.PUID }}
+            - name: PGID
+              value: {{ default ( "1001" ) .Values.jackett.PGID  }}
+            - name: TZ
+              value: {{ default ( "Etc/UTC" ) .Values.jackett.timezone }}
+            - name: AUTO_UPDATE
+              value: {{ default ( "true" ) .Values.jackett.autoUpdate  }}
+            {{- if .Values.jackett.runOpts }} 
+            - name: RUN_OPTS
+              value: {{ .Values.jackett.runOpts  }}
+            {{- end }}
+          volumeMounts:
+            - mountPath: "/config"
+              name: {{ .Chart.Name }}-config
+            - mountPath: "/downloads"
+              name: {{ .Chart.Name }}-downloads
+      volumes:
+        - name: {{ .Chart.Name }}-config
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-config" .Chart.Name) .Values.jackett.persistence.config.useExistingPvc }}
+        - name: {{ .Chart.Name }}-downloads
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-downloads" .Chart.Name) .Values.jackett.persistence.downloads.useExistingPvc }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: {{ .Chart.Name }}-config
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.jackett.persistence.downloads.storageClassName }}
+      {{- if .Values.jackett.persistence.downloads.existingVolume }}
+      volumeName: {{ .Values.jackett.persistence.downloads.existingVolume }}
+      {{- end }}
+      {{- if or .Values.jackett.persistence.downloads.matchLabels (.Values.jackett.persistence.downloads.matchExpressions) }}
+      selector:
+      {{- if .Values.jackett.persistence.downloads.matchLabels }}
+        matchLabels:
+        {{ toYaml .Values.jackett.persistence.downloads.matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .Values.jackett.persistence.downloads.matchExpressions }}
+        matchExpressions:
+          {{ toYaml .Values.jackett.persistence.downloads.matchExpressions | indent 8 }}
+        {{- end -}}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.jackett.persistence.downloads.size }}
+  - metadata:
+      name: {{ .Chart.Name }}-downloads
+    spec:
+      accessModes: [ "ReadWriteMany" ]
+      storageClassName: {{ .Values.jackett.persistence.config.storageClassName }}
+      {{- if .Values.jackett.persistence.config.existingVolume }}
+      volumeName: {{ .Values.jackett.persistence.config.existingVolume }}
+      {{- end }}
+      {{- if or .Values.jackett.persistence.config.matchLabels (.Values.jackett.persistence.config.matchExpressions) }}
+      selector:
+      {{- if .Values.jackett.persistence.config.matchLabels }}
+        matchLabels:
+        {{ toYaml .Values.jackett.persistence.config.matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .Values.jackett.persistence.config.matchExpressions }}
+        matchExpressions:
+          {{ toYaml .Values.jackett.persistence.config.matchExpressions | indent 8 }}
+        {{- end -}}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.jackett.persistence.config.size }}
