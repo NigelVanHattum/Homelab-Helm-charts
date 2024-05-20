@@ -57,7 +57,7 @@ spec:
         - name: {{ .Chart.Name }}-config
           persistentVolumeClaim: 
             claimName: {{ default (printf "%s-config" .Chart.Name) .Values.jackett.persistence.config.useExistingPvc }}
-        {{- if not .Values.jackett.persistence.downloads }}
+        {{- if not .Values.jackett.persistence.downloads.enabled }}
         - name: {{ .Chart.Name }}-downloads
           emptyDir: { }
         {{- else }}
@@ -78,7 +78,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
   volumeClaimTemplates:
-  {{- if .Values.jackett.persistence.downloads }}
+  {{- if and ( .Values.jackett.persistence.downloads.enabled) ( not .Values.jackett.persistence.downloads.useExistingPvc ) }}
   - metadata:
       name: {{ .Chart.Name }}-downloads
     spec:
