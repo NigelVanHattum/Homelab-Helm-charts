@@ -37,6 +37,16 @@ entries:
   jackett:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-05-20T14:31:54.075791555Z"
+    description: A Helm chart for Kubernetes
+    digest: bdb66a8d39b7db4cddab37171c7c436ae3f221fb1bd22540894ad71054595bbd
+    name: jackett
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/jackett-0.1.6/jackett-0.1.6.tgz
+    version: 0.1.6
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-05-20T14:12:24.077402082Z"
     description: A Helm chart for Kubernetes
     digest: 2a7ed7f7b5ed490bf8318b982f44de69cbf83fd564e0edd3ea00542637ecb98c
@@ -95,4 +105,15 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/jackett-0.1.0/jackett-0.1.0.tgz
     version: 0.1.0
-generated: "2024-05-20T14:12:24.077442037Z"
+  prowlarr:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-05-20T14:31:54.186143469Z"
+    description: A Helm chart for Kubernetes
+    digest: 5d9634dfe15c499c7b3df031c93eeb217cce06cc595dbf476825a2001a4adaf9
+    name: prowlarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/prowlarr-0.1.0/prowlarr-0.1.0.tgz
+    version: 0.1.0
+generated: "2024-05-20T14:31:54.186206296Z"
