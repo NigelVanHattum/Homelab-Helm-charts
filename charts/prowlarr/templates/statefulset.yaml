@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "prowlarr.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "prowlarr.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "prowlarr.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        # Make sure to always restart the deployment for each change (in case of credential changes)
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "prowlarr.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: lscr.io/linuxserver/prowlarr:{{ .Values.image.tag | default "latest"}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env: 
+          - name: PUID
+            value: {{ default ( "1001" ) .Values.prowlarr.PUID | quote }}
+          - name: PGID
+            value: {{ default ( "1001" ) .Values.prowlarr.PGID | quote }}
+          - name: TZ
+            value: {{ default ( "Etc/UTC" ) .Values.prowlarr.timezone }}
+          volumeMounts:
+            - mountPath: "/config"
+              name: {{ .Chart.Name }}-config
+      volumes:
+        - name: {{ .Chart.Name }}-config
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-config" .Chart.Name) .Values.prowlarr.persistence.config.useExistingPvc }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: {{ .Chart.Name }}-config
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.prowlarr.persistence.config.storageClassName }}
+      {{- if .Values.prowlarr.persistence.config.existingVolume }}
+      volumeName: {{ .Values.prowlarr.persistence.config.existingVolume }}
+      {{- end }}
+      {{- if or .Values.prowlarr.persistence.config.matchLabels (.Values.prowlarr.persistence.config.matchExpressions) }}
+      selector:
+      {{- if .Values.prowlarr.persistence.config.matchLabels }}
+        matchLabels:
+        {{ toYaml .Values.prowlarr.persistence.config.matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .Values.prowlarr.persistence.config.matchExpressions }}
+        matchExpressions:
+          {{ toYaml .Values.prowlarr.persistence.config.matchExpressions | indent 8 }}
+        {{- end -}}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.prowlarr.persistence.config.size }}
