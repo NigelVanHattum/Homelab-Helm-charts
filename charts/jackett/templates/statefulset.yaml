@@ -57,13 +57,13 @@ spec:
         - name: {{ .Chart.Name }}-config
           persistentVolumeClaim: 
             claimName: {{ default (printf "%s-config" .Chart.Name) .Values.jackett.persistence.config.useExistingPvc }}
-        {{- if not .Values.jackett.persistence.downloads.enabled }}
-        - name: {{ .Chart.Name }}-downloads
-          emptyDir: { }
-        {{- else }}
+        {{- if .Values.jackett.persistence.downloads.enabled }}
         - name: {{ .Chart.Name }}-downloads
           persistentVolumeClaim: 
             claimName: {{ default (printf "%s-downloads" .Chart.Name) .Values.jackett.persistence.downloads.useExistingPvc }}
+        {{- else }}
+        - name: {{ .Chart.Name }}-downloads
+          emptyDir: { }
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
