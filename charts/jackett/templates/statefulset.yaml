@@ -37,19 +37,19 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           env: 
           - name: PUID
-            value: {{ default ( "1001" ) .Values.jackett.PUID }}
+            value: {{ default ( "1001" ) .Values.jackett.PUID | quote }}
           - name: PGID
-            value: {{ default ( "1001" ) .Values.jackett.PGID  }}
+            value: {{ default ( "1001" ) .Values.jackett.PGID | quote }}
           - name: TZ
             value: {{ default ( "Etc/UTC" ) .Values.jackett.timezone }}
-          - name: AUTO_UPDATE
-            value: {{ default ( "true" ) .Values.jackett.autoUpdate  }}
-          {{- if .Values.jackett.runOpts }} 
-          - name: RUN_OPTS
-            value: {{ .Values.jackett.runOpts  }}
-          {{- end }}
+          # - name: AUTO_UPDATE
+          #   value: {{ default ( "true" ) .Values.jackett.autoUpdate  }}
+          # {{- if .Values.jackett.runOpts }} 
+          # - name: RUN_OPTS
+          #   value: {{ .Values.jackett.runOpts  }}
+          # {{- end }}
           volumeMounts:
-            - mountPath: "/config"
+            - mountPath: "/config/Jackett"
               name: {{ .Chart.Name }}-config
             - mountPath: "/downloads"
               name: {{ .Chart.Name }}-downloads
@@ -78,10 +78,11 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
   volumeClaimTemplates:
+  {{- if .Values.jackett.persistence.downloads }}
   - metadata:
-      name: {{ .Chart.Name }}-config
+      name: {{ .Chart.Name }}-downloads
     spec:
-      accessModes: [ "ReadWriteOnce" ]
+      accessModes: [ "ReadWriteMany" ]
       storageClassName: {{ .Values.jackett.persistence.downloads.storageClassName }}
       {{- if .Values.jackett.persistence.downloads.existingVolume }}
       volumeName: {{ .Values.jackett.persistence.downloads.existingVolume }}
@@ -100,10 +101,11 @@ spec:
       resources:
         requests:
           storage: {{ .Values.jackett.persistence.downloads.size }}
+  {{- end }}
   - metadata:
-      name: {{ .Chart.Name }}-downloads
+      name: {{ .Chart.Name }}-config
     spec:
-      accessModes: [ "ReadWriteMany" ]
+      accessModes: [ "ReadWriteOnce" ]
       storageClassName: {{ .Values.jackett.persistence.config.storageClassName }}
       {{- if .Values.jackett.persistence.config.existingVolume }}
       volumeName: {{ .Values.jackett.persistence.config.existingVolume }}
