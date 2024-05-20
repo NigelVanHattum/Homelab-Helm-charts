@@ -37,6 +37,16 @@ entries:
   jackett:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-05-20T14:12:24.077402082Z"
+    description: A Helm chart for Kubernetes
+    digest: 2a7ed7f7b5ed490bf8318b982f44de69cbf83fd564e0edd3ea00542637ecb98c
+    name: jackett
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/jackett-0.1.5/jackett-0.1.5.tgz
+    version: 0.1.5
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-05-20T13:50:56.168469897Z"
     description: A Helm chart for Kubernetes
     digest: bc4ad3f11723189fbe9213a8e230cea2672c05e605053100314a64879b1cd1a3
@@ -85,4 +95,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/jackett-0.1.0/jackett-0.1.0.tgz
     version: 0.1.0
-generated: "2024-05-20T13:50:56.168509862Z"
+generated: "2024-05-20T14:12:24.077442037Z"
