@@ -36,18 +36,18 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env: 
-            - name: PUID
-              value: {{ default ( "1001" ) .Values.jackett.PUID }}
-            - name: PGID
-              value: {{ default ( "1001" ) .Values.jackett.PGID  }}
-            - name: TZ
-              value: {{ default ( "Etc/UTC" ) .Values.jackett.timezone }}
-            - name: AUTO_UPDATE
-              value: {{ default ( "true" ) .Values.jackett.autoUpdate  }}
-            {{- if .Values.jackett.runOpts }} 
-            - name: RUN_OPTS
-              value: {{ .Values.jackett.runOpts  }}
-            {{- end }}
+          - name: PUID
+            value: {{ default ( "1001" ) .Values.jackett.PUID }}
+          - name: PGID
+            value: {{ default ( "1001" ) .Values.jackett.PGID  }}
+          - name: TZ
+            value: {{ default ( "Etc/UTC" ) .Values.jackett.timezone }}
+          - name: AUTO_UPDATE
+            value: {{ default ( "true" ) .Values.jackett.autoUpdate  }}
+          {{- if .Values.jackett.runOpts }} 
+          - name: RUN_OPTS
+            value: {{ .Values.jackett.runOpts  }}
+          {{- end }}
           volumeMounts:
             - mountPath: "/config"
               name: {{ .Chart.Name }}-config
