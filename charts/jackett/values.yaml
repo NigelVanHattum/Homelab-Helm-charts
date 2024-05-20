@@ -63,6 +63,7 @@ jackett:
       matchExpressions: {}
       size: "1Gi"
     downloads: 
+      enabled: false
       # This will not create a new pvc
       useExistingPvc: ""
       storageClassName: ""
