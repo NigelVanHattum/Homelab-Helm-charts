@@ -1,4 +1,4 @@
-# Default values for jackett.
+# Default values for prowlarr.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 image:
@@ -7,7 +7,7 @@ image:
   tag: "latest"
 
 imagePullSecrets: []
-nameOverride: "jackett"
+nameOverride: "prowlarr"
 fullnameOverride: ""
 
 podAnnotations: {}
@@ -46,24 +46,13 @@ service:
   type: ClusterIP
   port: 9117
 
-jackett: 
+prowlarr: 
   PUID: "1001"
   PGID: "1001"
   timezone: "Etc/UTC"
-  autoUpdate: "true"
-  runOpts: ""
 
   persistence:
     config:
-      # This will not create a new pvc
-      useExistingPvc: ""
-      storageClassName: ""
-      existingVolume: ""
-      matchLabels: {}
-      matchExpressions: {}
-      size: "1Gi"
-    downloads: 
-      enabled: false
       # This will not create a new pvc
       useExistingPvc: ""
       storageClassName: ""
