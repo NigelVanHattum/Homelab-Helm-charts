@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "radarr.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "radarr.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "radarr.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        # Make sure to always restart the deployment for each change (in case of credential changes)
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "radarr.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: lscr.io/linuxserver/radarr:{{ .Values.image.tag | default "latest"}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env: 
+          - name: PUID
+            value: {{ default ( "1001" ) .Values.radarr.PUID | quote }}
+          - name: PGID
+            value: {{ default ( "1001" ) .Values.radarr.PGID | quote }}
+          - name: TZ
+            value: {{ default ( "Etc/UTC" ) .Values.radarr.timezone }}
+          volumeMounts:
+            - mountPath: "/config"
+              name: {{ .Chart.Name }}-config
+            {{- range .Values.radarr.persistence.extraVolumes }}
+            - mountPath: {{ .containerPath }}
+              name: {{ .Chart.Name }} - {{ .volumeName }}
+            {{- end }}
+      volumes:
+        - name: {{ .Chart.Name }}-config
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-config" .Chart.Name) .Values.radarr.persistence.config.useExistingPvc }}
+        {{- range .Values.radarr.persistence.extraVolumes }}
+        - name: {{ .Chart.Name }} - {{ .volumeName }}
+          persistentVolumeClaim: 
+            claimname: {{ default (printf "%s-%s" .Chart.Name .volumeName) .useExistingPvc }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: {{ .Chart.Name }}-config
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.radarr.persistence.config.storageClassName }}
+      {{- if .Values.radarr.persistence.config.existingVolume }}
+      volumeName: {{ .Values.radarr.persistence.config.existingVolume }}
+      {{- end }}
+      {{- if or .Values.radarr.persistence.config.matchLabels (.Values.radarr.persistence.config.matchExpressions) }}
+      selector:
+      {{- if .Values.radarr.persistence.config.matchLabels }}
+        matchLabels:
+        {{ toYaml .Values.radarr.persistence.config.matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .Values.radarr.persistence.config.matchExpressions }}
+        matchExpressions:
+          {{ toYaml .Values.radarr.persistence.config.matchExpressions | indent 8 }}
+        {{- end -}}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.radarr.persistence.config.size }}
+  {{- range .Values.radarr.persistence.extraVolumes }}
+  - metadata:
+      name: {{ .Chart.Name }} - {{ .volumeName }}
+    spec:
+      accessModes: {{ .accessModes }}
+      storageClassName: {{ .storageClassName }}
+      {{- if .existingVolume }}
+      volumeName: {{ .existingVolume }}
+      {{- end }}
+      {{- if or .matchLabels ( .matchExpressions ) }}
+      selector:
+      {{- if .matchLabels }}
+        matchLabels:
+        {{ toYaml .matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .matchExpressions }}
+        matchExpressions:
+          {{ toYaml .matchExpressions | indent 8 }}
+        {{- end -}}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .size }}
+  {{- end }}
