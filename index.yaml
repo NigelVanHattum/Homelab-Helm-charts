@@ -116,4 +116,15 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/prowlarr-0.1.0/prowlarr-0.1.0.tgz
     version: 0.1.0
-generated: "2024-05-20T14:31:54.186206296Z"
+  radarr:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-06-09T19:29:40.772710488Z"
+    description: A Helm chart for Kubernetes
+    digest: f7c06e3cc52349a95083f55503ca87e5af01382084d07c195c88d591d3f4f2c5
+    name: radarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/radarr-0.1.0/radarr-0.1.0.tgz
+    version: 0.1.0
+generated: "2024-06-09T19:29:40.772731737Z"
