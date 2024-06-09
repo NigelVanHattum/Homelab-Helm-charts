@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "sonarr.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sonarr.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "sonarr.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        # Make sure to always restart the deployment for each change (in case of credential changes)
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "sonarr.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: lscr.io/linuxserver/sonarr:{{ .Values.image.tag | default "latest"}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env: 
+          - name: PUID
+            value: {{ default ( "1001" ) .Values.sonarr.PUID | quote }}
+          - name: PGID
+            value: {{ default ( "1001" ) .Values.sonarr.PGID | quote }}
+          - name: TZ
+            value: {{ default ( "Etc/UTC" ) .Values.sonarr.timezone }}
+          volumeMounts:
+            - mountPath: "/config"
+              name: {{ .Chart.Name }}-config
+            {{- with .Chart.Name }}
+            {{- range $.Values.sonarr.persistence.extraVolumes }}
+            - mountPath: {{ .containerPath }}
+              name: {{ $.Chart.Name }}-{{ .volumeName }}
+            {{- end }}
+            {{- end }}
+      volumes:
+        - name: {{ .Chart.Name }}-config
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-config" .Chart.Name) .Values.sonarr.persistence.config.useExistingPvc }}
+        {{- with .Chart.Name }}
+        {{- range $.Values.sonarr.persistence.extraVolumes }}
+        - name: {{ $.Chart.Name }}-{{ .volumeName }}
+          persistentVolumeClaim: 
+            claimname: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc }}
+        {{- end }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: {{ .Chart.Name }}-config
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.sonarr.persistence.config.storageClassName }}
+      {{- if .Values.sonarr.persistence.config.existingVolume }}
+      volumeName: {{ .Values.sonarr.persistence.config.existingVolume }}
+      {{- end }}
+      {{- if or .Values.sonarr.persistence.config.matchLabels (.Values.sonarr.persistence.config.matchExpressions) }}
+      selector:
+      {{- if .Values.sonarr.persistence.config.matchLabels }}
+        matchLabels:
+        {{ toYaml .Values.sonarr.persistence.config.matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .Values.sonarr.persistence.config.matchExpressions }}
+        matchExpressions:
+          {{ toYaml .Values.sonarr.persistence.config.matchExpressions | indent 8 }}
+        {{- end -}}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.sonarr.persistence.config.size }}
+  {{- with .Chart.Name }}
+  {{- range $.Values.sonarr.persistence.extraVolumes }}
+  - metadata:
+      name: {{ $.Chart.Name }}-{{ .volumeName }}
+    spec:
+      accessModes: {{ .accessModes }}
+      storageClassName: {{ .storageClassName }}
+      {{- if .existingVolume }}
+      volumeName: {{ .existingVolume }}
+      {{- end }}
+      {{- if or .matchLabels ( .matchExpressions ) }}
+      selector:
+      {{- if .matchLabels }}
+        matchLabels:
+        {{ toYaml .matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .matchExpressions }}
+        matchExpressions:
+          {{ toYaml .matchExpressions | indent 8 }}
+        {{- end -}}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .size }}
+  {{- end }}
+  {{- end }}
