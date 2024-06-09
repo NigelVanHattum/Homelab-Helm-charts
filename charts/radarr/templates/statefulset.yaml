@@ -45,18 +45,22 @@ spec:
           volumeMounts:
             - mountPath: "/config"
               name: {{ .Chart.Name }}-config
-            {{- range .Values.radarr.persistence.extraVolumes }}
+            {{- with .Chart.Name }}
+            {{- range $.Values.radarr.persistence.extraVolumes }}
             - mountPath: {{ .containerPath }}
-              name: {{ .Chart.Name }} - {{ .volumeName }}
+              name: {{ $.Chart.Name }} - {{ .volumeName }}
+            {{- end }}
             {{- end }}
       volumes:
         - name: {{ .Chart.Name }}-config
           persistentVolumeClaim: 
             claimName: {{ default (printf "%s-config" .Chart.Name) .Values.radarr.persistence.config.useExistingPvc }}
-        {{- range .Values.radarr.persistence.extraVolumes }}
-        - name: {{ .Chart.Name }} - {{ .volumeName }}
+        {{- with .Chart.Name }}
+        {{- range $.Values.radarr.persistence.extraVolumes }}
+        - name: {{ $.Chart.Name }} - {{ .volumeName }}
           persistentVolumeClaim: 
-            claimname: {{ default (printf "%s-%s" .Chart.Name .volumeName) .useExistingPvc }}
+            claimname: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc }}
+        {{- end }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -93,9 +97,10 @@ spec:
       resources:
         requests:
           storage: {{ .Values.radarr.persistence.config.size }}
-  {{- range .Values.radarr.persistence.extraVolumes }}
+  {{- with .Chart.Name }}
+  {{- range $.Values.radarr.persistence.extraVolumes }}
   - metadata:
-      name: {{ .Chart.Name }} - {{ .volumeName }}
+      name: {{ $.Chart.Name }} - {{ .volumeName }}
     spec:
       accessModes: {{ .accessModes }}
       storageClassName: {{ .storageClassName }}
@@ -116,4 +121,5 @@ spec:
       resources:
         requests:
           storage: {{ .size }}
+  {{- end }}
   {{- end }}
