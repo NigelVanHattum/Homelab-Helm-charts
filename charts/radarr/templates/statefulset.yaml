@@ -48,7 +48,7 @@ spec:
             {{- with .Chart.Name }}
             {{- range $.Values.radarr.persistence.extraVolumes }}
             - mountPath: {{ .containerPath }}
-              name: {{ $.Chart.Name }}-{{ .volumeName }}
+              name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
             {{- end }}
             {{- end }}
       volumes:
@@ -57,7 +57,7 @@ spec:
             claimName: {{ default (printf "%s-config" .Chart.Name) .Values.radarr.persistence.config.useExistingPvc }}
         {{- with .Chart.Name }}
         {{- range $.Values.radarr.persistence.extraVolumes }}
-        - name: {{ $.Chart.Name }}-{{ .volumeName }}
+        - name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
           persistentVolumeClaim: 
             claimname: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc }}
         {{- end }}
