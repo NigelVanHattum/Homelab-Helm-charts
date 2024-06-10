@@ -105,6 +105,17 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/jackett-0.1.0/jackett-0.1.0.tgz
     version: 0.1.0
+  ombi:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-06-10T18:28:58.591861385Z"
+    description: A Helm chart for Kubernetes
+    digest: 5bb736116b2f17b84601fccea266caf25bfac25e282c6e089dc8ddebc6a8d810
+    name: ombi
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/ombi-0.1.0/ombi-0.1.0.tgz
+    version: 0.1.0
   prowlarr:
   - apiVersion: v2
     appVersion: 1.16.0
@@ -168,4 +179,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.0/sonarr-0.1.0.tgz
     version: 0.1.0
-generated: "2024-06-09T22:17:02.030487656Z"
+generated: "2024-06-10T18:28:58.591890659Z"
