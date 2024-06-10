@@ -140,6 +140,16 @@ entries:
   radarr:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-06-10T20:30:43.349500882Z"
+    description: A Helm chart for Kubernetes
+    digest: 7f48fdb71d2af3d8dae9b58edac7cf6a51009bdb5f107565cd75faa91802a7e7
+    name: radarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/radarr-0.1.5/radarr-0.1.5.tgz
+    version: 0.1.5
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-06-10T20:20:58.760061407Z"
     description: A Helm chart for Kubernetes
     digest: 58e08be8b90569bf75e75beda6e73fcd009ea8fb99fb36179021fdfb142d187c
@@ -209,4 +219,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.0/sonarr-0.1.0.tgz
     version: 0.1.0
-generated: "2024-06-10T20:20:58.760116891Z"
+generated: "2024-06-10T20:30:43.349549884Z"
