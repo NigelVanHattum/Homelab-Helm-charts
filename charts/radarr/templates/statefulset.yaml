@@ -99,6 +99,7 @@ spec:
           storage: {{ .Values.radarr.persistence.config.size }}
   {{- with .Chart.Name }}
   {{- range $.Values.radarr.persistence.extraVolumes }}
+  {{- if not .Values.radarr.persistence.config.useExistingPvc }}
   - metadata:
       name: {{ $.Chart.Name }}-{{ .volumeName }}
     spec:
@@ -121,5 +122,6 @@ spec:
       resources:
         requests:
           storage: {{ .size }}
+  {{- end }}
   {{- end }}
   {{- end }}
