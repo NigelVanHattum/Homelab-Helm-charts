@@ -48,7 +48,7 @@ spec:
             {{- with .Chart.Name }}
             {{- range $.Values.sonarr.persistence.extraVolumes }}
             - mountPath: {{ .containerPath }}
-              name: {{ $.Chart.Name }}-{{ .volumeName }}
+              name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
             {{- end }}
             {{- end }}
       volumes:
@@ -57,7 +57,7 @@ spec:
             claimName: {{ default (printf "%s-config" .Chart.Name) .Values.sonarr.persistence.config.useExistingPvc }}
         {{- with .Chart.Name }}
         {{- range $.Values.sonarr.persistence.extraVolumes }}
-        - name: {{ $.Chart.Name }}-{{ .volumeName }}
+        - name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
           persistentVolumeClaim: 
             claimname: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc }}
         {{- end }}
@@ -99,6 +99,7 @@ spec:
           storage: {{ .Values.sonarr.persistence.config.size }}
   {{- with .Chart.Name }}
   {{- range $.Values.sonarr.persistence.extraVolumes }}
+  {{- if not .useExistingPvc }}
   - metadata:
       name: {{ $.Chart.Name }}-{{ .volumeName }}
     spec:
@@ -121,5 +122,6 @@ spec:
       resources:
         requests:
           storage: {{ .size }}
+  {{- end }}
   {{- end }}
   {{- end }}
