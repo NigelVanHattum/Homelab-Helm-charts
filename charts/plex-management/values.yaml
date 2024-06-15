@@ -1,0 +1,15 @@
+# Default values for plex-management.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+prowlarr:
+  enabled: false
+sonarr:
+  enabled: false
+radarr:
+  enabled: false
+ombi:
+  enabled: false
+sharedP2PPvc:
+  enabled: true
+  name: pv-shared
+  spec: {} ## standard PVC spec
