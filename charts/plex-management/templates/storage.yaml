@@ -1,0 +1,11 @@
+{{- if .Values.sharedP2PPvc.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.sharedP2PPvc.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "plex-management.labels" . | nindent 4 }}
+spec:
+  {{- toYaml .Values.sharedP2PPvc.spec | nindent 2 }}
+{{- end -}}

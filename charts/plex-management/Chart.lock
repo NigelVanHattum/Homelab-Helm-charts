@@ -1,0 +1,15 @@
+dependencies:
+- name: prowlarr
+  repository: file://../prowlarr
+  version: 0.1.0
+- name: sonarr
+  repository: file://../sonarr
+  version: 0.1.2
+- name: radarr
+  repository: file://../radarr
+  version: 0.1.6
+- name: ombi
+  repository: file://../ombi
+  version: 0.1.1
+digest: sha256:06058589424f84538f480fc2dbcd6f6a6f99d354553b76664ea27384df784c97
+generated: "2024-06-13T23:45:53.303077+02:00"
