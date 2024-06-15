@@ -126,6 +126,34 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/ombi-0.1.0/ombi-0.1.0.tgz
     version: 0.1.0
+  plex-management:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-06-15T13:55:09.605341174Z"
+    dependencies:
+    - condition: prowlarr.enabled
+      name: prowlarr
+      repository: file://../prowlarr
+      version: 0.1.0
+    - condition: sonarr.enabled
+      name: sonarr
+      repository: file://../sonarr
+      version: 0.1.2
+    - condition: radarr.enabled
+      name: radarr
+      repository: file://../radarr
+      version: 0.1.6
+    - condition: radarr.enabled
+      name: ombi
+      repository: file://../ombi
+      version: 0.1.1
+    description: A Helm chart for Kubernetes
+    digest: 30da9d31da63d36de694264c9e969a0da74650eacf9e6c561cb12f0ea2c05793
+    name: plex-management
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/plex-management-0.1.0/plex-management-0.1.0.tgz
+    version: 0.1.0
   prowlarr:
   - apiVersion: v2
     appVersion: 1.16.0
@@ -239,4 +267,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.0/sonarr-0.1.0.tgz
     version: 0.1.0
-generated: "2024-06-12T20:58:58.740291253Z"
+generated: "2024-06-15T13:55:09.60539801Z"
