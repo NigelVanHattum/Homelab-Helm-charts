@@ -34,6 +34,17 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/floatplane-downloader-0.1.0/floatplane-downloader-0.1.0.tgz
     version: 0.1.0
+  heimdall:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-06-22T22:12:27.714981098Z"
+    description: A Helm chart for Kubernetes
+    digest: a7b38f68a090d58a60f44ace8a8c28739c911169eb1d5ee8bc92a85919c006db
+    name: heimdall
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/heimdall-0.1.1/heimdall-0.1.1.tgz
+    version: 0.1.1
   jackett:
   - apiVersion: v2
     appVersion: 1.16.0
@@ -127,6 +138,33 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/ombi-0.1.0/ombi-0.1.0.tgz
     version: 0.1.0
   plex-management:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-06-22T22:12:27.810714825Z"
+    dependencies:
+    - condition: prowlarr.enabled
+      name: prowlarr
+      repository: file://../prowlarr
+      version: 0.1.0
+    - condition: sonarr.enabled
+      name: sonarr
+      repository: file://../sonarr
+      version: 0.1.2
+    - condition: radarr.enabled
+      name: radarr
+      repository: file://../radarr
+      version: 0.1.6
+    - condition: ombi.enabled
+      name: ombi
+      repository: file://../ombi
+      version: 0.1.1
+    description: A Helm chart for Kubernetes
+    digest: 7ece9012ac3cb26cdeaa5a18545fba5de7e76045a750a97b4acae699cf01aca0
+    name: plex-management
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/plex-management-0.1.3/plex-management-0.1.3.tgz
+    version: 0.1.3
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2024-06-16T00:24:25.844841743Z"
@@ -294,4 +332,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.0/sonarr-0.1.0.tgz
     version: 0.1.0
-generated: "2024-06-16T00:24:25.844886006Z"
+generated: "2024-06-22T22:12:27.810769547Z"
