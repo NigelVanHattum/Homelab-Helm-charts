@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "heimdall.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "heimdall.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "heimdall.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        # Make sure to always restart the deployment for each change (in case of credential changes)
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "heimdall.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: lscr.io/linuxserver/heimdall:{{ .Values.image.tag | default "latest"}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env: 
+          - name: PUID
+            value: {{ default ( "1001" ) .Values.heimdall.PUID | quote }}
+          - name: PGID
+            value: {{ default ( "1001" ) .Values.heimdall.PGID | quote }}
+          - name: TZ
+            value: {{ default ( "Etc/UTC" ) .Values.heimdall.timezone }}
+          volumeMounts:
+            - mountPath: "/config"
+              name: {{ .Chart.Name }}-config
+      volumes:
+        - name: {{ .Chart.Name }}-config
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-config" .Chart.Name) .Values.heimdall.persistence.config.useExistingPvc }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: {{ .Chart.Name }}-config
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.heimdall.persistence.config.storageClassName }}
+      {{- if .Values.heimdall.persistence.config.existingVolume }}
+      volumeName: {{ .Values.heimdall.persistence.config.existingVolume }}
+      {{- end }}
+      {{- if or .Values.heimdall.persistence.config.matchLabels (.Values.heimdall.persistence.config.matchExpressions) }}
+      selector:
+      {{- if .Values.heimdall.persistence.config.matchLabels }}
+        matchLabels:
+        {{ toYaml .Values.heimdall.persistence.config.matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .Values.heimdall.persistence.config.matchExpressions }}
+        matchExpressions:
+          {{ toYaml .Values.heimdall.persistence.config.matchExpressions | indent 8 }}
+        {{- end -}}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.heimdall.persistence.config.size }}
