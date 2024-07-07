@@ -116,6 +116,17 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/jackett-0.1.0/jackett-0.1.0.tgz
     version: 0.1.0
+  mealie:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-07-07T15:52:32.37911734Z"
+    description: A Helm chart for Kubernetes
+    digest: ac8749ff286faa70f5a8651eaa3329e97af3b4d0d7ab490d009c011e6ad14362
+    name: mealie
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/mealie-0.1.0/mealie-0.1.0.tgz
+    version: 0.1.0
   ombi:
   - apiVersion: v2
     appVersion: 1.16.0
@@ -332,4 +343,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.0/sonarr-0.1.0.tgz
     version: 0.1.0
-generated: "2024-06-22T22:12:27.810769547Z"
+generated: "2024-07-07T15:52:32.379168567Z"
