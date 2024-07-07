@@ -119,6 +119,16 @@ entries:
   mealie:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-07-07T16:22:36.080774222Z"
+    description: A Helm chart for Kubernetes
+    digest: ccf38cfe66c124a592b8cad4c053db31e8f5c51e679bcd9abc03d38255ae83eb
+    name: mealie
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/mealie-0.2.0/mealie-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-07-07T15:52:32.37911734Z"
     description: A Helm chart for Kubernetes
     digest: ac8749ff286faa70f5a8651eaa3329e97af3b4d0d7ab490d009c011e6ad14362
@@ -343,4 +353,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.0/sonarr-0.1.0.tgz
     version: 0.1.0
-generated: "2024-07-07T15:52:32.379168567Z"
+generated: "2024-07-07T16:22:36.080843562Z"
