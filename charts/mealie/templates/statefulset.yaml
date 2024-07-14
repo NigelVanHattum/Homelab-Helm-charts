@@ -37,10 +37,7 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env: 
-          {{- range .Values.mealie.env }}
-          - name: {{ .name }}
-            value: {{ .value | quote }}
-          {{- end }}
+            {{- toYaml .Values.mealie.env | nindent 12 }}
           volumeMounts:
             - mountPath: "/app/data/"
               name: {{ .Chart.Name }}-config
