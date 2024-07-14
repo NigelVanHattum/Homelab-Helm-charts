@@ -3,6 +3,17 @@ entries:
   floatplane-downloader:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-07-14T14:43:58.771765306Z"
+    description: A Helm chart for deploying the Inrixia/Floatplan-downloader on a
+      kubernetes cluster
+    digest: 6fb42e8844fe6345505c833a6099b76b96f6ed6630cc4e252542f86213a759d1
+    name: floatplane-downloader
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/floatplane-downloader-0.2.2/floatplane-downloader-0.2.2.tgz
+    version: 0.2.2
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-05-18T19:31:01.093791409Z"
     description: A Helm chart for deploying the Inrixia/Floatplan-downloader on a
       kubernetes cluster
@@ -37,6 +48,16 @@ entries:
   heimdall:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-07-14T14:43:58.885885893Z"
+    description: A Helm chart for Kubernetes
+    digest: 3d1683dbc4c6ddb07574de4764744fce1b32eb5a0280d68630175504c6338e37
+    name: heimdall
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/heimdall-0.1.2/heimdall-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-06-22T22:12:27.714981098Z"
     description: A Helm chart for Kubernetes
     digest: a7b38f68a090d58a60f44ace8a8c28739c911169eb1d5ee8bc92a85919c006db
@@ -46,6 +67,16 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/heimdall-0.1.1/heimdall-0.1.1.tgz
     version: 0.1.1
   jackett:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-07-14T14:43:59.028162008Z"
+    description: A Helm chart for Kubernetes
+    digest: 51c6025cc6ed0f533e4c9275435915cd99f7a41aad4479574c5209533c222a6f
+    name: jackett
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/jackett-0.1.7/jackett-0.1.7.tgz
+    version: 0.1.7
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2024-05-20T14:31:54.075791555Z"
@@ -119,6 +150,16 @@ entries:
   mealie:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-07-14T14:43:59.14735155Z"
+    description: A Helm chart for Kubernetes
+    digest: 3da7ae67cd4091fc9e413a51fd1106494795d669244014f9cbc309694541b2da
+    name: mealie
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/mealie-0.2.2/mealie-0.2.2.tgz
+    version: 0.2.2
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-07-07T16:22:36.080774222Z"
     description: A Helm chart for Kubernetes
     digest: ccf38cfe66c124a592b8cad4c053db31e8f5c51e679bcd9abc03d38255ae83eb
@@ -140,6 +181,16 @@ entries:
   ombi:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-07-14T14:43:59.265688152Z"
+    description: A Helm chart for Kubernetes
+    digest: 159f66b2e29699e0285e65ae8f84295675f853e3b68c13ccfa0a524e94df2336
+    name: ombi
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/ombi-0.1.2/ombi-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-06-10T18:36:52.01196753Z"
     description: A Helm chart for Kubernetes
     digest: ceb90f1b71fc09fdd5068d6604a6003aaba4b67bf418771cca14e12f1dc948c6
@@ -159,6 +210,33 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/ombi-0.1.0/ombi-0.1.0.tgz
     version: 0.1.0
   plex-management:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-07-14T14:43:59.367247176Z"
+    dependencies:
+    - condition: prowlarr.enabled
+      name: prowlarr
+      repository: file://../prowlarr
+      version: 0.1.2
+    - condition: sonarr.enabled
+      name: sonarr
+      repository: file://../sonarr
+      version: 0.1.3
+    - condition: radarr.enabled
+      name: radarr
+      repository: file://../radarr
+      version: 0.1.8
+    - condition: ombi.enabled
+      name: ombi
+      repository: file://../ombi
+      version: 0.1.2
+    description: A Helm chart for Kubernetes
+    digest: ee98b65e6d1c457536239302b6fc50733e6237573701ab41eb3662e4d32354ef
+    name: plex-management
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/plex-management-0.1.4/plex-management-0.1.4.tgz
+    version: 0.1.4
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2024-06-22T22:12:27.810714825Z"
@@ -243,6 +321,16 @@ entries:
   prowlarr:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-07-14T14:43:59.484981407Z"
+    description: A Helm chart for Kubernetes
+    digest: 13ddcf2dfc20ab702b88b9f35c687ec493f35ee567d6845236c58a00c3af15ff
+    name: prowlarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/prowlarr-0.1.2/prowlarr-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-05-20T14:31:54.186143469Z"
     description: A Helm chart for Kubernetes
     digest: 5d9634dfe15c499c7b3df031c93eeb217cce06cc595dbf476825a2001a4adaf9
@@ -252,6 +340,16 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/prowlarr-0.1.0/prowlarr-0.1.0.tgz
     version: 0.1.0
   radarr:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2024-07-14T14:43:59.623623072Z"
+    description: A Helm chart for Kubernetes
+    digest: e6b04560c07841397f2e16832ce631fcfbad4d9eaf87e3d61a1e2f8dab908b96
+    name: radarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/radarr-0.1.8/radarr-0.1.8.tgz
+    version: 0.1.8
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2024-06-10T20:56:41.720383292Z"
@@ -325,6 +423,16 @@ entries:
   sonarr:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-07-14T14:43:59.719972699Z"
+    description: A Helm chart for Kubernetes
+    digest: 9704da845fe7fafc063fcdc8de423c89bcd98972cf838efefcb36223a1252ac6
+    name: sonarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.3/sonarr-0.1.3.tgz
+    version: 0.1.3
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-06-12T20:58:58.740247591Z"
     description: A Helm chart for Kubernetes
     digest: 408a5401a9d236869c3bc6c29b398e2e0bd6ee3a97b943cdb3d402f242e5bf10
@@ -353,4 +461,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.0/sonarr-0.1.0.tgz
     version: 0.1.0
-generated: "2024-07-07T16:22:36.080843562Z"
+generated: "2024-07-14T14:43:59.720104456Z"
