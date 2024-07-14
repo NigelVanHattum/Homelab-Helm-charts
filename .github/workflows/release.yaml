@@ -2,6 +2,11 @@ name: Release Charts
 
 on:
   workflow_dispatch:
+    inputs: 
+      skip_existing:
+        description: 'Skip package upload if release/tag already exists'
+        required: true
+        default: true
   push:
     branches:
       - main
