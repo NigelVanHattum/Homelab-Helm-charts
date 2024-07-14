@@ -1,15 +1,15 @@
 dependencies:
 - name: prowlarr
   repository: file://../prowlarr
-  version: 0.1.0
+  version: 0.1.2
 - name: sonarr
   repository: file://../sonarr
-  version: 0.1.2
+  version: 0.1.3
 - name: radarr
   repository: file://../radarr
-  version: 0.1.6
+  version: 0.1.8
 - name: ombi
   repository: file://../ombi
-  version: 0.1.1
-digest: sha256:a336762a8d89d0ff239b062941d5f23cc91153e721d6f3af58822a4ac16a269d
-generated: "2024-06-16T02:22:07.806502+02:00"
+  version: 0.1.2
+digest: sha256:f77b1a73c617f35c3e86a35f94c46f27cca5ccee6cf422e222759769705c339f
+generated: "2024-07-14T16:42:00.454479+02:00"
