@@ -35,13 +35,8 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          env: 
-          - name: PUID
-            value: {{ default ( "1001" ) .Values.sonarr.PUID | quote }}
-          - name: PGID
-            value: {{ default ( "1001" ) .Values.sonarr.PGID | quote }}
-          - name: TZ
-            value: {{ default ( "Etc/UTC" ) .Values.sonarr.timezone }}
+          env:
+            {{- toYaml .Values.sonarr.env | nindent 12 }}
           volumeMounts:
             - mountPath: "/config"
               name: {{ .Chart.Name }}-config
@@ -52,6 +47,7 @@ spec:
             {{- end }}
             {{- end }}
       volumes:
+        {{- if .Values.sonarr.persistence.config.enabled }}
         - name: {{ .Chart.Name }}-config
           persistentVolumeClaim: 
             claimName: {{ default (printf "%s-config" .Chart.Name) .Values.sonarr.persistence.config.useExistingPvc }}
@@ -61,6 +57,10 @@ spec:
           persistentVolumeClaim: 
             claimname: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc }}
         {{- end }}
+        {{- end }}
+        {{- else }}
+        - name: {{ .Chart.Name }}-config
+          emptyDir: {}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
@@ -75,6 +75,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
   volumeClaimTemplates:
+  {{- if .Values.sonarr.persistence.config.enabled }}
   - metadata:
       name: {{ .Chart.Name }}-config
     spec:
@@ -92,11 +93,12 @@ spec:
       {{- if .Values.sonarr.persistence.config.matchExpressions }}
         matchExpressions:
           {{ toYaml .Values.sonarr.persistence.config.matchExpressions | indent 8 }}
-        {{- end -}}
+        {{- end }}
       {{- end }}
       resources:
         requests:
           storage: {{ .Values.sonarr.persistence.config.size }}
+  {{- end }}
   {{- with .Chart.Name }}
   {{- range $.Values.sonarr.persistence.extraVolumes }}
   {{- if not .useExistingPvc }}
