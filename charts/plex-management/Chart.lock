@@ -4,12 +4,12 @@ dependencies:
   version: 0.1.2
 - name: sonarr
   repository: file://../sonarr
-  version: 0.1.4
+  version: 0.1.5
 - name: radarr
   repository: file://../radarr
   version: 0.1.8
 - name: ombi
   repository: file://../ombi
   version: 0.1.2
-digest: sha256:f0ea99ac64704c898df2e63f9e3c937aac8bd540a09fc474bad3826eb6fd98c6
-generated: "2024-07-15T23:54:50.041308+02:00"
+digest: sha256:f8ac3b6dc98ab129d73ffd4f31c3fb762ac218b08317e50a4e4d5f4b9e63b66b
+generated: "2024-07-16T00:31:06.062986+02:00"
