@@ -11,7 +11,7 @@ A Helm chart for Kubernetes
 | file://../ombi | ombi | 0.1.2 |
 | file://../prowlarr | prowlarr | 0.1.2 |
 | file://../radarr | radarr | 0.1.8 |
-| file://../sonarr | sonarr | 0.1.3 |
+| file://../sonarr | sonarr | 0.1.4 |
 
 ## Values
 

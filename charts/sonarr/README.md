@@ -1,6 +1,6 @@
 # sonarr
 
-![Version: 0.1.3](https://img.shields.io/badge/Version-0.1.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
+![Version: 0.1.4](https://img.shields.io/badge/Version-0.1.4-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
 
 A Helm chart for Kubernetes
 
@@ -28,8 +28,8 @@ A Helm chart for Kubernetes
 | securityContext | object | `{}` |  |
 | service.port | int | `8989` |  |
 | service.type | string | `"ClusterIP"` |  |
-| sonarr.PGID | string | `"1001"` |  |
-| sonarr.PUID | string | `"1001"` |  |
+| sonarr.env | list | `[]` |  |
+| sonarr.persistence.config.enabled | bool | `true` | is turned to false, will only create an emptyDir for config |
 | sonarr.persistence.config.existingVolume | string | `""` |  |
 | sonarr.persistence.config.matchExpressions | object | `{}` |  |
 | sonarr.persistence.config.matchLabels | object | `{}` |  |
@@ -37,7 +37,6 @@ A Helm chart for Kubernetes
 | sonarr.persistence.config.storageClassName | string | `""` |  |
 | sonarr.persistence.config.useExistingPvc | string | `""` |  |
 | sonarr.persistence.extraVolumes | list | `[]` |  |
-| sonarr.timezone | string | `"Etc/UTC"` |  |
 | tolerations | list | `[]` |  |
 
 ----------------------------------------------
