@@ -29,7 +29,7 @@ dependencies: # A list of the chart requirements (optional)
     repository: file://../prowlarr
     condition: prowlarr.enabled
   - name: sonarr
-    version: 0.1.3
+    version: 0.1.4
     repository: file://../sonarr
     condition: sonarr.enabled
   - name: radarr
