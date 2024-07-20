@@ -36,19 +36,19 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env: 
-          - name: PUID
-            value: {{ default ( "1001" ) .Values.prowlarr.PUID | quote }}
-          - name: PGID
-            value: {{ default ( "1001" ) .Values.prowlarr.PGID | quote }}
-          - name: TZ
-            value: {{ default ( "Etc/UTC" ) .Values.prowlarr.timezone }}
+            {{- toYaml .Values.prowlarr.env | nindent 12 }}
           volumeMounts:
             - mountPath: "/config"
               name: {{ .Chart.Name }}-config
       volumes:
+        {{- if .Values.prowlarr.persistence.config.enabled }}
         - name: {{ .Chart.Name }}-config
           persistentVolumeClaim: 
             claimName: {{ default (printf "%s-config" .Chart.Name) .Values.prowlarr.persistence.config.useExistingPvc }}
+        {{- else }}
+        - name: {{ .Chart.Name }}-config
+          emptyDir: {}
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -62,6 +62,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
   volumeClaimTemplates:
+  {{- if .Values.prowlarr.persistence.config.enabled }}
   - metadata:
       name: {{ .Chart.Name }}-config
     spec:
@@ -84,3 +85,4 @@ spec:
       resources:
         requests:
           storage: {{ .Values.prowlarr.persistence.config.size }}
+  {{- end }}
