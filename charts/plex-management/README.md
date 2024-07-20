@@ -1,6 +1,6 @@
 # plex-management
 
-![Version: 0.1.6](https://img.shields.io/badge/Version-0.1.6-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
+![Version: 0.1.7](https://img.shields.io/badge/Version-0.1.7-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
 
 A Helm chart for Kubernetes
 
@@ -10,7 +10,7 @@ A Helm chart for Kubernetes
 |------------|------|---------|
 | file://../ombi | ombi | 0.1.2 |
 | file://../prowlarr | prowlarr | 0.1.2 |
-| file://../radarr | radarr | 0.1.8 |
+| file://../radarr | radarr | 0.1.9 |
 | file://../sonarr | sonarr | 0.1.5 |
 
 ## Values
