@@ -1,6 +1,6 @@
 # prowlarr
 
-![Version: 0.1.2](https://img.shields.io/badge/Version-0.1.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
+![Version: 0.1.3](https://img.shields.io/badge/Version-0.1.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
 
 A Helm chart for Kubernetes
 
@@ -24,15 +24,14 @@ A Helm chart for Kubernetes
 | nodeSelector | object | `{}` |  |
 | podAnnotations | object | `{}` |  |
 | podSecurityContext | object | `{}` |  |
-| prowlarr.PGID | string | `"1001"` |  |
-| prowlarr.PUID | string | `"1001"` |  |
+| prowlarr.env | list | `[]` |  |
+| prowlarr.persistence.config.enabled | bool | `true` | is turned to false, will only create an emptyDir for config |
 | prowlarr.persistence.config.existingVolume | string | `""` |  |
 | prowlarr.persistence.config.matchExpressions | object | `{}` |  |
 | prowlarr.persistence.config.matchLabels | object | `{}` |  |
 | prowlarr.persistence.config.size | string | `"1Gi"` |  |
 | prowlarr.persistence.config.storageClassName | string | `""` |  |
 | prowlarr.persistence.config.useExistingPvc | string | `""` |  |
-| prowlarr.timezone | string | `"Etc/UTC"` |  |
 | resources | object | `{}` |  |
 | securityContext | object | `{}` |  |
 | service.port | int | `9117` |  |
