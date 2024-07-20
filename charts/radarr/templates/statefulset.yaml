@@ -36,12 +36,7 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env: 
-          - name: PUID
-            value: {{ default ( "1001" ) .Values.radarr.PUID | quote }}
-          - name: PGID
-            value: {{ default ( "1001" ) .Values.radarr.PGID | quote }}
-          - name: TZ
-            value: {{ default ( "Etc/UTC" ) .Values.radarr.timezone }}
+            {{- toYaml .Values.radarr.env | nindent 12 }}
           volumeMounts:
             - mountPath: "/config"
               name: {{ .Chart.Name }}-config
@@ -52,9 +47,14 @@ spec:
             {{- end }}
             {{- end }}
       volumes:
+        {{- if .Values.radarr.persistence.config.enabled }}
         - name: {{ .Chart.Name }}-config
           persistentVolumeClaim: 
             claimName: {{ default (printf "%s-config" .Chart.Name) .Values.radarr.persistence.config.useExistingPvc }}
+        {{- else }}
+        - name: {{ .Chart.Name }}-config
+          emptyDir: {}
+        {{- end }}
         {{- with .Chart.Name }}
         {{- range $.Values.radarr.persistence.extraVolumes }}
         - name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
@@ -75,6 +75,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
   volumeClaimTemplates:
+  {{- if .Values.radarr.persistence.config.enabled }}
   - metadata:
       name: {{ .Chart.Name }}-config
     spec:
@@ -97,6 +98,7 @@ spec:
       resources:
         requests:
           storage: {{ .Values.radarr.persistence.config.size }}
+  {{- end }}
   {{- with .Chart.Name }}
   {{- range $.Values.radarr.persistence.extraVolumes }}
   {{- if not .useExistingPvc }}
