@@ -7,9 +7,9 @@ dependencies:
   version: 0.1.5
 - name: radarr
   repository: file://../radarr
-  version: 0.1.8
+  version: 0.1.9
 - name: ombi
   repository: file://../ombi
   version: 0.1.2
-digest: sha256:f8ac3b6dc98ab129d73ffd4f31c3fb762ac218b08317e50a4e4d5f4b9e63b66b
-generated: "2024-07-16T00:31:06.062986+02:00"
+digest: sha256:dd03ddbd4aabc942989a2912f52cbc3c8ca5263988ca238892863eae649d4d66
+generated: "2024-07-20T17:19:50.437954+02:00"
