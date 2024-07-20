@@ -47,12 +47,12 @@ service:
   port: 9117
 
 prowlarr: 
-  PUID: "1001"
-  PGID: "1001"
-  timezone: "Etc/UTC"
+  env: []
 
   persistence:
     config:
+      # -- is turned to false, will only create an emptyDir for config
+      enabled: true
       # This will not create a new pvc
       useExistingPvc: ""
       storageClassName: ""
