@@ -212,6 +212,33 @@ entries:
   plex-management:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-07-20T15:22:55.389745843Z"
+    dependencies:
+    - condition: prowlarr.enabled
+      name: prowlarr
+      repository: file://../prowlarr
+      version: 0.1.2
+    - condition: sonarr.enabled
+      name: sonarr
+      repository: file://../sonarr
+      version: 0.1.5
+    - condition: radarr.enabled
+      name: radarr
+      repository: file://../radarr
+      version: 0.1.9
+    - condition: ombi.enabled
+      name: ombi
+      repository: file://../ombi
+      version: 0.1.2
+    description: A Helm chart for Kubernetes
+    digest: 85fe23bed911f39979bdacf0a73e28afe0a2667519e746d17814acb4c6485cd6
+    name: plex-management
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/plex-management-0.1.7/plex-management-0.1.7.tgz
+    version: 0.1.7
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-07-15T22:32:39.098300967Z"
     dependencies:
     - condition: prowlarr.enabled
@@ -396,6 +423,16 @@ entries:
   radarr:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-07-20T15:22:55.494297719Z"
+    description: A Helm chart for Kubernetes
+    digest: 364953b4aa433369b82da7dda783cee29036b976c2fc15c184e49828dec79fbf
+    name: radarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/radarr-0.1.9/radarr-0.1.9.tgz
+    version: 0.1.9
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-07-14T14:43:59.623623072Z"
     description: A Helm chart for Kubernetes
     digest: e6b04560c07841397f2e16832ce631fcfbad4d9eaf87e3d61a1e2f8dab908b96
@@ -535,4 +572,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.0/sonarr-0.1.0.tgz
     version: 0.1.0
-generated: "2024-07-15T22:32:39.187538357Z"
+generated: "2024-07-20T15:22:55.494406341Z"
