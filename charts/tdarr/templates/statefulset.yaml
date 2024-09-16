@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "tdarr.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tdarr.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tdarr.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        # Make sure to always restart the deployment for each change (in case of credential changes)
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "tdarr.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: ghcr.io/haveagitgat/tdarr:{{ .Values.image.tag | default "latest"}}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            {{- toYaml .Values.tdarr.env | nindent 12 }}
+          volumeMounts:
+            - mountPath: "/app/server"
+              name: {{ .Chart.Name }}-server
+            - mountPath: "/app/configs"
+              name: {{ .Chart.Name }}-config
+            {{- with .Chart.Name }}
+            {{- range $.Values.tdarr.persistence.extraVolumes }}
+            - mountPath: {{ .containerPath }}
+              name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
+            {{- end }}
+            {{- end }}
+      volumes:
+        {{- if .Values.tdarr.persistence.server.enabled }}
+        - name: {{ .Chart.Name }}-server
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-server" .Chart.Name) .Values.tdarr.persistence.server.useExistingPvc }}
+        {{- else }}
+        - name: {{ .Chart.Name }}-server
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.tdarr.persistence.config.enabled }}
+        - name: {{ .Chart.Name }}-config
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-config" .Chart.Name) .Values.tdarr.persistence.config.useExistingPvc }}
+        {{- else }}
+        - name: {{ .Chart.Name }}-config
+          emptyDir: {}
+        {{- end }}
+        {{- with .Chart.Name }}
+        {{- range $.Values.tdarr.persistence.extraVolumes }}
+        - name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
+          persistentVolumeClaim: 
+            claimname: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc }}
+        {{- end }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  {{- if .Values.tdarr.persistence.server.enabled }}
+  - metadata:
+      name: {{ .Chart.Name }}-server
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.tdarr.persistence.server.storageClassName }}
+      {{- if .Values.tdarr.persistence.server.existingVolume }}
+      volumeName: {{ .Values.tdarr.persistence.server.existingVolume }}
+      {{- end }}
+      {{- if or .Values.tdarr.persistence.server.matchLabels (.Values.tdarr.persistence.server.matchExpressions) }}
+      selector:
+      {{- if .Values.tdarr.persistence.server.matchLabels }}
+        matchLabels:
+        {{ toYaml .Values.tdarr.persistence.server.matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .Values.tdarr.persistence.server.matchExpressions }}
+        matchExpressions:
+          {{ toYaml .Values.tdarr.persistence.server.matchExpressions | indent 8 }}
+        {{- end }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.tdarr.persistence.server.size }}
+  {{- end }}
+  {{- if .Values.tdarr.persistence.config.enabled }}
+  - metadata:
+      name: {{ .Chart.Name }}-config
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.tdarr.persistence.config.storageClassName }}
+      {{- if .Values.tdarr.persistence.config.existingVolume }}
+      volumeName: {{ .Values.tdarr.persistence.config.existingVolume }}
+      {{- end }}
+      {{- if or .Values.tdarr.persistence.config.matchLabels (.Values.tdarr.persistence.config.matchExpressions) }}
+      selector:
+      {{- if .Values.tdarr.persistence.config.matchLabels }}
+        matchLabels:
+        {{ toYaml .Values.tdarr.persistence.config.matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .Values.tdarr.persistence.config.matchExpressions }}
+        matchExpressions:
+          {{ toYaml .Values.tdarr.persistence.config.matchExpressions | indent 8 }}
+        {{- end }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.tdarr.persistence.config.size }}
+  {{- end }}
+  {{- with .Chart.Name }}
+  {{- range $.Values.tdarr.persistence.extraVolumes }}
+  {{- if not .useExistingPvc }}
+  - metadata:
+      name: {{ $.Chart.Name }}-{{ .volumeName }}
+    spec:
+      accessModes: {{ .accessModes }}
+      storageClassName: {{ .storageClassName }}
+      {{- if .existingVolume }}
+      volumeName: {{ .existingVolume }}
+      {{- end }}
+      {{- if or .matchLabels ( .matchExpressions ) }}
+      selector:
+      {{- if .matchLabels }}
+        matchLabels:
+        {{ toYaml .matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .matchExpressions }}
+        matchExpressions:
+          {{ toYaml .matchExpressions | indent 8 }}
+        {{- end -}}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .size }}
+  {{- end }}
+  {{- end }}
+  {{- end }}
