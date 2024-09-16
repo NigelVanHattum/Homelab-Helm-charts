@@ -67,6 +67,7 @@ readinessProbe:
     port: http
 
 tdarr:
+  env: []
   server:
     # -- is turned to false, will only create an emptyDir for config
     enabled: true
