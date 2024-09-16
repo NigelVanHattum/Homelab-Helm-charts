@@ -9,6 +9,8 @@ radarr:
   enabled: false
 ombi:
   enabled: false
+tdarr:
+  enabled: false
 sharedP2PPvc:
   enabled: true
   name: pv-shared

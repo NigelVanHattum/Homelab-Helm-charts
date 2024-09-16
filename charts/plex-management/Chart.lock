@@ -11,5 +11,8 @@ dependencies:
 - name: ombi
   repository: file://../ombi
   version: 0.1.2
-digest: sha256:e7fa14324008be3f21bbfcd987d0b16dfadd73814670e79252efa2b1d544fc08
-generated: "2024-07-20T18:14:51.703774+02:00"
+- name: tdarr
+  repository: file://../tdarr
+  version: 0.1.0
+digest: sha256:3169e7e8e8eb8c55a152f2d349868d9275a5d71ab35713c03a2b99d978c7160d
+generated: "2024-09-16T23:28:24.010881+02:00"
