@@ -12,7 +12,7 @@ A Helm chart for Kubernetes
 | file://../prowlarr | prowlarr | 0.1.3 |
 | file://../radarr | radarr | 0.1.9 |
 | file://../sonarr | sonarr | 0.1.5 |
-| file://../tdarr | tdarr | 0.1.0 |
+| file://../tdarr | tdarr | 0.1.1 |
 
 ## Values
 
