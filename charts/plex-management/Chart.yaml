@@ -41,6 +41,6 @@ dependencies: # A list of the chart requirements (optional)
     repository: file://../ombi
     condition: ombi.enabled
   - name: tdarr
-    version: 0.1.0
+    version: 0.1.1
     repository: file://../tdarr
     condition: tdarr.enabled
