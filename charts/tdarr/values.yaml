@@ -68,33 +68,44 @@ readinessProbe:
 
 tdarr:
   env: []
-  server:
-    # -- is turned to false, will only create an emptyDir for config
-    enabled: true
-    # This will not create a new pvc
-    useExistingPvc: ""
-    storageClassName: ""
-    existingVolume: ""
-    matchLabels: {}
-    matchExpressions: {}
-    size: "1Gi"
-  config:
-    # -- is turned to false, will only create an emptyDir for config
-    enabled: true
-    # This will not create a new pvc
-    useExistingPvc: ""
-    storageClassName: ""
-    existingVolume: ""
-    matchLabels: {}
-    matchExpressions: {}
-    size: "1Gi"
-  extraVolumes: []
-      # - volumeName: ""
-      #   useExistingPvc: ""
-      #   size: ""
-      #   containerPath: ""
-      #   accessModes: []
-      #   storageClassName: ""
-      #   existingVolume: ""
-      #   matchLabels: ""
-      #   matchExpressions: ""
+  persistence: 
+    combinedMounts:
+      # -- is turned to false, will only create an emptyDir for config
+      enabled: true
+      # This will not create a new pvc
+      useExistingPvc: ""
+      storageClassName: ""
+      existingVolume: ""
+      matchLabels: {}
+      matchExpressions: {}
+      size: "1Gi"
+    server:
+      # -- is turned to false, will only create an emptyDir for config
+      enabled: true
+      # This will not create a new pvc
+      useExistingPvc: ""
+      storageClassName: ""
+      existingVolume: ""
+      matchLabels: {}
+      matchExpressions: {}
+      size: "1Gi"
+    config:
+      # -- is turned to false, will only create an emptyDir for config
+      enabled: true
+      # This will not create a new pvc
+      useExistingPvc: ""
+      storageClassName: ""
+      existingVolume: ""
+      matchLabels: {}
+      matchExpressions: {}
+      size: "1Gi"
+    extraVolumes: []
+        # - volumeName: ""
+        #   useExistingPvc: ""
+        #   size: ""
+        #   containerPath: ""
+        #   accessModes: []
+        #   storageClassName: ""
+        #   existingVolume: ""
+        #   matchLabels: ""
+        #   matchExpressions: ""
