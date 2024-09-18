@@ -212,6 +212,37 @@ entries:
   plex-management:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-09-18T22:18:13.905679761Z"
+    dependencies:
+    - condition: prowlarr.enabled
+      name: prowlarr
+      repository: file://../prowlarr
+      version: 0.1.3
+    - condition: sonarr.enabled
+      name: sonarr
+      repository: file://../sonarr
+      version: 0.1.5
+    - condition: radarr.enabled
+      name: radarr
+      repository: file://../radarr
+      version: 0.1.9
+    - condition: ombi.enabled
+      name: ombi
+      repository: file://../ombi
+      version: 0.1.2
+    - condition: tdarr.enabled
+      name: tdarr
+      repository: file://../tdarr
+      version: 0.1.7
+    description: A Helm chart for Kubernetes
+    digest: 06d5c4193861fb41682ac4e7d2193bccd8000872e32d9466d8b12fec170a6154
+    name: plex-management
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/plex-management-0.1.15/plex-management-0.1.15.tgz
+    version: 0.1.15
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-09-18T22:04:40.548493236Z"
     dependencies:
     - condition: prowlarr.enabled
@@ -798,6 +829,16 @@ entries:
   tdarr:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2024-09-18T22:18:13.995352902Z"
+    description: A Helm chart for Kubernetes
+    digest: 35a2e41cf9d3316fef532155a83831f52eb7fcc0f9be712f101c61662e2e1bfb
+    name: tdarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/tdarr-0.1.7/tdarr-0.1.7.tgz
+    version: 0.1.7
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-09-18T22:04:40.728343313Z"
     description: A Helm chart for Kubernetes
     digest: b0266959befaedfc1ee7a4e70340ad61b0ad40781488e31f32cc362e75682917
@@ -856,4 +897,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/tdarr-0.1.1/tdarr-0.1.1.tgz
     version: 0.1.1
-generated: "2024-09-18T22:04:40.728511125Z"
+generated: "2024-09-18T22:18:13.995568555Z"
