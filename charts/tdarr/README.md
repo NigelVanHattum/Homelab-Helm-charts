@@ -1,6 +1,6 @@
 # tdarr
 
-![Version: 0.1.2](https://img.shields.io/badge/Version-0.1.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
+![Version: 0.1.3](https://img.shields.io/badge/Version-0.1.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
 
 A Helm chart for Kubernetes
 
@@ -12,13 +12,20 @@ A Helm chart for Kubernetes
 | image.pullPolicy | string | `"IfNotPresent"` |  |
 | image.tag | string | `"latest"` |  |
 | imagePullSecrets | list | `[]` |  |
-| ingress.annotations | object | `{}` |  |
-| ingress.className | string | `""` |  |
-| ingress.enabled | bool | `false` |  |
-| ingress.hosts[0].host | string | `"chart-example.local"` |  |
-| ingress.hosts[0].paths[0].path | string | `"/"` |  |
-| ingress.hosts[0].paths[0].pathType | string | `"ImplementationSpecific"` |  |
-| ingress.tls | list | `[]` |  |
+| ingress.server.annotations | object | `{}` |  |
+| ingress.server.className | string | `""` |  |
+| ingress.server.enabled | bool | `false` |  |
+| ingress.server.hosts[0].host | string | `"chart-example.local"` |  |
+| ingress.server.hosts[0].paths[0].path | string | `"/"` |  |
+| ingress.server.hosts[0].paths[0].pathType | string | `"ImplementationSpecific"` |  |
+| ingress.server.tls | list | `[]` |  |
+| ingress.webUI.annotations | object | `{}` |  |
+| ingress.webUI.className | string | `""` |  |
+| ingress.webUI.enabled | bool | `false` |  |
+| ingress.webUI.hosts[0].host | string | `"chart-example.local"` |  |
+| ingress.webUI.hosts[0].paths[0].path | string | `"/"` |  |
+| ingress.webUI.hosts[0].paths[0].pathType | string | `"ImplementationSpecific"` |  |
+| ingress.webUI.tls | list | `[]` |  |
 | livenessProbe.httpGet.path | string | `"/"` |  |
 | livenessProbe.httpGet.port | string | `"http"` |  |
 | nameOverride | string | `"tdarr"` |  |
@@ -29,10 +36,11 @@ A Helm chart for Kubernetes
 | readinessProbe.httpGet.port | string | `"http"` |  |
 | resources | object | `{}` |  |
 | securityContext | object | `{}` |  |
-| service.port | int | `8265` |  |
-| service.type | string | `"ClusterIP"` |  |
+| service.server.port | int | `8266` |  |
+| service.server.type | string | `"ClusterIP"` |  |
+| service.webUI.port | int | `8265` |  |
+| service.webUI.type | string | `"ClusterIP"` |  |
 | tdarr.env | list | `[]` |  |
-| tdarr.persistence.combinedMounts.enabled | bool | `true` | is turned to false, will only create an emptyDir for config |
 | tdarr.persistence.combinedMounts.existingVolume | string | `""` |  |
 | tdarr.persistence.combinedMounts.matchExpressions | object | `{}` |  |
 | tdarr.persistence.combinedMounts.matchLabels | object | `{}` |  |
