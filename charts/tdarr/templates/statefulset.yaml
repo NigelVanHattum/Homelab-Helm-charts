@@ -38,6 +38,10 @@ spec:
           env:
             {{- toYaml .Values.tdarr.env | nindent 12 }}
           volumeMounts:
+            {{- if .Values.tdarr.persistence.combinedMounts }}
+            - mountPath: "/app"
+              name: {{ .Chart.Name }}-app
+            {{- else }}
             - mountPath: "/app/server"
               name: {{ .Chart.Name }}-server
             - mountPath: "/app/configs"
@@ -48,7 +52,13 @@ spec:
               name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
             {{- end }}
             {{- end }}
+            {{- end }}
       volumes:
+        {{- if .Values.tdarr.persistence.combinedMounts }}
+        - name: {{ .Chart.Name }}-app
+          persistentVolumeClaim: 
+            claimName: {{ default (printf "%s-app" .Chart.Name) .Values.tdarr.persistence.combinedMounts.useExistingPvc }}
+        {{- else }}
         {{- if .Values.tdarr.persistence.server.enabled }}
         - name: {{ .Chart.Name }}-server
           persistentVolumeClaim: 
@@ -65,6 +75,7 @@ spec:
         - name: {{ .Chart.Name }}-config
           emptyDir: {}
         {{- end }}
+        {{- end}}
         {{- with .Chart.Name }}
         {{- range $.Values.tdarr.persistence.extraVolumes }}
         - name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
@@ -85,6 +96,30 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
   volumeClaimTemplates:
+  {{- if .Values.tdarr.persistence.combinedMounts }}
+  - metadata:
+      name: {{ .Chart.Name }}-app
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.tdarr.persistence.combinedMounts.storageClassName }}
+      {{- if .Values.tdarr.persistence.combinedMounts.existingVolume }}
+      volumeName: {{ .Values.tdarr.persistence.combinedMounts.existingVolume }}
+      {{- end }}
+      {{- if or .Values.tdarr.persistence.combinedMounts.matchLabels (.Values.tdarr.persistence.combinedMounts.matchExpressions) }}
+      selector:
+      {{- if .Values.tdarr.persistence.combinedMounts.matchLabels }}
+        matchLabels:
+        {{ toYaml .Values.tdarr.persistence.combinedMounts.matchLabels | indent 8 }}
+      {{- end -}}
+      {{- if .Values.tdarr.persistence.combinedMounts.matchExpressions }}
+        matchExpressions:
+          {{ toYaml .Values.tdarr.persistence.combinedMounts.matchExpressions | indent 8 }}
+        {{- end }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.tdarr.persistence.combinedMounts.size }}
+  {{- else }}
   {{- if .Values.tdarr.persistence.server.enabled }}
   - metadata:
       name: {{ .Chart.Name }}-server
@@ -132,6 +167,7 @@ spec:
       resources:
         requests:
           storage: {{ .Values.tdarr.persistence.config.size }}
+  {{- end }}
   {{- end }}
   {{- with .Chart.Name }}
   {{- range $.Values.tdarr.persistence.extraVolumes }}
