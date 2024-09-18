@@ -38,10 +38,6 @@ spec:
           env:
             {{- toYaml .Values.tdarr.env | nindent 12 }}
           volumeMounts:
-            {{- if .Values.tdarr.persistence.combinedMounts }}
-            - mountPath: "/app"
-              name: {{ .Chart.Name }}-app
-            {{- else }}
             - mountPath: "/app/server"
               name: {{ .Chart.Name }}-server
             - mountPath: "/app/configs"
@@ -50,7 +46,6 @@ spec:
             {{- range $.Values.tdarr.persistence.extraVolumes }}
             - mountPath: {{ .containerPath }}
               name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
-            {{- end }}
             {{- end }}
             {{- end }}
       volumes:

@@ -13,6 +13,6 @@ dependencies:
   version: 0.1.2
 - name: tdarr
   repository: file://../tdarr
-  version: 0.1.4
-digest: sha256:00c8697a87277875b2dda96242d791dd2fb74d01c5266136ce397ae958f66d90
-generated: "2024-09-18T23:37:36.916958+02:00"
+  version: 0.1.5
+digest: sha256:eae09cb76604fb3a2894cc6854b54b339add72b9817b9bd2ac9b00d5646b65eb
+generated: "2024-09-18T23:46:22.113965+02:00"
