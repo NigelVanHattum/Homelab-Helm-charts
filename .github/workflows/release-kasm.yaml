@@ -22,6 +22,7 @@ jobs:
         run: |
           git config user.name "$GITHUB_ACTOR"
           git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+          ls
 
       - name: Run Helm Chart Releaser
         uses: NigelVanHattum/chart-releaser-action@v0.81 
