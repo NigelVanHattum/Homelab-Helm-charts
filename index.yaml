@@ -147,6 +147,50 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/jackett-0.1.0/jackett-0.1.0.tgz
     version: 0.1.0
+  kasm-single-zone:
+  - annotations:
+      category: Virtual Desktop
+      images: |
+        - name: api-wait-container
+          image: alpine/curl:8.8.0
+        - name: kasm-api
+          image: kasmweb/api:1.17.0
+        - name: kasm-manager
+          image: kasmweb/manager:1.17.0
+        - name: kasm-db
+          image: kasmweb/postgres:1.17.0
+        - name: kasm-proxy
+          image: kasmweb/proxy:1.17.0
+        - name: kasm-guac
+          image: kasmweb/kasm-guac:1.17.0
+        - name: rdp-gateway
+          image: kasmweb/rdp-gateway:1.17.0
+        - name: rdp-gateway
+          image: kasmweb/rdp-https-gateway:1.17.0
+        - name: kasm-redis
+          image: redis:5-alpine
+    apiVersion: v2
+    appVersion: 1.17.0
+    created: "2025-10-12T21:42:55.210859141Z"
+    description: Kasm is a platform specializing in providing secure browser-based
+      workspaces for a wide range of applications and industries. Its main goal is
+      to provide isolated and secure environments that can be accessed via web browsers,
+      ensuring that users can perform tasks without risking the security of their
+      local systems.
+    digest: a1a916c02e5242f8d4a399f78103dcf3f55ec23dab906220321afb94e89d603d
+    home: https://kasmweb.com
+    icon: https://kasm-static-content.s3.amazonaws.com/icons/kasm-logo-small.png
+    keywords:
+    - kasm
+    - vdi
+    - workspaces
+    maintainers:
+    - name: Kasm Technologies, Inc.
+      url: https://github.com/kasmtech/kasm-helm
+    name: kasm-single-zone
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/kasm-single-zone-1.17.0-develop/kasm-single-zone-1.17.0-develop.tgz
+    version: 1.17.0-develop
   mealie:
   - apiVersion: v2
     appVersion: 1.16.0
@@ -938,4 +982,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/tdarr-0.1.1/tdarr-0.1.1.tgz
     version: 0.1.1
-generated: "2024-09-28T10:47:12.220891154Z"
+generated: "2025-10-12T21:42:55.211004013Z"
