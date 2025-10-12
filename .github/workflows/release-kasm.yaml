@@ -1,4 +1,4 @@
-name: Release Charts
+name: Release KASM Chart
 
 on:
   workflow_dispatch:
