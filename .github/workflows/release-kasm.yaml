@@ -2,51 +2,34 @@ name: Release KASM Chart
 on:
   schedule:
     - cron: '0 0 1 * *'  # Runs monthly on the 1st at 00:00 UTC. Adjust as needed (e.g., '0 0 15 * *' for the 15th).
-  workflow_dispatch:  # Optional: Allows manual triggering for testing
+  workflow_dispatch:
 
 jobs:
-  update-chart:
+  release:
+    # depending on default permission settings for your org (contents being read-only or read-write for workloads), you will have to add permissions
+    # see: https://docs.github.com/en/actions/security-guides/automatic-token-authentication#modifying-the-permissions-for-the-github_token
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
-      # Step 1: Checkout the source repo (to get the latest chart)
-      - name: Checkout Source Repo
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
-          repository: kasmtech/kasm-helm
-          path: source
           fetch-depth: 0
+          repository: NigelVanHattum/Homelab-Helm-charts
 
-      # Step 2: Set up Helm
-      - name: Setup Helm
-        uses: azure/setup-helm@v4
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Run Helm Chart Releaser
+        uses: NigelVanHattum/chart-releaser-action@v0.81 
         with:
-          version: v3.19.0  
-
-      # Step 3: Package the Helm chart
-      - name: Package Helm Chart
-        run: |
-          cd source/kasm-single-zone
-          helm package . --destination ../../charts  # Packages to a 'charts' dir in the workspace root
-
-      # Step 4: Copy the packaged chart to the local charts dir (since we're in the target repo)
-      - name: Copy Chart to Local Charts Dir
-        run: |
-          mkdir -p charts  # Ensure the charts dir exists
-          cp charts/*.tgz charts/  # Copy the .tgz file(s) to the local charts dir
-
-      # Step 5: Update the Helm repository index
-      - name: Update Helm Repo Index
-        run: |
-          helm repo index .  # Updates index.yaml based on .tgz files in the current dir (gh-pages root)
-          
-      - name: Commit and Push Changes
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add .
-          if git diff --staged --quiet; then
-            echo "No changes to commit (chart is up-to-date)."
-          else
-            git commit -m "Monthly update: Helm chart from kasmtech/kasm-helm"
-            git push
-          fi
+          source: kasmtech/kasm-helm
+          target: NigelVanHattum/Homelab-Helm-charts
+          charts_dir: .
+          skip_existing: true  # Example: Skip if release exists
+          mark_as_latest: true  # Mark as latest release
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
