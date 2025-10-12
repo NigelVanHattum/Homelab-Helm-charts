@@ -29,7 +29,7 @@ jobs:
           source: kasmtech/kasm-helm
           target: NigelVanHattum/Homelab-Helm-charts
           charts_dir: .
-          skip_existing: true  # Example: Skip if release exists
+          skip_existing: false  
           mark_as_latest: true  # Mark as latest release
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
