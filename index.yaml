@@ -167,6 +167,45 @@ entries:
           image: kasmweb/rdp-https-gateway:1.18.0
     apiVersion: v2
     appVersion: 1.18.0
+    created: "2025-11-08T19:23:29.484976473Z"
+    description: Kasm is a platform specializing in providing secure browser-based
+      workspaces for a wide range of applications and industries. Its main goal is
+      to provide isolated and secure environments that can be accessed via web browsers,
+      ensuring that users can perform tasks without risking the security of their
+      local systems.
+    digest: 054b3d50e834ac8268cca9b221887a95dc796e0297b041a17c2db343f922dd4f
+    home: https://kasmweb.com
+    icon: https://kasm-static-content.s3.amazonaws.com/icons/kasm-logo-small.png
+    keywords:
+    - kasm
+    - vdi
+    - workspaces
+    maintainers:
+    - name: Kasm Technologies, Inc.
+      url: https://github.com/kasmtech/kasm-helm
+    name: kasm
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/kasm-1.1180.1/kasm-1.1180.1.tgz
+    version: 1.1180.1
+  - annotations:
+      category: Virtual Desktop
+      images: |
+        - name: kasm-api
+          image: kasmweb/api:1.18.0
+        - name: kasm-manager
+          image: kasmweb/manager:1.18.0
+        - name: kasm-db
+          image: kasmweb/postgres:1.18.0
+        - name: kasm-proxy
+          image: kasmweb/proxy:1.18.0
+        - name: kasm-guac
+          image: kasmweb/kasm-guac:1.18.0
+        - name: rdp-gateway
+          image: kasmweb/rdp-gateway:1.18.0
+        - name: rdp-gateway
+          image: kasmweb/rdp-https-gateway:1.18.0
+    apiVersion: v2
+    appVersion: 1.18.0
     created: "2025-10-28T21:23:23.377606943Z"
     description: Kasm is a platform specializing in providing secure browser-based
       workspaces for a wide range of applications and industries. Its main goal is
@@ -1022,4 +1061,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/tdarr-0.1.1/tdarr-0.1.1.tgz
     version: 0.1.1
-generated: "2025-10-28T21:23:23.377701008Z"
+generated: "2025-11-08T19:23:29.485138746Z"
