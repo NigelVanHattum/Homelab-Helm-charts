@@ -47,6 +47,9 @@ data:
     host    all             all             127.0.0.1/32            trust
     host    all             all             ::1/128                 trust
     hostssl all             all             all                     md5
+    # Allow connections from Kasm Application Pods (See talos network patches for more details)
+    host    all             all             10.244.0.0/16           md5
+    host    all             all             fd00:10:244::/48        md5
 
   postgresql.conf: |
     # ===================================================
