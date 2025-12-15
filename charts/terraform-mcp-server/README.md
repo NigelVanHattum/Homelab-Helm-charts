@@ -1,76 +1,60 @@
-# Terraform MCP Server
+# terraform-mcp-server
 
-This Helm chart deploys the Terraform MCP Server, which provides seamless integration with Terraform ecosystem for Infrastructure as Code (IaC) development.
+![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.3.3](https://img.shields.io/badge/AppVersion-0.3.3-informational?style=flat-square)
 
-## Prerequisites
+A Helm chart for Terraform MCP Server
 
-- Kubernetes 1.19+
-- Helm 3.0+
+## Values
 
-## Installing the Chart
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| affinity | object | `{}` |  |
+| env[0].name | string | `"TFE_ADDRESS"` |  |
+| env[0].value | string | `"https://app.terraform.io"` |  |
+| env[10].name | string | `"MCP_RATE_LIMIT_SESSION"` |  |
+| env[10].value | string | `"5:10"` |  |
+| env[11].name | string | `"ENABLE_TF_OPERATIONS"` |  |
+| env[11].value | string | `"false"` |  |
+| env[1].name | string | `"TFE_SKIP_TLS_VERIFY"` |  |
+| env[1].value | string | `"false"` |  |
+| env[2].name | string | `"TRANSPORT_MODE"` |  |
+| env[2].value | string | `"streamable-http"` |  |
+| env[3].name | string | `"TRANSPORT_HOST"` |  |
+| env[3].value | string | `"127.0.0.1"` |  |
+| env[4].name | string | `"TRANSPORT_PORT"` |  |
+| env[4].value | string | `"8080"` |  |
+| env[5].name | string | `"MCP_ENDPOINT"` |  |
+| env[5].value | string | `"/mcp"` |  |
+| env[6].name | string | `"MCP_SESSION_MODE"` |  |
+| env[6].value | string | `"stateful"` |  |
+| env[7].name | string | `"MCP_ALLOWED_ORIGINS"` |  |
+| env[7].value | string | `""` |  |
+| env[8].name | string | `"MCP_CORS_MODE"` |  |
+| env[8].value | string | `"strict"` |  |
+| env[9].name | string | `"MCP_RATE_LIMIT_GLOBAL"` |  |
+| env[9].value | string | `"10:20"` |  |
+| image.pullPolicy | string | `"IfNotPresent"` |  |
+| image.repository | string | `"hashicorp/terraform-mcp-server"` |  |
+| image.tag | string | `"0.3.3"` |  |
+| ingress.annotations | object | `{}` |  |
+| ingress.className | string | `""` |  |
+| ingress.enabled | bool | `false` |  |
+| ingress.hosts[0].host | string | `"terraform-mcp-server.local"` |  |
+| ingress.hosts[0].paths[0].path | string | `"/"` |  |
+| ingress.hosts[0].paths[0].pathType | string | `"Prefix"` |  |
+| ingress.tls | list | `[]` |  |
+| nodeSelector | object | `{}` |  |
+| resources | object | `{}` |  |
+| secretEnv[0].name | string | `"TFE_TOKEN"` |  |
+| secretEnv[0].value | string | `""` |  |
+| secretEnv[1].name | string | `"MCP_TLS_CERT_FILE"` |  |
+| secretEnv[1].value | string | `""` |  |
+| secretEnv[2].name | string | `"MCP_TLS_KEY_FILE"` |  |
+| secretEnv[2].value | string | `""` |  |
+| service.port | int | `8080` |  |
+| service.targetPort | int | `8080` |  |
+| service.type | string | `"ClusterIP"` |  |
+| tolerations | list | `[]` |  |
 
-To install the chart with the release name `terraform-mcp-server`:
-
-```bash
-helm install terraform-mcp-server ./charts/terraform-mcp-server
-```
-
-## Configuration
-
-The following table lists the configurable parameters of the Terraform MCP Server chart and their default values.
-
-| Parameter | Description | Default |
-|-----------|-------------|---------|
-| `image.repository` | Image repository | `hashicorp/terraform-mcp-server` |
-| `image.tag` | Image tag | `0.3.3` |
-| `image.pullPolicy` | Image pull policy | `IfNotPresent` |
-| `env` | List of non-secret environment variables | See `values.yaml` |
-| `secretEnv` | List of secret environment variables | See `values.yaml` |
-| `service.type` | Service type | `ClusterIP` |
-| `service.port` | Service port | `8080` |
-| `service.targetPort` | Target port | `8080` |
-| `ingress.enabled` | Enable ingress | `false` |
-| `resources` | CPU/Memory resource requests/limits | `{}` |
-
-Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`.
-
-Alternatively, a YAML file that specifies the values for the parameters can be provided while installing the chart. For example,
-
-```bash
-helm install terraform-mcp-server ./charts/terraform-mcp-server -f my-values.yaml
-```
-
-## Setting Secrets
-
-To set the Terraform API token and other secrets:
-
-```bash
-helm install terraform-mcp-server ./charts/terraform-mcp-server \
-  --set secretEnv[0].value=YOUR_TFE_TOKEN
-```
-
-Or update an existing release:
-
-```bash
-helm upgrade terraform-mcp-server ./charts/terraform-mcp-server \
-  --set secretEnv[0].value=YOUR_TFE_TOKEN
-```
-
-## Transport Modes
-
-The server supports two transport modes:
-
-- **stdio** (default): For local use with MCP clients
-- **streamable-http**: For remote access via HTTP
-
-To enable HTTP mode:
-
-```bash
-helm install terraform-mcp-server ./charts/terraform-mcp-server \
-  --set env[2].value=streamable-http \
-  --set env[3].value=0.0.0.0
-```
-
-## License
-
-This chart is licensed under the MPL-2.0 license.
+----------------------------------------------
+Autogenerated from chart metadata using [helm-docs v1.14.2](https://github.com/norwoodj/helm-docs/releases/v1.14.2)

@@ -1,6 +1,6 @@
 # Kasm on Kubernetes
 
-![Version: 1.1180.0](https://img.shields.io/badge/Version-1.1180.0-informational?style=flat-square) ![AppVersion: 1.18.0](https://img.shields.io/badge/AppVersion-1.18.0-informational?style=flat-square)
+![Version: 1.1180.1](https://img.shields.io/badge/Version-1.1180.1-informational?style=flat-square) ![AppVersion: 1.18.0](https://img.shields.io/badge/AppVersion-1.18.0-informational?style=flat-square)
 
 Kasm is a platform specializing in providing secure browser-based workspaces for a wide range of applications and industries. Its main goal is to provide isolated and secure environments that can be accessed via web browsers, ensuring that users can perform tasks without risking the security of their local systems.
 
