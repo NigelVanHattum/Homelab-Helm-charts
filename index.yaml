@@ -1061,4 +1061,15 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/tdarr-0.1.1/tdarr-0.1.1.tgz
     version: 0.1.1
-generated: "2025-11-08T19:23:29.485138746Z"
+  terraform-mcp-server:
+  - apiVersion: v2
+    appVersion: 0.3.3
+    created: "2025-12-15T20:38:58.078447047Z"
+    description: A Helm chart for Terraform MCP Server
+    digest: 171e5a8068f4d707d59d04e2f24af78fa609a26bc04627ec6ba4e223b43630b2
+    name: terraform-mcp-server
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-12-15T20:38:58.078584223Z"
