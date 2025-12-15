@@ -1,0 +1,43 @@
+{{- if .Values.terraform.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "mcp-servers.fullname" . }}
+  labels:
+    {{- include "mcp-servers.labels" . | nindent 4 }}
+  {{- with .Values.terraform.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.terraform.ingress.className }}
+  ingressClassName: {{ .Values.terraform.ingress.className }}
+  {{- end }}
+  {{- if .Values.terraform.ingress.tls }}
+  tls:
+    {{- range .Values.terraform.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.terraform.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            {{- if and .pathType (semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion) }}
+            pathType: {{ .pathType }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "mcp-servers.fullname" . }}
+                port:
+                  number: {{ $.Values.terraform.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,88 @@
+{{- if .Values.terraform.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mcp-servers.fullname" . }}
+  labels:
+    {{- include "mcp-servers.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.terraform.autoscaling.enabled }}
+  replicas: {{ .Values.terraform.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "mcp-servers.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.terraform.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "mcp-servers.labels" . | nindent 8 }}
+        {{- with .Values.terraform.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.terraform.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "mcp-servers.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+
+
+       containers:
+         - name: {{ .Chart.Name }}
+           {{- with .Values.terraform.securityContext }}
+           securityContext:
+             {{- toYaml . | nindent 12 }}
+           {{- end }}
+           image: "{{ .Values.terraform.image.repository }}:{{ .Values.terraform.image.tag | default .Chart.AppVersion }}"
+           imagePullPolicy: {{ .Values.terraform.image.pullPolicy }}
+           ports:
+             - name: http
+               containerPort: {{ .Values.terraform.service.port }}
+               protocol: TCP
+           envFrom:
+             - configMapRef:
+                 name: {{ include "mcp-servers.fullname" . }}-config
+             - secretRef:
+                 name: {{ include "mcp-servers.fullname" . }}-secret
+           livenessProbe:
+             httpGet:
+               path: /health
+               port: http
+           readinessProbe:
+             httpGet:
+               path: /health
+               port: http
+           {{- with .Values.terraform.resources }}
+           resources:
+             {{- toYaml . | nindent 12 }}
+           {{- end }}
+           {{- with .Values.terraform.volumeMounts }}
+           volumeMounts:
+             {{- toYaml . | nindent 12 }}
+           {{- end }}
+       {{- with .Values.terraform.volumes }}
+       volumes:
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       {{- with .Values.terraform.nodeSelector }}
+       nodeSelector:
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       {{- with .Values.terraform.affinity }}
+       affinity:
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+       {{- with .Values.terraform.tolerations }}
+       tolerations:
+         {{- toYaml . | nindent 8 }}
+       {{- end }}
+{{- end }}
