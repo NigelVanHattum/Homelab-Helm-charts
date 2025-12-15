@@ -1,0 +1,65 @@
+image:
+  repository: hashicorp/terraform-mcp-server
+  tag: "0.3.3"
+  pullPolicy: IfNotPresent
+
+# Non-secret environment variables
+env:
+  - name: TFE_ADDRESS
+    value: "https://app.terraform.io"
+  - name: TFE_SKIP_TLS_VERIFY
+    value: "false"
+  - name: TRANSPORT_MODE
+    value: "streamable-http"
+  - name: TRANSPORT_HOST
+    value: "127.0.0.1"
+  - name: TRANSPORT_PORT
+    value: "8080"
+  - name: MCP_ENDPOINT
+    value: "/mcp"
+  - name: MCP_SESSION_MODE
+    value: "stateful"
+  - name: MCP_ALLOWED_ORIGINS
+    value: ""
+  - name: MCP_CORS_MODE
+    value: "strict"
+  - name: MCP_RATE_LIMIT_GLOBAL
+    value: "10:20"
+  - name: MCP_RATE_LIMIT_SESSION
+    value: "5:10"
+  - name: ENABLE_TF_OPERATIONS
+    value: "false"
+
+# Secret environment variables (values should be set via --set or secrets)
+secretEnv:
+  - name: TFE_TOKEN
+    value: ""  # Set this to your Terraform API token
+  - name: MCP_TLS_CERT_FILE
+    value: ""  # Optional: Path to TLS cert file
+  - name: MCP_TLS_KEY_FILE
+    value: ""  # Optional: Path to TLS key file
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+# Ingress configuration (optional)
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: terraform-mcp-server.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Resource limits and requests
+resources: {}
+
+# Node selector, tolerations, affinity
+nodeSelector: {}
+tolerations: []
+affinity: {}
