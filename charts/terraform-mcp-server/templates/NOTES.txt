@@ -1,0 +1,23 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To configure the Terraform MCP Server:
+
+1. Set your Terraform API token:
+   helm upgrade {{ .Release.Name }} . --set secretEnv[0].value=YOUR_TFE_TOKEN
+
+2. If using HTTP transport mode, set TRANSPORT_MODE to "streamable-http" and ensure the service is accessible.
+
+3. The server is running with the following defaults:
+   - Transport Mode: stdio (local use)
+   - Port: 8080
+   - TFE Address: https://app.terraform.io
+
+For more configuration options, see values.yaml.
+
+To check the status:
+  kubectl get pods -l app.kubernetes.io/name={{ include "terraform-mcp-server.name" . }}
+
+To view logs:
+  kubectl logs -l app.kubernetes.io/name={{ include "terraform-mcp-server.name" . }}
