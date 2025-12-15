@@ -1064,6 +1064,16 @@ entries:
   terraform-mcp-server:
   - apiVersion: v2
     appVersion: 0.3.3
+    created: "2025-12-15T21:25:06.436929676Z"
+    description: A Helm chart for Terraform MCP Server
+    digest: c1b464fb0f9b1e176859561c320821b3f8814b6592da8b1c28607c923c37ddf3
+    name: terraform-mcp-server
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.1/terraform-mcp-server-0.1.1.tgz
+    version: 0.1.1
+  - apiVersion: v2
+    appVersion: 0.3.3
     created: "2025-12-15T20:38:58.078447047Z"
     description: A Helm chart for Terraform MCP Server
     digest: 171e5a8068f4d707d59d04e2f24af78fa609a26bc04627ec6ba4e223b43630b2
@@ -1072,4 +1082,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2025-12-15T20:38:58.078584223Z"
+generated: "2025-12-15T21:25:06.437080558Z"
