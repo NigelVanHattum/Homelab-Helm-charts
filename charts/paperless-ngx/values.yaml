@@ -51,6 +51,13 @@ paperless:
       enabled: true
       size: 10Gi
       # storageClass: ""
+
+  # Apache Tika configuration
+  tika:
+    enabled: true
+    # Tika service URL for Paperless-ngx integration
+    url: ""
+
 # This is to override the chart name.
 nameOverride: ""
 fullnameOverride: ""

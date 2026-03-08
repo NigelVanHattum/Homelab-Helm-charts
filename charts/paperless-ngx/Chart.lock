@@ -1,0 +1,6 @@
+dependencies:
+- name: tika
+  repository: https://apache.jfrog.io/artifactory/tika
+  version: 3.2.2
+digest: sha256:171ce1a8dd2d7b1b92bef30c9ab7f77b48335b57371ed75fac7aae26b846e91e
+generated: "2026-03-08T23:59:45.688163+01:00"
