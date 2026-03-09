@@ -9,6 +9,7 @@ This Helm chart deploys Paperless-ngx, a community-supported open-source documen
 - **PostgreSQL database** (external, required)
 - **Redis** (deployed internally as simple caching service)
 - **Apache Tika** (optional, for enhanced document processing)
+- **Gotenberg** (optional, for PDF generation and document conversion)
 
 ### Database
 Paperless-ngx requires PostgreSQL. By default, the chart expects an external PostgreSQL database. Configure the connection details in `values.yaml` under `paperless.database`. If you want to deploy PostgreSQL as a dependency, set `paperless.database.enabled` to `true`.
@@ -37,6 +38,8 @@ The following table lists the configurable parameters of the paperless-ngx chart
 | `paperless.persistence.consume.enabled` | Enable consume PVC | `true` |
 | `paperless.tika.enabled` | Enable Apache Tika dependency | `true` |
 | `paperless.tika.url` | Apache Tika service URL | `""` (auto-generated) |
+| `paperless.gotenberg.enabled` | Enable Gotenberg dependency | `true` |
+| `paperless.gotenberg.url` | Gotenberg service URL | `""` (auto-generated) |
 
 ## Persistence
 

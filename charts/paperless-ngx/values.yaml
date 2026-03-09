@@ -58,6 +58,12 @@ paperless:
     # Tika service URL for Paperless-ngx integration
     url: ""
 
+  # Gotenberg configuration
+  gotenberg:
+    enabled: true
+    # Gotenberg service URL for Paperless-ngx integration
+    url: ""
+
 # This is to override the chart name.
 nameOverride: ""
 fullnameOverride: ""

@@ -28,4 +28,8 @@ dependencies:
     version: "3.2.2"
     repository: "https://apache.jfrog.io/artifactory/tika"
     condition: paperless.tika.enabled
+  - name: gotenberg
+    version: "1.18.0"
+    repository: "https://maikumori.github.io/helm-charts"
+    condition: paperless.gotenberg.enabled
 

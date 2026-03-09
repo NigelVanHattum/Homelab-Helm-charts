@@ -135,8 +135,14 @@ spec:
             - name: PAPERLESS_REDIS
               value: redis://{{ include "paperless-ngx.fullname" . }}-redis:6379
 {{- if .Values.paperless.tika.enabled }}
+            - name: PAPERLESS_TIKA_ENABLED
+              value: true
             - name: PAPERLESS_TIKA_ENDPOINT
               value: {{ .Values.paperless.tika.url | default (printf "http://%s-tika:9998" (include "paperless-ngx.fullname" .)) }}
+{{- end }}
+{{- if .Values.paperless.gotenberg.enabled }}
+            - name: PAPERLESS_GOTENBERG_ENDPOINT
+              value: {{ .Values.paperless.gotenberg.url | default (printf "http://%s-gotenberg:3000" (include "paperless-ngx.fullname" .)) }}
 {{- end }}
           ports:
             - name: http
