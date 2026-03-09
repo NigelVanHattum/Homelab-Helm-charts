@@ -37,6 +37,18 @@ paperless:
     PAPERLESS_SECRET_KEY: ""
     PAPERLESS_URL: ""
 
+  # Additional environment variables
+  # Can be static values or secret references
+  extraEnv: []
+  # Examples:
+  # - name: CUSTOM_VAR
+  #   value: "static-value"
+  # - name: SECRET_VAR
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: my-secret
+  #       key: secret-key
+
   # Persistence
   persistence:
     data:

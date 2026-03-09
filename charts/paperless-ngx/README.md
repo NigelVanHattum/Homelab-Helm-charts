@@ -40,6 +40,35 @@ The following table lists the configurable parameters of the paperless-ngx chart
 | `paperless.tika.url` | Apache Tika service URL | `""` (auto-generated) |
 | `paperless.gotenberg.enabled` | Enable Gotenberg dependency | `true` |
 | `paperless.gotenberg.url` | Gotenberg service URL | `""` (auto-generated) |
+| `paperless.extraEnv` | Additional environment variables | `[]` |
+
+## Extra Environment Variables
+
+You can add additional environment variables to the Paperless-ngx container using the `paperless.extraEnv` configuration. This allows you to set custom environment variables that can be either static values or references to Kubernetes secrets.
+
+### Examples:
+
+```yaml
+paperless:
+  extraEnv:
+    # Static value
+    - name: PAPERLESS_CUSTOM_SETTING
+      value: "my-custom-value"
+
+    # From a secret
+    - name: PAPERLESS_API_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: my-secret
+          key: api-token
+
+    # From a config map
+    - name: PAPERLESS_CONFIG_FILE
+      valueFrom:
+        configMapKeyRef:
+          name: my-config
+          key: config.yaml
+```
 
 ## Persistence
 

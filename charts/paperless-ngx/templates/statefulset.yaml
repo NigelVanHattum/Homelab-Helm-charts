@@ -144,6 +144,9 @@ spec:
             - name: PAPERLESS_GOTENBERG_ENDPOINT
               value: {{ .Values.paperless.gotenberg.url | default (printf "http://%s-gotenberg:3000" (include "paperless-ngx.fullname" .)) }}
 {{- end }}
+{{- with .Values.paperless.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+{{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
