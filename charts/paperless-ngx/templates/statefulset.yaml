@@ -102,7 +102,7 @@ spec:
                   name: {{ include "paperless-ngx.fullname" . }}
                   key: secret-key
             - name: PAPERLESS_URL
-              value: {{ .Values.paperless.env.PAPERLESS_URL | quote }}
+              value: {{ if .Values.paperless.env.PAPERLESS_URL }}{{ .Values.paperless.env.PAPERLESS_URL | quote }}{{- else if and .Values.ingress.enabled .Values.ingress.hosts }}{{- printf "https://%s" (first .Values.ingress.hosts).host | quote }}{{- else }}{{ .Values.paperless.env.PAPERLESS_URL | quote }}{{- end }}
 {{- if .Values.paperless.database.enabled }}
             - name: PAPERLESS_DBHOST
               value: {{ include "paperless-ngx.fullname" . }}-postgresql

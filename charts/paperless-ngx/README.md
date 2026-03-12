@@ -17,6 +17,9 @@ Paperless-ngx requires PostgreSQL. By default, the chart expects an external Pos
 ### Redis
 Redis is deployed internally as a simple, volatile caching service without persistence or authentication.
 
+### PAPERLESS_URL Auto-Configuration
+When ingress is enabled with hosts configured, the `PAPERLESS_URL` environment variable is automatically set to `https://<first-ingress-host>`. If you need to override this behavior, explicitly set `paperless.env.PAPERLESS_URL` in your values.yaml file.
+
 ## Configuration
 
 The following table lists the configurable parameters of the paperless-ngx chart and their default values.
@@ -31,7 +34,7 @@ The following table lists the configurable parameters of the paperless-ngx chart
 | `paperless.env.PAPERLESS_ADMIN_USER` | Admin username | `admin` |
 | `paperless.env.PAPERLESS_ADMIN_PASSWORD` | Admin password | `""` |
 | `paperless.env.PAPERLESS_SECRET_KEY` | Django secret key | `""` |
-| `paperless.env.PAPERLESS_URL` | Paperless URL | `""` |
+| `paperless.env.PAPERLESS_URL` | Paperless URL (auto-configured from ingress if empty) | `""` |
 | `paperless.database.enabled` | Enable PostgreSQL dependency | `false` |
 | `paperless.persistence.data.enabled` | Enable data PVC | `true` |
 | `paperless.persistence.media.enabled` | Enable media PVC | `true` |
