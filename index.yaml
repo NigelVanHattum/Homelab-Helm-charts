@@ -332,6 +332,27 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/ombi-0.1.0/ombi-0.1.0.tgz
     version: 0.1.0
+  paperless-ngx:
+  - apiVersion: v2
+    appVersion: 2.20.10
+    created: "2026-03-12T23:53:25.337715076Z"
+    dependencies:
+    - condition: paperless.tika.enabled
+      name: tika
+      repository: https://apache.jfrog.io/artifactory/tika
+      version: 3.2.2
+    - condition: paperless.gotenberg.enabled
+      name: gotenberg
+      repository: https://maikumori.github.io/helm-charts
+      version: 1.18.0
+    description: A Helm chart for Paperless-ngx - A community-supported open-source
+      document management system
+    digest: 05b77fe1a8a29f9398f4071acbab393754f3b87aa91c4777a87ccdd00784abfd
+    name: paperless-ngx
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/paperless-ngx-1.0.0/paperless-ngx-1.0.0.tgz
+    version: 1.0.0
   plex-management:
   - apiVersion: v2
     appVersion: 1.16.0
@@ -1082,4 +1103,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2025-12-15T21:25:06.437080558Z"
+generated: "2026-03-12T23:53:25.337839509Z"
