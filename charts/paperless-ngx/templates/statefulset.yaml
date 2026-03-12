@@ -1,0 +1,197 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "paperless-ngx.fullname" . }}
+  labels:
+    {{- include "paperless-ngx.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  serviceName: {{ include "paperless-ngx.fullname" . }}
+  volumeClaimTemplates:
+{{- if .Values.paperless.persistence.data.enabled }}
+  - metadata:
+      name: data
+      labels:
+        {{- include "paperless-ngx.labels" . | nindent 8 }}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.paperless.persistence.data.size }}
+    {{- with .Values.paperless.persistence.data.storageClass }}
+      storageClassName: {{ . }}
+    {{- end }}
+{{- end }}
+{{- if .Values.paperless.persistence.media.enabled }}
+  - metadata:
+      name: media
+      labels:
+        {{- include "paperless-ngx.labels" . | nindent 8 }}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.paperless.persistence.media.size }}
+    {{- with .Values.paperless.persistence.media.storageClass }}
+      storageClassName: {{ . }}
+    {{- end }}
+{{- end }}
+{{- if .Values.paperless.persistence.consume.enabled }}
+  - metadata:
+      name: consume
+      labels:
+        {{- include "paperless-ngx.labels" . | nindent 8 }}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.paperless.persistence.consume.size }}
+    {{- with .Values.paperless.persistence.consume.storageClass }}
+      storageClassName: {{ . }}
+    {{- end }}
+{{- end }}
+  selector:
+    matchLabels:
+      {{- include "paperless-ngx.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "paperless-ngx.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: PAPERLESS_TIME_ZONE
+              value: {{ .Values.paperless.env.PAPERLESS_TIME_ZONE | quote }}
+            - name: PAPERLESS_OCR_LANGUAGE
+              value: {{ .Values.paperless.env.PAPERLESS_OCR_LANGUAGE | quote }}
+            - name: PAPERLESS_ADMIN_USER
+              value: {{ .Values.paperless.env.PAPERLESS_ADMIN_USER | quote }}
+            - name: PAPERLESS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paperless-ngx.fullname" . }}
+                  key: admin-password
+            - name: PAPERLESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paperless-ngx.fullname" . }}
+                  key: secret-key
+            - name: PAPERLESS_URL
+              value: {{ if .Values.paperless.env.PAPERLESS_URL }}{{ .Values.paperless.env.PAPERLESS_URL | quote }}{{- else if and .Values.ingress.enabled .Values.ingress.hosts }}{{- printf "https://%s" (first .Values.ingress.hosts).host | quote }}{{- else }}{{ .Values.paperless.env.PAPERLESS_URL | quote }}{{- end }}
+{{- if .Values.paperless.database.enabled }}
+            - name: PAPERLESS_DBHOST
+              value: {{ include "paperless-ngx.fullname" . }}-postgresql
+            - name: PAPERLESS_DBPORT
+              value: {{ .Values.paperless.database.port | quote }}
+            - name: PAPERLESS_DBNAME
+              value: {{ .Values.paperless.database.name | quote }}
+            - name: PAPERLESS_DBUSER
+              value: {{ .Values.paperless.database.user | quote }}
+            - name: PAPERLESS_DBPASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paperless-ngx.fullname" . }}-postgresql
+                  key: password
+{{- else }}
+            - name: PAPERLESS_DBHOST
+              value: {{ .Values.paperless.database.host | quote }}
+            - name: PAPERLESS_DBPORT
+              value: {{ .Values.paperless.database.port | quote }}
+            - name: PAPERLESS_DBNAME
+              value: {{ .Values.paperless.database.name | quote }}
+            - name: PAPERLESS_DBUSER
+              value: {{ .Values.paperless.database.user | quote }}
+            - name: PAPERLESS_DBPASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paperless-ngx.fullname" . }}
+                  key: db-password
+{{- end }}
+            - name: PAPERLESS_REDIS
+              value: redis://{{ include "paperless-ngx.fullname" . }}-redis:6379
+{{- if .Values.paperless.tika.enabled }}
+            - name: PAPERLESS_TIKA_ENABLED
+              value: true
+            - name: PAPERLESS_TIKA_ENDPOINT
+              value: {{ .Values.paperless.tika.url | default (printf "http://%s-tika:9998" (include "paperless-ngx.fullname" .)) }}
+{{- end }}
+{{- if .Values.paperless.gotenberg.enabled }}
+            - name: PAPERLESS_GOTENBERG_ENDPOINT
+              value: {{ .Values.paperless.gotenberg.url | default (printf "http://%s-gotenberg:3000" (include "paperless-ngx.fullname" .)) }}
+{{- end }}
+{{- with .Values.paperless.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+{{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+{{- if .Values.paperless.persistence.data.enabled }}
+            - name: data
+              mountPath: /usr/src/paperless/data
+{{- end }}
+{{- if .Values.paperless.persistence.media.enabled }}
+            - name: media
+              mountPath: /usr/src/paperless/media
+{{- end }}
+{{- if .Values.paperless.persistence.consume.enabled }}
+            - name: consume
+              mountPath: /usr/src/paperless/consume
+{{- end }}
+          {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
