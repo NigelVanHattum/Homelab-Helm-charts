@@ -7,8 +7,10 @@ metadata:
 spec:
   replicas: {{ .Values.replicaCount }}
   serviceName: {{ include "paperless-ngx.fullname" . }}
+{{- $hasVolumeClaimTemplates := or (and .Values.paperless.persistence.data.enabled (not .Values.paperless.persistence.data.useExistingPvc)) (and .Values.paperless.persistence.media.enabled (not .Values.paperless.persistence.media.useExistingPvc)) (and .Values.paperless.persistence.consume.enabled (not .Values.paperless.persistence.consume.useExistingPvc)) }}
+{{- if $hasVolumeClaimTemplates }}
   volumeClaimTemplates:
-{{- if .Values.paperless.persistence.data.enabled }}
+{{- if and .Values.paperless.persistence.data.enabled (not .Values.paperless.persistence.data.useExistingPvc) }}
   - metadata:
       name: data
       labels:
@@ -22,8 +24,22 @@ spec:
     {{- with .Values.paperless.persistence.data.storageClass }}
       storageClassName: {{ . }}
     {{- end }}
+    {{- with .Values.paperless.persistence.data.existingVolume }}
+      volumeName: {{ . }}
+    {{- end }}
+    {{- if or .Values.paperless.persistence.data.matchLabels (.Values.paperless.persistence.data.matchExpressions) }}
+      selector:
+      {{- with .Values.paperless.persistence.data.matchLabels }}
+        matchLabels:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+      {{- with .Values.paperless.persistence.data.matchExpressions }}
+        matchExpressions:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+    {{- end }}
 {{- end }}
-{{- if .Values.paperless.persistence.media.enabled }}
+{{- if and .Values.paperless.persistence.media.enabled (not .Values.paperless.persistence.media.useExistingPvc) }}
   - metadata:
       name: media
       labels:
@@ -37,8 +53,22 @@ spec:
     {{- with .Values.paperless.persistence.media.storageClass }}
       storageClassName: {{ . }}
     {{- end }}
+    {{- with .Values.paperless.persistence.media.existingVolume }}
+      volumeName: {{ . }}
+    {{- end }}
+    {{- if or .Values.paperless.persistence.media.matchLabels (.Values.paperless.persistence.media.matchExpressions) }}
+      selector:
+      {{- with .Values.paperless.persistence.media.matchLabels }}
+        matchLabels:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+      {{- with .Values.paperless.persistence.media.matchExpressions }}
+        matchExpressions:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+    {{- end }}
 {{- end }}
-{{- if .Values.paperless.persistence.consume.enabled }}
+{{- if and .Values.paperless.persistence.consume.enabled (not .Values.paperless.persistence.consume.useExistingPvc) }}
   - metadata:
       name: consume
       labels:
@@ -52,6 +82,21 @@ spec:
     {{- with .Values.paperless.persistence.consume.storageClass }}
       storageClassName: {{ . }}
     {{- end }}
+    {{- with .Values.paperless.persistence.consume.existingVolume }}
+      volumeName: {{ . }}
+    {{- end }}
+    {{- if or .Values.paperless.persistence.consume.matchLabels (.Values.paperless.persistence.consume.matchExpressions) }}
+      selector:
+      {{- with .Values.paperless.persistence.consume.matchLabels }}
+        matchLabels:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+      {{- with .Values.paperless.persistence.consume.matchExpressions }}
+        matchExpressions:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+    {{- end }}
+{{- end }}
 {{- end }}
   selector:
     matchLabels:
@@ -104,8 +149,11 @@ spec:
             - name: PAPERLESS_URL
               value: {{ if .Values.paperless.env.PAPERLESS_URL }}{{ .Values.paperless.env.PAPERLESS_URL | quote }}{{- else if and .Values.ingress.enabled .Values.ingress.hosts }}{{- printf "https://%s" (first .Values.ingress.hosts).host | quote }}{{- else }}{{ .Values.paperless.env.PAPERLESS_URL | quote }}{{- end }}
 {{- if .Values.paperless.database.enabled }}
+{{- if not .Values.paperless.database.host }}
+{{- fail "When paperless.database.enabled=true, you must specify paperless.database.host" }}
+{{- end }}
             - name: PAPERLESS_DBHOST
-              value: {{ include "paperless-ngx.fullname" . }}-postgresql
+              value: {{ .Values.paperless.database.host | quote }}
             - name: PAPERLESS_DBPORT
               value: {{ .Values.paperless.database.port | quote }}
             - name: PAPERLESS_DBNAME
@@ -179,8 +227,36 @@ spec:
           {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with .Values.volumes }}
+{{- $hasVolumes := or (and .Values.paperless.persistence.data.enabled .Values.paperless.persistence.data.useExistingPvc) (and .Values.paperless.persistence.media.enabled .Values.paperless.persistence.media.useExistingPvc) (and .Values.paperless.persistence.consume.enabled .Values.paperless.persistence.consume.useExistingPvc) (.Values.volumes) }}
+{{- if $hasVolumes }}
       volumes:
+{{- if and .Values.paperless.persistence.data.enabled .Values.paperless.persistence.data.useExistingPvc }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.paperless.persistence.data.useExistingPvc }}
+{{- end }}
+{{- if and .Values.paperless.persistence.media.enabled .Values.paperless.persistence.media.useExistingPvc }}
+        - name: media
+          persistentVolumeClaim:
+            claimName: {{ .Values.paperless.persistence.media.useExistingPvc }}
+{{- end }}
+{{- if and .Values.paperless.persistence.consume.enabled .Values.paperless.persistence.consume.useExistingPvc }}
+        - name: consume
+          persistentVolumeClaim:
+            claimName: {{ .Values.paperless.persistence.consume.useExistingPvc }}
+{{- end }}
+      {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- if .Values.paperless.persistence.consume.enabled }}
+{{- if .Values.paperless.persistence.consume.useExistingPvc }}
+        - name: consume
+          persistentVolumeClaim:
+            claimName: {{ .Values.paperless.persistence.consume.useExistingPvc }}
+{{- end }}
+{{- end }}
+      {{- with .Values.volumes }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.nodeSelector }}
