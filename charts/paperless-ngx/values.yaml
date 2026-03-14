@@ -26,6 +26,7 @@ paperless:
     user: paperless
     password: ""
     # Set to true to deploy PostgreSQL chart as dependency
+    # When enabled=true, host must be specified (typically {release-name}-postgresql)
     enabled: false
 
   # Paperless environment variables

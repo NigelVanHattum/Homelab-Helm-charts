@@ -104,8 +104,11 @@ spec:
             - name: PAPERLESS_URL
               value: {{ if .Values.paperless.env.PAPERLESS_URL }}{{ .Values.paperless.env.PAPERLESS_URL | quote }}{{- else if and .Values.ingress.enabled .Values.ingress.hosts }}{{- printf "https://%s" (first .Values.ingress.hosts).host | quote }}{{- else }}{{ .Values.paperless.env.PAPERLESS_URL | quote }}{{- end }}
 {{- if .Values.paperless.database.enabled }}
+{{- if not .Values.paperless.database.host }}
+{{- fail "When paperless.database.enabled=true, you must specify paperless.database.host" }}
+{{- end }}
             - name: PAPERLESS_DBHOST
-              value: {{ include "paperless-ngx.fullname" . }}-postgresql
+              value: {{ .Values.paperless.database.host | quote }}
             - name: PAPERLESS_DBPORT
               value: {{ .Values.paperless.database.port | quote }}
             - name: PAPERLESS_DBNAME
