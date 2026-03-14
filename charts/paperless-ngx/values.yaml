@@ -55,7 +55,8 @@ paperless:
     data:
       enabled: true
       size: 10Gi
-      # storageClass: ""
+      # Storage class for the PVC (leave empty for default storage class)
+      storageClass: ""
       # Use existing PVC instead of creating a new one
       useExistingPvc: ""
       # Bind to an existing volume
@@ -67,7 +68,8 @@ paperless:
     media:
       enabled: true
       size: 50Gi
-      # storageClass: ""
+      # Storage class for the PVC (leave empty for default storage class)
+      storageClass: ""
       # Use existing PVC instead of creating a new one
       useExistingPvc: ""
       # Bind to an existing volume
@@ -79,7 +81,8 @@ paperless:
     consume:
       enabled: true
       size: 10Gi
-      # storageClass: ""
+      # Storage class for the PVC (leave empty for default storage class)
+      storageClass: ""
       # Use existing PVC instead of creating a new one
       useExistingPvc: ""
       # Bind to an existing volume
