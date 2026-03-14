@@ -56,14 +56,38 @@ paperless:
       enabled: true
       size: 10Gi
       # storageClass: ""
+      # Use existing PVC instead of creating a new one
+      useExistingPvc: ""
+      # Bind to an existing volume
+      existingVolume: ""
+      # Volume selector labels
+      matchLabels: {}
+      # Volume selector expressions
+      matchExpressions: {}
     media:
       enabled: true
       size: 50Gi
       # storageClass: ""
+      # Use existing PVC instead of creating a new one
+      useExistingPvc: ""
+      # Bind to an existing volume
+      existingVolume: ""
+      # Volume selector labels
+      matchLabels: {}
+      # Volume selector expressions
+      matchExpressions: {}
     consume:
       enabled: true
       size: 10Gi
       # storageClass: ""
+      # Use existing PVC instead of creating a new one
+      useExistingPvc: ""
+      # Bind to an existing volume
+      existingVolume: ""
+      # Volume selector labels
+      matchLabels: {}
+      # Volume selector expressions
+      matchExpressions: {}
 
   # Apache Tika configuration
   tika:
