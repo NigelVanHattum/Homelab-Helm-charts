@@ -193,15 +193,9 @@ spec:
 {{- end }}
 {{- if .Values.paperless.authentik.enabled }}
 {{- $serverUrl := .Values.paperless.authentik.oidcWellKnownUrl | default (printf "https://%s/application/o/%s/.well-known/openid-configuration" .Values.paperless.authentik.domain .Values.paperless.authentik.applicationSlug) }}
-{{- $logoutUrl := .Values.paperless.authentik.logoutUrl | default (printf "https://%s/application/o/%s/end-session/" .Values.paperless.authentik.domain .Values.paperless.authentik.applicationSlug) }}
-             - name: PAPERLESS_APPS
-               value: "allauth.socialaccount.providers.openid_connect"
-             - name: PAPERLESS_SOCIALACCOUNT_PROVIDERS
-               value: >-
-                 {"openid_connect": {"OAUTH_PKCE_ENABLED": true, "APPS": [{"provider_id": "authentik", "name": "authentik", "client_id": "{{ .Values.paperless.authentik.clientId }}", "secret": "{{ .Values.paperless.authentik.clientSecret }}", "settings": {"server_url": "{{ $serverUrl }}", "fetch_userinfo": true}}], "SCOPE": ["openid", "profile", "email"]}}
 {{- if .Values.paperless.authentik.logoutUrl }}
              - name: PAPERLESS_LOGOUT_REDIRECT_URL
-               value: "{{ $logoutUrl }}"
+               value: "{{ .Values.paperless.authentik.logoutUrl }}"
 {{- end }}
              - name: PAPERLESS_SOCIAL_AUTO_SIGNUP
                value: {{ .Values.paperless.authentik.autoSignup | quote }}
