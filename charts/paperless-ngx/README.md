@@ -1,6 +1,6 @@
 # paperless-ngx
 
-![Version: 1.1.1](https://img.shields.io/badge/Version-1.1.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.10](https://img.shields.io/badge/AppVersion-2.20.10-informational?style=flat-square)
+![Version: 1.1.2](https://img.shields.io/badge/Version-1.1.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.10](https://img.shields.io/badge/AppVersion-2.20.10-informational?style=flat-square)
 
 A Helm chart for Paperless-ngx - A community-supported open-source document management system
 
@@ -33,6 +33,13 @@ A Helm chart for Paperless-ngx - A community-supported open-source document mana
 | livenessProbe.httpGet.port | string | `"http"` |  |
 | nameOverride | string | `""` |  |
 | nodeSelector | object | `{}` |  |
+| paperless.authentik.allowSignups | bool | `true` |  |
+| paperless.authentik.applicationSlug | string | `""` |  |
+| paperless.authentik.autoSignup | bool | `true` |  |
+| paperless.authentik.clientId | string | `""` |  |
+| paperless.authentik.clientSecret | string | `""` |  |
+| paperless.authentik.domain | string | `""` |  |
+| paperless.authentik.enabled | bool | `false` |  |
 | paperless.database.enabled | bool | `false` |  |
 | paperless.database.host | string | `""` |  |
 | paperless.database.name | string | `"paperless"` |  |
