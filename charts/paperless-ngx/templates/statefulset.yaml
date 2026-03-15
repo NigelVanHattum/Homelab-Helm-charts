@@ -7,7 +7,7 @@ metadata:
 spec:
   replicas: {{ .Values.replicaCount }}
   serviceName: {{ include "paperless-ngx.fullname" . }}
-  {{- if or (and .Values.paperless.persistence.data.enabled (not .Values.paperless.persistence.data.useExistingPvc)) (and .Values.paperless.persistence.media.enabled (not .Values.paperless.persistence.media.useExistingPvc)) (and .Values.paperless.persistence.consume.enabled (not .Values.paperless.persistence.consume.useExistingPvc)) }}
+  {{- if true }}
   volumeClaimTemplates:
 {{- if and .Values.paperless.persistence.data.enabled (not .Values.paperless.persistence.data.useExistingPvc) }}
   - metadata:
@@ -106,11 +106,11 @@ spec:
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-       labels:
-         {{- include "paperless-ngx.labels" . | nindent 8 }}
-         {{- with .Values.podLabels }}
-         {{- toYaml . | nindent 8 }}
-         {{- end }}
+        labels:
+          {{- include "paperless-ngx.labels" . | nindent 0 }}
+          {{- with .Values.podLabels }}
+          {{- toYaml . | nindent 0 }}
+          {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -192,7 +192,13 @@ spec:
                value: {{ .Values.paperless.gotenberg.url | default (printf "http://%s-gotenberg:3000" (include "paperless-ngx.fullname" .)) }}
 {{- end }}
 {{- if .Values.paperless.authentik.enabled }}
-{{- $serverUrl := .Values.paperless.authentik.oidcWellKnownUrl | default (printf "https://%s/application/o/%s/.well-known/openid-configuration" .Values.paperless.authentik.domain .Values.paperless.authentik.applicationSlug) }}
+{{- $serverUrl := .Values.paperless.authentik.oidcWellKnownUrl | default (printf "https://%s/application/o/%s/.well-known/openid-configuration"
+  .Values.paperless.authentik.domain
+  .Values.paperless.authentik.applicationSlug) }}
+             - name: PAPERLESS_APPS
+               value: "allauth.socialaccount.providers.openid_connect"
+             - name: PAPERLESS_SOCIALACCOUNT_PROVIDERS
+               value: '{"openid_connect": {"OAUTH_PKCE_ENABLED": true, "APPS": [{"provider_id": "authentik", "name": "authentik", "client_id": "{{ .Values.paperless.authentik.clientId }}", "secret": "{{ .Values.paperless.authentik.clientSecret }}", "settings": {"server_url": "{{ $serverUrl }}", "fetch_userinfo": true}}], "SCOPE": ["openid", "profile", "email"]}}'
 {{- if .Values.paperless.authentik.logoutUrl }}
              - name: PAPERLESS_LOGOUT_REDIRECT_URL
                value: "{{ .Values.paperless.authentik.logoutUrl }}"
