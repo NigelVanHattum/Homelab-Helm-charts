@@ -12,6 +12,8 @@ spec:
 {{- if and .Values.paperless.persistence.data.enabled (not .Values.paperless.persistence.data.useExistingPvc) }}
   - metadata:
       name: data
+      labels:
+        {{- include "paperless-ngx.labels" . | nindent 8 }}
     spec:
       accessModes:
         - ReadWriteOnce
@@ -24,11 +26,23 @@ spec:
     {{- with .Values.paperless.persistence.data.existingVolume }}
       volumeName: {{ . }}
     {{- end }}
-
+    {{- if or .Values.paperless.persistence.data.matchLabels (.Values.paperless.persistence.data.matchExpressions) }}
+      selector:
+      {{- with .Values.paperless.persistence.data.matchLabels }}
+        matchLabels:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+      {{- with .Values.paperless.persistence.data.matchExpressions }}
+        matchExpressions:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+    {{- end }}
 {{- end }}
 {{- if and .Values.paperless.persistence.media.enabled (not .Values.paperless.persistence.media.useExistingPvc) }}
   - metadata:
       name: media
+      labels:
+        {{- include "paperless-ngx.labels" . | nindent 8 }}
     spec:
       accessModes:
         - ReadWriteOnce
@@ -41,11 +55,23 @@ spec:
     {{- with .Values.paperless.persistence.media.existingVolume }}
       volumeName: {{ . }}
     {{- end }}
-
+    {{- if or .Values.paperless.persistence.media.matchLabels (.Values.paperless.persistence.media.matchExpressions) }}
+      selector:
+      {{- with .Values.paperless.persistence.media.matchLabels }}
+        matchLabels:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+      {{- with .Values.paperless.persistence.media.matchExpressions }}
+        matchExpressions:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+    {{- end }}
 {{- end }}
 {{- if and .Values.paperless.persistence.consume.enabled (not .Values.paperless.persistence.consume.useExistingPvc) }}
   - metadata:
       name: consume
+      labels:
+        {{- include "paperless-ngx.labels" . | nindent 8 }}
     spec:
       accessModes:
         - ReadWriteOnce
@@ -58,7 +84,17 @@ spec:
     {{- with .Values.paperless.persistence.consume.existingVolume }}
       volumeName: {{ . }}
     {{- end }}
-
+    {{- if or .Values.paperless.persistence.consume.matchLabels (.Values.paperless.persistence.consume.matchExpressions) }}
+      selector:
+      {{- with .Values.paperless.persistence.consume.matchLabels }}
+        matchLabels:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+      {{- with .Values.paperless.persistence.consume.matchExpressions }}
+        matchExpressions:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+    {{- end }}
 {{- end }}
 {{- end }}
   selector:
@@ -70,8 +106,11 @@ spec:
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-        labels:
-          app: paperless-ngx
+       labels:
+         {{- include "paperless-ngx.labels" . | nindent 8 }}
+         {{- with .Values.podLabels }}
+         {{- toYaml . | nindent 8 }}
+         {{- end }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:

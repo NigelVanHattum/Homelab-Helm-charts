@@ -34,20 +34,20 @@ Create chart name and version as used by the chart label.
 Common labels
 */}}
 {{- define "paperless-ngx.labels" -}}
-helm.sh/chart: {{ include "paperless-ngx.chart" . | quote }}
+helm.sh/chart: {{ include "paperless-ngx.chart" . }}
 {{ include "paperless-ngx.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
-app.kubernetes.io/managed-by: {{ .Release.Service | quote }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
 Selector labels
 */}}
 {{- define "paperless-ngx.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "paperless-ngx.name" . | quote }}
-app.kubernetes.io/instance: {{ .Release.Name | quote }}
+app.kubernetes.io/name: {{ include "paperless-ngx.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
