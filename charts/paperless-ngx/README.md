@@ -1,6 +1,6 @@
 # paperless-ngx
 
-![Version: 1.1.2](https://img.shields.io/badge/Version-1.1.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.10](https://img.shields.io/badge/AppVersion-2.20.10-informational?style=flat-square)
+![Version: 1.1.3](https://img.shields.io/badge/Version-1.1.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.10](https://img.shields.io/badge/AppVersion-2.20.10-informational?style=flat-square)
 
 A Helm chart for Paperless-ngx - A community-supported open-source document management system
 
@@ -40,6 +40,8 @@ A Helm chart for Paperless-ngx - A community-supported open-source document mana
 | paperless.authentik.clientSecret | string | `""` |  |
 | paperless.authentik.domain | string | `""` |  |
 | paperless.authentik.enabled | bool | `false` |  |
+| paperless.authentik.logoutUrl | string | `""` |  |
+| paperless.authentik.serverUrl | string | `""` |  |
 | paperless.database.enabled | bool | `false` |  |
 | paperless.database.host | string | `""` |  |
 | paperless.database.name | string | `"paperless"` |  |
