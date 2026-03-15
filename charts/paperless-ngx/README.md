@@ -41,7 +41,7 @@ A Helm chart for Paperless-ngx - A community-supported open-source document mana
 | paperless.authentik.domain | string | `""` |  |
 | paperless.authentik.enabled | bool | `false` |  |
 | paperless.authentik.logoutUrl | string | `""` |  |
-| paperless.authentik.serverUrl | string | `""` |  |
+| paperless.authentik.oidcWellKnownUrl | string | `""` |  |
 | paperless.database.enabled | bool | `false` |  |
 | paperless.database.host | string | `""` |  |
 | paperless.database.name | string | `"paperless"` |  |
