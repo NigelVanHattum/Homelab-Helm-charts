@@ -115,8 +115,8 @@ paperless:
     applicationSlug: ""
     # Authentik domain (e.g., authentik.company)
     domain: ""
-    # Authentik server URL (optional, defaults to constructed URL)
-    serverUrl: ""
+    # Authentik OIDC well-known URL (optional, defaults to constructed URL)
+    oidcWellKnownUrl: ""
     # Authentik logout URL (optional)
     logoutUrl: ""
     # Enable automatic user signup
