@@ -104,6 +104,22 @@ paperless:
     # Gotenberg service URL for Paperless-ngx integration
     url: ""
 
+  # Authentik SSO configuration
+  authentik:
+    enabled: false
+    # Authentik client ID
+    clientId: ""
+    # Authentik client secret (leave empty if using external secret)
+    clientSecret: ""
+    # Authentik application slug
+    applicationSlug: ""
+    # Authentik domain (e.g., authentik.company)
+    domain: ""
+    # Enable automatic user signup
+    autoSignup: true
+    # Allow signups
+    allowSignups: true
+
 # This is to override the chart name.
 nameOverride: ""
 fullnameOverride: ""
