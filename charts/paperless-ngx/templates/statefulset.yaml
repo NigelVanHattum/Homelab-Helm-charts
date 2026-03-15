@@ -184,7 +184,7 @@ spec:
               value: redis://{{ include "paperless-ngx.fullname" . }}-redis:6379
 {{- if .Values.paperless.tika.enabled }}
             - name: PAPERLESS_TIKA_ENABLED
-              value: true
+              value: "true"
             - name: PAPERLESS_TIKA_ENDPOINT
               value: {{ .Values.paperless.tika.url | default (printf "http://%s-tika:9998" (include "paperless-ngx.fullname" .)) }}
 {{- end }}
