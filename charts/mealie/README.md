@@ -9,6 +9,12 @@ A Helm chart for Kubernetes
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
+| argocdHooks.preSyncNotification.enabled | bool | `false` | Enable the ArgoCD PreSync hook that sends a Signal notification before each sync |
+| argocdHooks.preSyncNotification.message | string | `"Mealie is syncing..."` | Message body sent before the sync starts |
+| argocdHooks.preSyncNotification.namespace | string | `"argo"` | Namespace in which the hook Job is created (should match the ArgoCD namespace) |
+| argocdHooks.preSyncNotification.recipients | list | `["+0000000000"]` | List of recipient numbers in international format |
+| argocdHooks.preSyncNotification.sender | string | `"+0000000000"` | Signal sender number in international format (must be registered in signal-cli-rest-api) |
+| argocdHooks.preSyncNotification.signalApiUrl | string | `"http://signal-api:8080"` | Full URL to the signal-cli-rest-api instance (e.g. http://signal-api.signal.svc.cluster.local:8080) |
 | fullnameOverride | string | `""` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
 | image.tag | string | `"latest"` |  |
