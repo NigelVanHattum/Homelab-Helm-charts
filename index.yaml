@@ -273,6 +273,16 @@ entries:
   mealie:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-04-14T22:47:52.049766412Z"
+    description: A Helm chart for Kubernetes
+    digest: 2f3210fd7f7613d1bdd912ca0ede533de0cc9f278a31f416a085e17370014e95
+    name: mealie
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/mealie-0.2.3/mealie-0.2.3.tgz
+    version: 0.2.3
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-07-14T14:43:59.14735155Z"
     description: A Helm chart for Kubernetes
     digest: 3da7ae67cd4091fc9e413a51fd1106494795d669244014f9cbc309694541b2da
@@ -1243,4 +1253,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2026-03-15T11:27:20.458278304Z"
+generated: "2026-04-14T22:47:52.04995045Z"
