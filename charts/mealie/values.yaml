@@ -90,6 +90,22 @@ mealie:
       matchExpressions: {}
       size: "1Gi"
 
+argocdHooks:
+  preSyncNotification:
+    # -- Enable the ArgoCD PreSync hook that sends a Signal notification before each sync
+    enabled: false
+    # -- Namespace in which the hook Job is created (should match the ArgoCD namespace)
+    namespace: "argo"
+    # -- Full URL to the signal-cli-rest-api instance (e.g. http://signal-api.signal.svc.cluster.local:8080)
+    signalApiUrl: "http://signal-api:8080"
+    # -- Signal sender number in international format (must be registered in signal-cli-rest-api)
+    sender: "+0000000000"
+    # -- List of recipient numbers in international format
+    recipients:
+      - "+0000000000"
+    # -- Message body sent before the sync starts
+    message: "Mealie is syncing..."
+
 ingress:
   enabled: false
   className: ""

@@ -1,0 +1,32 @@
+{{- if .Values.argocdHooks.preSyncNotification.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "mealie.fullname" . }}-pre-sync-notification
+  namespace: {{ .Values.argocdHooks.preSyncNotification.namespace }}
+  labels:
+    {{- include "mealie.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 120
+  template:
+    metadata:
+      name: {{ include "mealie.fullname" . }}-pre-sync-notification
+      labels:
+        {{- include "mealie.selectorLabels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: signal-notification
+          image: curlimages/curl:latest
+          command:
+            - sh
+            - -c
+            - |
+              curl -X POST \
+                -H "Content-Type: application/json" \
+                -d '{"message": "{{ .Values.argocdHooks.preSyncNotification.message }}", "number": "{{ .Values.argocdHooks.preSyncNotification.sender }}", "recipients": {{ .Values.argocdHooks.preSyncNotification.recipients | toJson }}}' \
+                {{ .Values.argocdHooks.preSyncNotification.signalApiUrl }}/v2/send
+{{- end }}
