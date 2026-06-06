@@ -506,6 +506,37 @@ entries:
   plex-management:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-06-06T21:07:02.704268234Z"
+    dependencies:
+    - condition: prowlarr.enabled
+      name: prowlarr
+      repository: file://../prowlarr
+      version: 0.1.3
+    - condition: sonarr.enabled
+      name: sonarr
+      repository: file://../sonarr
+      version: 0.1.6
+    - condition: radarr.enabled
+      name: radarr
+      repository: file://../radarr
+      version: 0.1.10
+    - condition: ombi.enabled
+      name: ombi
+      repository: file://../ombi
+      version: 0.1.2
+    - condition: tdarr.enabled
+      name: tdarr
+      repository: file://../tdarr
+      version: 0.1.9
+    description: A Helm chart for Kubernetes
+    digest: 3e674c2423688b3f7c02cb14842412011e1580d8062e444f36abd77f77f74ac2
+    name: plex-management
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/plex-management-0.1.17/plex-management-0.1.17.tgz
+    version: 0.1.17
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-09-28T10:47:12.136433644Z"
     dependencies:
     - condition: prowlarr.enabled
@@ -1002,6 +1033,16 @@ entries:
   radarr:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-06-06T21:07:02.85343581Z"
+    description: A Helm chart for Kubernetes
+    digest: cfc504040365a4df54ffe845e8b786a3f437b3a9873c52d957d07a848eaea54e
+    name: radarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/radarr-0.1.10/radarr-0.1.10.tgz
+    version: 0.1.10
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-07-20T15:22:55.494297719Z"
     description: A Helm chart for Kubernetes
     digest: 364953b4aa433369b82da7dda783cee29036b976c2fc15c184e49828dec79fbf
@@ -1093,6 +1134,16 @@ entries:
   sonarr:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-06-06T21:07:03.007722136Z"
+    description: A Helm chart for Kubernetes
+    digest: 5f292bc82fecd46c06bda3bca53f471845cfc4752898e4afd2c0fb3881503a4c
+    name: sonarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.6/sonarr-0.1.6.tgz
+    version: 0.1.6
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-07-15T22:32:39.187467424Z"
     description: A Helm chart for Kubernetes
     digest: d3c0f9d366a1a20e760ff57ec5872e3af7f3043150102c21e60a3876f6c33113
@@ -1152,6 +1203,16 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.0/sonarr-0.1.0.tgz
     version: 0.1.0
   tdarr:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2026-06-06T21:07:03.133674661Z"
+    description: A Helm chart for Kubernetes
+    digest: d1c680b9e154a2f0e03972bf85969229ddd6f00da77db71c579b58fecae81f87
+    name: tdarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/tdarr-0.1.9/tdarr-0.1.9.tgz
+    version: 0.1.9
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2024-09-28T10:47:12.220673519Z"
@@ -1253,4 +1314,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2026-04-14T22:47:52.04995045Z"
+generated: "2026-06-06T21:07:03.133834259Z"
