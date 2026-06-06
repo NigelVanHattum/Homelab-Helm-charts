@@ -67,9 +67,11 @@ spec:
         {{- end }}
         {{- with .Chart.Name }}
         {{- range $.Values.tdarr.persistence.extraVolumes }}
-        - name: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc}}
-          persistentVolumeClaim: 
-            claimname: {{ default (printf "%s-%s" $.Chart.Name .volumeName) .useExistingPvc }}
+        {{- if .useExistingPvc }}
+        - name: {{ .useExistingPvc }}
+          persistentVolumeClaim:
+            claimName: {{ .useExistingPvc }}
+        {{- end }}
         {{- end }}
         {{- end }}
       {{- with .Values.nodeSelector }}
