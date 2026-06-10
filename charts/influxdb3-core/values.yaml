@@ -377,6 +377,94 @@ ingress:
   #       - influxdb.example.com
 
 # ============================================================================
+# InfluxDB 3 Explorer (web UI, optional)
+# ============================================================================
+# InfluxDB 3 Core ships no built-in UI. Explorer is a separate web app
+# (influxdata/influxdb3-ui) for querying, visualizing and managing data.
+# When enabled it is deployed as its own single-replica StatefulSet with its
+# own Service and (optional) Ingress, pre-wired to the in-cluster Core server.
+
+explorer:
+  enabled: false
+
+  image:
+    registry: docker.io
+    repository: influxdata/influxdb3-ui
+    # -- Explorer image tag. Pin a version; see https://hub.docker.com/r/influxdata/influxdb3-ui/tags
+    tag: "1.8.0"
+    pullPolicy: IfNotPresent
+
+  # -- UI mode: "admin" (full management) or "query" (read-only)
+  mode: admin
+
+  # Pre-configure the default server connection (renders /app-root/config/config.json).
+  # When connection.enabled is false, configure the connection in the UI at runtime.
+  connection:
+    enabled: true
+    # -- Display name for the server in Explorer
+    serverName: "InfluxDB 3 Core"
+    # -- Core server URL. Defaults to the in-cluster Core service when empty.
+    server: ""
+    # -- Default database to open (optional)
+    database: ""
+    # API token Explorer uses to reach Core. Provide inline OR via an existing secret.
+    # The token must be the raw token string (e.g. apiv3_...), not the admin-token.json wrapper.
+    token: ""
+    # -- Existing secret holding the raw API token (takes precedence over token)
+    existingSecret: ""
+    existingSecretKey: "token"
+
+  # SESSION_SECRET_KEY - set to persist UI sessions across restarts.
+  # When left empty the container generates a random key on each start.
+  sessionSecret:
+    value: ""
+    existingSecret: ""
+    existingSecretKey: "session-secret"
+
+  # Persistent storage for Explorer's SQLite state (/db: saved queries, sessions)
+  persistence:
+    enabled: true
+    storageClass: ""
+    size: 1Gi
+    accessMode: ReadWriteOnce
+    # -- Bind the PVC to a specific PersistentVolume (e.g. a pre-created static PV)
+    volumeName: ""
+
+  resources: {}
+
+  # Security context
+  podSecurityContext: {}
+  securityContext: {}
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 8080
+    annotations: {}
+
+  # Ingress for the Explorer UI
+  ingress:
+    enabled: false
+    host: "influxdb-explorer.example.com"
+    className: ""
+    annotations: {}
+    tls: []
+    # tls:
+    #   - secretName: influxdb-explorer-tls
+    #     hosts:
+    #       - influxdb-explorer.example.com
+
+  # Scheduling
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+  priorityClassName: ""
+
+  # Additional pod annotations and labels
+  podAnnotations: {}
+  podLabels: {}
+
+# ============================================================================
 # Network Policies (optional, disabled by default)
 # ============================================================================
 # To enable network policies, set networkPolicy.enabled: true

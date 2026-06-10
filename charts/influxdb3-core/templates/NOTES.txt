@@ -62,4 +62,24 @@ Getting started:
 
      influxdb3 query mydb "SELECT * FROM measurement"
 
+{{- if .Values.explorer.enabled }}
+
+InfluxDB 3 Explorer (web UI) is enabled in "{{ .Values.explorer.mode }}" mode.
+{{- if .Values.explorer.ingress.enabled }}
+  UI: http{{ if .Values.explorer.ingress.tls }}s{{ end }}://{{ .Values.explorer.ingress.host }}
+{{- else }}
+  UI: kubectl port-forward svc/{{ include "influxdb3-core.explorer.fullname" . }} {{ .Values.explorer.service.port }}:{{ .Values.explorer.service.port }} -n {{ .Release.Namespace }}
+{{- end }}
+{{- if .Values.explorer.connection.enabled }}
+  Pre-configured to connect to {{ include "influxdb3-core.explorer.serverUrl" . }}
+  {{- if not (or .Values.explorer.connection.existingSecret .Values.explorer.connection.token) }}
+
+  ⚠️  explorer.connection.enabled is true but no API token is set.
+      Set explorer.connection.token or explorer.connection.existingSecret,
+      otherwise Explorer cannot authenticate to the Core server.
+  {{- end }}
+{{- end }}
+{{- end }}
+
 Documentation: https://docs.influxdata.com/influxdb3/core/
+Explorer docs:  https://docs.influxdata.com/influxdb3/explorer/
