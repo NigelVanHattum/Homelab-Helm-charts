@@ -1,0 +1,64 @@
+{{ template "chart.header" . }}
+
+{{ template "chart.badgesSection" . }}
+
+{{ template "chart.description" . }}
+
+[InfluxDB 3 Core](https://docs.influxdata.com/influxdb3/core/) is the open source release of InfluxDB 3 — a single-node time series database that persists data as Parquet files in an object store (local filesystem, S3, Azure Blob Storage, or Google Cloud Storage).
+
+This chart deploys InfluxDB 3 Core as a single-replica StatefulSet. For the distributed, multi-component version see the [influxdb3-enterprise](https://github.com/influxdata/helm-charts/tree/master/charts/influxdb3-enterprise) chart.
+
+{{ template "chart.homepageLine" . }}
+
+{{ template "chart.maintainersSection" . }}
+
+{{ template "chart.sourcesSection" . }}
+
+## Installing
+
+```sh
+helm install influxdb3-core ./charts/influxdb3-core
+```
+
+By default data is stored on a PersistentVolumeClaim using the cluster's default StorageClass.
+
+### Using S3 (or S3-compatible) object storage
+
+```yaml
+objectStorage:
+  type: s3
+  bucket: my-influxdb-bucket
+  s3:
+    region: us-east-1
+    endpoint: ""                # set for MinIO etc., empty for AWS
+    accessKeyId: my-key
+    secretAccessKey: my-secret
+    # or reference an existing secret with keys access-key-id / secret-access-key:
+    # existingSecret: my-s3-secret
+```
+
+### Authentication
+
+Authentication is enabled by default (the `/health` endpoint is exempted so Kubernetes probes work). Create an admin token after install:
+
+```sh
+kubectl exec -it <release-name>-influxdb3-core-0 -- influxdb3 create token --admin
+```
+
+Alternatively, provide an offline-generated admin token via `security.auth.adminToken.existingSecret` (secret key `admin-token.json`).
+
+### Processing engine
+
+The embedded Python processing engine can be enabled with `processingEngine.enabled: true`. Plugins are stored on a dedicated PersistentVolumeClaim and can be pre-installed via `processingEngine.initPlugins`.
+
+Note: enabling the processing engine after the initial install adds a volumeClaimTemplate to the StatefulSet, which requires recreating it first:
+
+```sh
+kubectl delete statefulset <release-name>-influxdb3-core --cascade=orphan
+```
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}
+
+{{ template "helm-docs.versionFooter" . }}
