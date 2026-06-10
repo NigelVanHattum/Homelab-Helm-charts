@@ -1,0 +1,172 @@
+{{- if .Values.explorer.enabled }}
+{{- $conn := .Values.explorer.connection | default dict }}
+{{- $session := .Values.explorer.sessionSecret | default dict }}
+{{- $persistence := .Values.explorer.persistence | default dict }}
+{{- $hasSessionSecret := or $session.existingSecret $session.value }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "influxdb3-core.explorer.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "influxdb3-core.explorer.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "influxdb3-core.explorer.fullname" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "influxdb3-core.explorer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- if $conn.enabled }}
+        checksum/connection: {{ printf "%s|%s|%s|%s" (include "influxdb3-core.explorer.serverUrl" .) ($conn.database | default "") ($conn.serverName | default "") (include "influxdb3-core.explorer.tokenSecretName" .) | sha256sum }}
+        {{- end }}
+        {{- with .Values.explorer.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "influxdb3-core.explorer.selectorLabels" . | nindent 8 }}
+        {{- with .Values.explorer.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "influxdb3-core.serviceAccountName" . }}
+      {{- if .Values.explorer.priorityClassName }}
+      priorityClassName: {{ .Values.explorer.priorityClassName }}
+      {{- end }}
+      {{- with .Values.explorer.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $conn.enabled }}
+      initContainers:
+        - name: render-config
+          image: {{ include "influxdb3-core.explorer.image" . }}
+          imagePullPolicy: {{ .Values.explorer.image.pullPolicy }}
+          {{- with .Values.explorer.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              umask 077
+              cat > /app-root/config/config.json <<JSON
+              {
+                "DEFAULT_INFLUX_SERVER": "${DEFAULT_INFLUX_SERVER}",
+                "DEFAULT_INFLUX_DATABASE": "${DEFAULT_INFLUX_DATABASE}",
+                "DEFAULT_API_TOKEN": "${DEFAULT_API_TOKEN}",
+                "DEFAULT_SERVER_NAME": "${DEFAULT_SERVER_NAME}"
+              }
+              JSON
+          env:
+            - name: DEFAULT_INFLUX_SERVER
+              value: {{ include "influxdb3-core.explorer.serverUrl" . | quote }}
+            - name: DEFAULT_INFLUX_DATABASE
+              value: {{ $conn.database | default "" | quote }}
+            - name: DEFAULT_SERVER_NAME
+              value: {{ $conn.serverName | default "InfluxDB 3 Core" | quote }}
+            - name: DEFAULT_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "influxdb3-core.explorer.tokenSecretName" . }}
+                  key: {{ $conn.existingSecretKey | default "token" }}
+          volumeMounts:
+            - name: config
+              mountPath: /app-root/config
+      {{- end }}
+      containers:
+        - name: explorer
+          {{- with .Values.explorer.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: {{ include "influxdb3-core.explorer.image" . }}
+          imagePullPolicy: {{ .Values.explorer.image.pullPolicy }}
+          args:
+            - --mode={{ .Values.explorer.mode }}
+          {{- if $hasSessionSecret }}
+          env:
+            - name: SESSION_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "influxdb3-core.explorer.sessionSecretName" . }}
+                  key: {{ $session.existingSecretKey | default "session-secret" }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          {{- if .Values.probes.enabled }}
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- end }}
+          resources:
+            {{- toYaml .Values.explorer.resources | nindent 12 }}
+          volumeMounts:
+            - name: db
+              mountPath: /db
+            {{- if $conn.enabled }}
+            - name: config
+              mountPath: /app-root/config
+            {{- end }}
+      {{- with .Values.explorer.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.explorer.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.explorer.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        {{- if $conn.enabled }}
+        - name: config
+          emptyDir: {}
+        {{- end }}
+        {{- if not $persistence.enabled }}
+        - name: db
+          emptyDir: {}
+        {{- end }}
+  {{- if $persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: db
+      spec:
+        accessModes:
+          - {{ $persistence.accessMode }}
+      {{- if $persistence.storageClass }}
+        storageClassName: {{ $persistence.storageClass | quote }}
+      {{- end }}
+      {{- if $persistence.volumeName }}
+        volumeName: {{ $persistence.volumeName | quote }}
+      {{- end }}
+        resources:
+          requests:
+            storage: {{ $persistence.size }}
+  {{- end }}
+{{- end }}

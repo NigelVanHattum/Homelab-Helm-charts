@@ -401,3 +401,87 @@ Admin token volumes
         path: admin-token.json
 {{- end }}
 {{- end }}
+
+{{/*
+=============================================================================
+InfluxDB 3 Explorer (web UI) helpers
+=============================================================================
+*/}}
+
+{{/*
+Explorer fully qualified name
+*/}}
+{{- define "influxdb3-core.explorer.fullname" -}}
+{{- printf "%s-explorer" (include "influxdb3-core.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Explorer selector labels
+*/}}
+{{- define "influxdb3-core.explorer.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "influxdb3-core.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: explorer
+{{- end }}
+
+{{/*
+Explorer common labels
+*/}}
+{{- define "influxdb3-core.explorer.labels" -}}
+helm.sh/chart: {{ include "influxdb3-core.chart" . }}
+{{ include "influxdb3-core.explorer.selectorLabels" . }}
+{{- if .Values.explorer.image.tag }}
+app.kubernetes.io/version: {{ .Values.explorer.image.tag | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Explorer image reference
+*/}}
+{{- define "influxdb3-core.explorer.image" -}}
+{{- $registry := .Values.explorer.image.registry }}
+{{- $repository := .Values.explorer.image.repository }}
+{{- $tag := .Values.explorer.image.tag | default "latest" }}
+{{- printf "%s/%s:%s" $registry $repository $tag }}
+{{- end }}
+
+{{/*
+Explorer default server URL (in-cluster Core service) when not overridden
+*/}}
+{{- define "influxdb3-core.explorer.serverUrl" -}}
+{{- $conn := .Values.explorer.connection | default dict -}}
+{{- $server := get $conn "server" | default "" -}}
+{{- if $server -}}
+{{- $server -}}
+{{- else -}}
+{{- $scheme := ternary "https" "http" .Values.security.tls.enabled -}}
+{{- printf "%s://%s:%v" $scheme (include "influxdb3-core.fullname" .) .Values.service.port -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Explorer config secret name (holds the connection API token)
+*/}}
+{{- define "influxdb3-core.explorer.tokenSecretName" -}}
+{{- $conn := .Values.explorer.connection | default dict -}}
+{{- $existing := get $conn "existingSecret" | default "" -}}
+{{- if $existing -}}
+{{- $existing -}}
+{{- else -}}
+{{- printf "%s-connection" (include "influxdb3-core.explorer.fullname" .) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Explorer session secret name
+*/}}
+{{- define "influxdb3-core.explorer.sessionSecretName" -}}
+{{- $session := .Values.explorer.sessionSecret | default dict -}}
+{{- $existing := get $session "existingSecret" | default "" -}}
+{{- if $existing -}}
+{{- $existing -}}
+{{- else -}}
+{{- printf "%s-session" (include "influxdb3-core.explorer.fullname" .) -}}
+{{- end -}}
+{{- end }}

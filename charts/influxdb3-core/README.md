@@ -1,6 +1,6 @@
 # influxdb3-core
 
-![Version: 0.1.1](https://img.shields.io/badge/Version-0.1.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 3.9.3](https://img.shields.io/badge/AppVersion-3.9.3-informational?style=flat-square)
+![Version: 0.2.0](https://img.shields.io/badge/Version-0.2.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 3.9.3](https://img.shields.io/badge/AppVersion-3.9.3-informational?style=flat-square)
 
 A Helm chart for deploying InfluxDB 3 Core on Kubernetes
 
@@ -64,12 +64,70 @@ Note: enabling the processing engine after the initial install adds a volumeClai
 kubectl delete statefulset <release-name>-influxdb3-core --cascade=orphan
 ```
 
+### Web UI (InfluxDB 3 Explorer)
+
+Core has no built-in UI. Enable the optional [InfluxDB 3 Explorer](https://docs.influxdata.com/influxdb3/explorer/) web app with `explorer.enabled: true`. It is deployed as its own single-replica StatefulSet (image `influxdata/influxdb3-ui`) with its own Service and optional Ingress, and is pre-wired to the in-cluster Core server.
+
+Provide the API token Explorer uses to reach Core via `explorer.connection.token` (inline) or `explorer.connection.existingSecret` (a secret holding the raw `apiv3_...` token):
+
+```yaml
+explorer:
+  enabled: true
+  mode: admin                 # or "query" for read-only
+  connection:
+    enabled: true
+    database: mydb
+    existingSecret: influxdb-explorer-token   # key: token
+  ingress:
+    enabled: true
+    className: nginx
+    host: influxdb-explorer.example.com
+```
+
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
 | caching | string | `nil` |  |
+| explorer.affinity | object | `{}` |  |
+| explorer.connection.database | string | `""` | Default database to open (optional) |
+| explorer.connection.enabled | bool | `true` |  |
+| explorer.connection.existingSecret | string | `""` | Existing secret holding the raw API token (takes precedence over token) |
+| explorer.connection.existingSecretKey | string | `"token"` |  |
+| explorer.connection.server | string | `""` | Core server URL. Defaults to the in-cluster Core service when empty. |
+| explorer.connection.serverName | string | `"InfluxDB 3 Core"` | Display name for the server in Explorer |
+| explorer.connection.token | string | `""` |  |
+| explorer.enabled | bool | `false` |  |
+| explorer.image.pullPolicy | string | `"IfNotPresent"` |  |
+| explorer.image.registry | string | `"docker.io"` |  |
+| explorer.image.repository | string | `"influxdata/influxdb3-ui"` |  |
+| explorer.image.tag | string | `"1.8.0"` | Explorer image tag. Pin a version; see https://hub.docker.com/r/influxdata/influxdb3-ui/tags |
+| explorer.ingress.annotations | object | `{}` |  |
+| explorer.ingress.className | string | `""` |  |
+| explorer.ingress.enabled | bool | `false` |  |
+| explorer.ingress.host | string | `"influxdb-explorer.example.com"` |  |
+| explorer.ingress.tls | list | `[]` |  |
+| explorer.mode | string | `"admin"` | UI mode: "admin" (full management) or "query" (read-only) |
+| explorer.nodeSelector | object | `{}` |  |
+| explorer.persistence.accessMode | string | `"ReadWriteOnce"` |  |
+| explorer.persistence.enabled | bool | `true` |  |
+| explorer.persistence.size | string | `"1Gi"` |  |
+| explorer.persistence.storageClass | string | `""` |  |
+| explorer.persistence.volumeName | string | `""` | Bind the PVC to a specific PersistentVolume (e.g. a pre-created static PV) |
+| explorer.podAnnotations | object | `{}` |  |
+| explorer.podLabels | object | `{}` |  |
+| explorer.podSecurityContext | object | `{}` |  |
+| explorer.priorityClassName | string | `""` |  |
+| explorer.resources | object | `{}` |  |
+| explorer.securityContext | object | `{}` |  |
+| explorer.service.annotations | object | `{}` |  |
+| explorer.service.port | int | `8080` |  |
+| explorer.service.type | string | `"ClusterIP"` |  |
+| explorer.sessionSecret.existingSecret | string | `""` |  |
+| explorer.sessionSecret.existingSecretKey | string | `"session-secret"` |  |
+| explorer.sessionSecret.value | string | `""` |  |
+| explorer.tolerations | list | `[]` |  |
 | extraEnv | list | `[]` |  |
 | extraVolumeMounts | list | `[]` |  |
 | extraVolumes | list | `[]` |  |

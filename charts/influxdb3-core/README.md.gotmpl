@@ -57,6 +57,26 @@ Note: enabling the processing engine after the initial install adds a volumeClai
 kubectl delete statefulset <release-name>-influxdb3-core --cascade=orphan
 ```
 
+### Web UI (InfluxDB 3 Explorer)
+
+Core has no built-in UI. Enable the optional [InfluxDB 3 Explorer](https://docs.influxdata.com/influxdb3/explorer/) web app with `explorer.enabled: true`. It is deployed as its own single-replica StatefulSet (image `influxdata/influxdb3-ui`) with its own Service and optional Ingress, and is pre-wired to the in-cluster Core server.
+
+Provide the API token Explorer uses to reach Core via `explorer.connection.token` (inline) or `explorer.connection.existingSecret` (a secret holding the raw `apiv3_...` token):
+
+```yaml
+explorer:
+  enabled: true
+  mode: admin                 # or "query" for read-only
+  connection:
+    enabled: true
+    database: mydb
+    existingSecret: influxdb-explorer-token   # key: token
+  ingress:
+    enabled: true
+    className: nginx
+    host: influxdb-explorer.example.com
+```
+
 {{ template "chart.requirementsSection" . }}
 
 {{ template "chart.valuesSection" . }}
