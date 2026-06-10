@@ -164,6 +164,9 @@ spec:
       {{- if .Values.objectStorage.file.persistence.storageClass }}
         storageClassName: {{ .Values.objectStorage.file.persistence.storageClass | quote }}
       {{- end }}
+      {{- if .Values.objectStorage.file.persistence.volumeName }}
+        volumeName: {{ .Values.objectStorage.file.persistence.volumeName | quote }}
+      {{- end }}
         resources:
           requests:
             storage: {{ .Values.objectStorage.file.persistence.size }}

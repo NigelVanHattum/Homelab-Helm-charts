@@ -65,6 +65,8 @@ objectStorage:
       storageClass: ""
       size: 50Gi
       accessMode: ReadWriteOnce
+      # -- Bind the data PVC to a specific PersistentVolume (e.g. a pre-created static PV)
+      volumeName: ""
 
   # S3 and S3-compatible storage (MinIO, etc.)
   # To use S3, set objectStorage.type: s3
