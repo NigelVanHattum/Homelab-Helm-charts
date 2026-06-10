@@ -84,12 +84,35 @@ explorer:
     host: influxdb-explorer.example.com
 ```
 
+### Workload metadata (annotations / labels)
+
+Annotations and labels are split per workload — `server.*` for the Core StatefulSet and `explorer.*` for the Explorer StatefulSet — plus a `global.*` block that is merged into both. Per-workload keys take precedence over `global` on conflict.
+
+- `global.annotations` / `server.annotations` / `explorer.annotations` → StatefulSet object metadata (the controller, not the pods)
+- `global.podAnnotations` / `server.podAnnotations` / `explorer.podAnnotations` → pod template
+- `global.podLabels` / `server.podLabels` / `explorer.podLabels` → pod template
+
+The StatefulSet-level `annotations` are where controllers that watch the workload object look — for example the [1Password operator](https://www.1password.dev/k8s/operator/), which injects a Secret from a 1Password item:
+
+```yaml
+global:
+  annotations:
+    operator.1password.io/auto-restart: "true"
+server:
+  annotations:
+    operator.1password.io/item-path: "vaults/VAULT/items/ITEM"
+    operator.1password.io/item-name: "influxdb-admin-token"   # Core reads key admin-token.json
+explorer:
+  annotations:
+    operator.1password.io/item-path: "vaults/VAULT/items/ITEM"
+    operator.1password.io/item-name: "influxdb-explorer-token" # Explorer reads the raw-token key
+```
+
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
-| annotations | object | `{}` | Annotations for the StatefulSet object itself (controller metadata, not the pods). Use for controllers that watch the workload object, e.g. the 1Password operator's operator.1password.io/item-path and item-name annotations. |
 | caching | string | `nil` |  |
 | explorer.affinity | object | `{}` |  |
 | explorer.annotations | object | `{}` | Annotations for the Explorer StatefulSet object itself (controller metadata, not the pods), e.g. 1Password operator item-path/item-name. |
@@ -134,6 +157,9 @@ explorer:
 | extraVolumeMounts | list | `[]` |  |
 | extraVolumes | list | `[]` |  |
 | fullnameOverride | string | `""` |  |
+| global.annotations | object | `{}` | Annotations merged into both StatefulSet objects (controller metadata) |
+| global.podAnnotations | object | `{}` | Annotations merged into both pod templates |
+| global.podLabels | object | `{}` | Labels merged into both pod templates |
 | http | string | `nil` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
 | image.registry | string | `"docker.io"` |  |
@@ -192,8 +218,6 @@ explorer:
 | objectStorage.s3.secretAccessKey | string | `""` |  |
 | objectStorage.s3.sessionToken | string | `""` |  |
 | objectStorage.type | string | `"file"` | Object store type: file, s3, azure, google, memory, memory-throttled |
-| podAnnotations | object | `{}` |  |
-| podLabels | object | `{}` |  |
 | podSecurityContext.fsGroup | int | `1500` |  |
 | podSecurityContext.runAsGroup | int | `1500` |  |
 | podSecurityContext.runAsNonRoot | bool | `true` |  |
@@ -232,6 +256,9 @@ explorer:
 | security.tls.keyPath | string | `"/etc/influxdb/tls/tls.key"` |  |
 | security.tls.minVersion | string | `"tls-1.2"` |  |
 | securityContext | object | `{}` |  |
+| server.annotations | object | `{}` | Annotations for the Core StatefulSet object (controller metadata, not the pods). Use for controllers that watch the workload object, e.g. the 1Password operator's operator.1password.io/item-path and item-name annotations. |
+| server.podAnnotations | object | `{}` | Annotations for the Core pods |
+| server.podLabels | object | `{}` | Labels for the Core pods |
 | service.annotations | object | `{}` |  |
 | service.port | int | `8181` |  |
 | service.type | string | `"ClusterIP"` |  |

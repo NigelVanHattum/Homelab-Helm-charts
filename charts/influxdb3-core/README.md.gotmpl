@@ -77,6 +77,30 @@ explorer:
     host: influxdb-explorer.example.com
 ```
 
+### Workload metadata (annotations / labels)
+
+Annotations and labels are split per workload — `server.*` for the Core StatefulSet and `explorer.*` for the Explorer StatefulSet — plus a `global.*` block that is merged into both. Per-workload keys take precedence over `global` on conflict.
+
+- `global.annotations` / `server.annotations` / `explorer.annotations` → StatefulSet object metadata (the controller, not the pods)
+- `global.podAnnotations` / `server.podAnnotations` / `explorer.podAnnotations` → pod template
+- `global.podLabels` / `server.podLabels` / `explorer.podLabels` → pod template
+
+The StatefulSet-level `annotations` are where controllers that watch the workload object look — for example the [1Password operator](https://www.1password.dev/k8s/operator/), which injects a Secret from a 1Password item:
+
+```yaml
+global:
+  annotations:
+    operator.1password.io/auto-restart: "true"
+server:
+  annotations:
+    operator.1password.io/item-path: "vaults/VAULT/items/ITEM"
+    operator.1password.io/item-name: "influxdb-admin-token"   # Core reads key admin-token.json
+explorer:
+  annotations:
+    operator.1password.io/item-path: "vaults/VAULT/items/ITEM"
+    operator.1password.io/item-name: "influxdb-explorer-token" # Explorer reads the raw-token key
+```
+
 {{ template "chart.requirementsSection" . }}
 
 {{ template "chart.valuesSection" . }}

@@ -498,3 +498,36 @@ Explorer session secret name
 {{- printf "%s-session" (include "influxdb3-core.explorer.fullname" .) -}}
 {{- end -}}
 {{- end }}
+
+{{/*
+=============================================================================
+Merged metadata helpers - global values overlaid by the per-workload map.
+The per-workload (server or explorer) keys take precedence on conflict.
+Each returns a YAML map; consume with `include ... | fromYaml`.
+=============================================================================
+*/}}
+{{- define "influxdb3-core.server.annotations" -}}
+{{- $g := .Values.global | default dict -}}
+{{- toYaml (merge (deepCopy (.Values.server.annotations | default dict)) ($g.annotations | default dict)) -}}
+{{- end }}
+{{- define "influxdb3-core.server.podAnnotations" -}}
+{{- $g := .Values.global | default dict -}}
+{{- toYaml (merge (deepCopy (.Values.server.podAnnotations | default dict)) ($g.podAnnotations | default dict)) -}}
+{{- end }}
+{{- define "influxdb3-core.server.podLabels" -}}
+{{- $g := .Values.global | default dict -}}
+{{- toYaml (merge (deepCopy (.Values.server.podLabels | default dict)) ($g.podLabels | default dict)) -}}
+{{- end }}
+
+{{- define "influxdb3-core.explorer.annotations" -}}
+{{- $g := .Values.global | default dict -}}
+{{- toYaml (merge (deepCopy (.Values.explorer.annotations | default dict)) ($g.annotations | default dict)) -}}
+{{- end }}
+{{- define "influxdb3-core.explorer.podAnnotations" -}}
+{{- $g := .Values.global | default dict -}}
+{{- toYaml (merge (deepCopy (.Values.explorer.podAnnotations | default dict)) ($g.podAnnotations | default dict)) -}}
+{{- end }}
+{{- define "influxdb3-core.explorer.podLabels" -}}
+{{- $g := .Values.global | default dict -}}
+{{- toYaml (merge (deepCopy (.Values.explorer.podLabels | default dict)) ($g.podLabels | default dict)) -}}
+{{- end }}

@@ -16,7 +16,7 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "influxdb3-core.labels" . | nindent 4 }}
-  {{- with .Values.annotations }}
+  {{- with (include "influxdb3-core.server.annotations" . | fromYaml) }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
@@ -36,12 +36,12 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/secret-object-storage.yaml") . | sha256sum }}
-        {{- with .Values.podAnnotations }}
+        {{- with (include "influxdb3-core.server.podAnnotations" . | fromYaml) }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
         {{- include "influxdb3-core.server.selectorLabels" . | nindent 8 }}
-        {{- with .Values.podLabels }}
+        {{- with (include "influxdb3-core.server.podLabels" . | fromYaml) }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
