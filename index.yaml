@@ -69,6 +69,30 @@ entries:
   influxdb3-core:
   - apiVersion: v2
     appVersion: 3.9.3
+    created: "2026-06-10T13:06:30.284917641Z"
+    description: A Helm chart for deploying InfluxDB 3 Core on Kubernetes
+    digest: fa8a7f0702ae45503acf650bcc9f748eefb2c887e610dc3975c11c9c227ebb04
+    home: https://www.influxdata.com/products/influxdb/
+    icon: https://www.influxdata.com/wp-content/uploads/influxdata-logo.svg
+    keywords:
+    - influxdb
+    - time-series
+    - database
+    - metrics
+    - iot
+    - open-source
+    maintainers:
+    - name: NigelVanHattum
+    name: influxdb3-core
+    sources:
+    - https://github.com/influxdata/influxdb
+    - https://docs.influxdata.com/influxdb3/core/
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/influxdb3-core-0.2.0/influxdb3-core-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
+    appVersion: 3.9.3
     created: "2026-06-10T13:05:03.83874724Z"
     description: A Helm chart for deploying InfluxDB 3 Core on Kubernetes
     digest: 71522b329c5ef3d6ee8b1906b352e91ba1972a730f473df342858366f9cb66a3
@@ -1363,4 +1387,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2026-06-10T13:05:03.838895199Z"
+generated: "2026-06-10T13:06:30.28504939Z"
