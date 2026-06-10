@@ -10,6 +10,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "influxdb3-core.explorer.labels" . | nindent 4 }}
+  {{- with (include "influxdb3-core.explorer.annotations" . | fromYaml) }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   serviceName: {{ include "influxdb3-core.explorer.fullname" . }}
   replicas: 1
@@ -22,12 +26,12 @@ spec:
         {{- if $conn.enabled }}
         checksum/connection: {{ printf "%s|%s|%s|%s" (include "influxdb3-core.explorer.serverUrl" .) ($conn.database | default "") ($conn.serverName | default "") (include "influxdb3-core.explorer.tokenSecretName" .) | sha256sum }}
         {{- end }}
-        {{- with .Values.explorer.podAnnotations }}
+        {{- with (include "influxdb3-core.explorer.podAnnotations" . | fromYaml) }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
         {{- include "influxdb3-core.explorer.selectorLabels" . | nindent 8 }}
-        {{- with .Values.explorer.podLabels }}
+        {{- with (include "influxdb3-core.explorer.podLabels" . | fromYaml) }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:

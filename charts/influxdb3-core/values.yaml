@@ -17,6 +17,16 @@ image:
 imagePullSecrets: []
 # - name: registry-secret
 
+# Global values merged into BOTH the Core (server) and Explorer workloads.
+# The per-workload server.*/explorer.* maps are merged on top and win on conflict.
+global:
+  # -- Annotations merged into both StatefulSet objects (controller metadata)
+  annotations: {}
+  # -- Annotations merged into both pod templates
+  podAnnotations: {}
+  # -- Labels merged into both pod templates
+  podLabels: {}
+
 # ============================================================================
 # Node Configuration
 # ============================================================================
@@ -168,9 +178,17 @@ affinity: {}
 nodeSelector: {}
 tolerations: []
 
-# Additional pod annotations and labels
-podAnnotations: {}
-podLabels: {}
+# Core (server) workload metadata. Each map is merged with its global.*
+# counterpart; keys set here take precedence on conflict.
+server:
+  # -- Annotations for the Core StatefulSet object (controller metadata, not the
+  # pods). Use for controllers that watch the workload object, e.g. the 1Password
+  # operator's operator.1password.io/item-path and item-name annotations.
+  annotations: {}
+  # -- Annotations for the Core pods
+  podAnnotations: {}
+  # -- Labels for the Core pods
+  podLabels: {}
 
 # Security context
 # InfluxDB3 runs as uid=1500(influxdb3) gid=1500(influxdb3)
@@ -459,6 +477,10 @@ explorer:
   affinity: {}
   tolerations: []
   priorityClassName: ""
+
+  # -- Annotations for the Explorer StatefulSet object itself (controller
+  # metadata, not the pods), e.g. 1Password operator item-path/item-name.
+  annotations: {}
 
   # Additional pod annotations and labels
   podAnnotations: {}
