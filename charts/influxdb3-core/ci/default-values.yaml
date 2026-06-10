@@ -1,0 +1,6 @@
+# CI values: small PVC so the chart installs on minimal test clusters
+objectStorage:
+  type: file
+  file:
+    persistence:
+      size: 1Gi

@@ -1,0 +1,116 @@
+# Network Policy to secure communication to and from InfluxDB 3 Core
+#
+# To enable: set networkPolicy.enabled: true in values.yaml
+#
+# IMPORTANT: Requires a CNI plugin that supports NetworkPolicy
+# (e.g., Calico, Cilium, Weave Net, or Antrea)
+#
+# If your cluster doesn't support NetworkPolicy, keep this disabled
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "influxdb3-core.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "influxdb3-core.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "influxdb3-core.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    {{- toYaml .Values.networkPolicy.policyTypes | nindent 4 }}
+  ingress:
+    # Allow traffic from ingress controller
+    {{- if .Values.networkPolicy.ingress.fromIngressController }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{ .Values.networkPolicy.ingress.ingressController.namespaceLabel }}: {{ .Values.networkPolicy.ingress.ingressController.namespace }}
+          podSelector:
+            matchLabels:
+              {{ .Values.networkPolicy.ingress.ingressController.podLabelKey }}: {{ .Values.networkPolicy.ingress.ingressController.podLabelValue }}
+      ports:
+        - protocol: TCP
+          port: 8181
+    {{- end }}
+    # Allow Prometheus to scrape metrics
+    {{- if .Values.networkPolicy.ingress.fromPrometheus }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{ .Values.networkPolicy.ingress.prometheus.namespaceLabel }}: {{ .Values.networkPolicy.ingress.prometheus.namespace }}
+          podSelector:
+            matchLabels:
+              {{ .Values.networkPolicy.ingress.prometheus.podLabelKey }}: {{ .Values.networkPolicy.ingress.prometheus.podLabelValue }}
+      ports:
+        - protocol: TCP
+          port: 8181
+    {{- end }}
+  egress:
+    # Allow DNS resolution
+    {{- if .Values.networkPolicy.egress.toDns }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{ .Values.networkPolicy.egress.dns.namespaceLabel }}: {{ .Values.networkPolicy.egress.dns.namespace }}
+          podSelector:
+            matchLabels:
+              {{ .Values.networkPolicy.egress.dns.podLabelKey }}: {{ .Values.networkPolicy.egress.dns.podLabelValue }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    {{- end }}
+    # Allow access to object storage
+    {{- if .Values.networkPolicy.egress.toObjectStorage }}
+    {{- if .Values.networkPolicy.egress.objectStorageCidrs }}
+    # Egress to specific object storage CIDRs (AWS S3, Azure, GCS endpoints)
+    {{- range .Values.networkPolicy.egress.objectStorageCidrs }}
+    - to:
+        - ipBlock:
+            cidr: {{ . }}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    {{- end }}
+    {{- else }}
+    # Default: Allow egress to any destination for object storage
+    # WARNING: This is permissive. Configure objectStorageCidrs for production.
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 9000  # MinIO default
+    {{- end }}
+    {{- end }}
+    # Allow outbound HTTP/HTTPS for plugin operations (webhooks, notifications, etc.)
+    {{- if and .Values.processingEngine.enabled .Values.networkPolicy.egress.toPluginEndpoints }}
+    {{- if .Values.networkPolicy.egress.pluginEndpointCidrs }}
+    # Egress to specific plugin endpoint CIDRs
+    {{- range .Values.networkPolicy.egress.pluginEndpointCidrs }}
+    - to:
+        - ipBlock:
+            cidr: {{ . }}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    {{- end }}
+    {{- else }}
+    # Default: Allow egress to any destination for plugin operations
+    # WARNING: This is permissive. Configure pluginEndpointCidrs for production.
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    {{- end }}
+    {{- end }}
+{{- end }}

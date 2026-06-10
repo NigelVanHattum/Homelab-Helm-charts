@@ -1,0 +1,65 @@
+Thank you for installing {{ .Chart.Name }}!
+
+InfluxDB 3 Core has been deployed to namespace {{ .Release.Namespace }} as a single-node StatefulSet.
+
+{{- if eq .Values.objectStorage.type "file" }}
+{{- if .Values.objectStorage.file.persistence.enabled }}
+
+Storage: local filesystem ({{ .Values.objectStorage.file.dataDir }}) on a {{ .Values.objectStorage.file.persistence.size }} PersistentVolumeClaim.
+{{- else }}
+
+⚠️  WARNING: objectStorage.file.persistence.enabled is false!
+    Data is stored on an emptyDir and will be LOST when the pod restarts.
+{{- end }}
+{{- else if or (eq .Values.objectStorage.type "memory") (eq .Values.objectStorage.type "memory-throttled") }}
+
+⚠️  WARNING: objectStorage.type is "{{ .Values.objectStorage.type }}"!
+    Data is stored in memory and will be LOST when the pod restarts.
+{{- else }}
+
+Storage: {{ .Values.objectStorage.type }} object store, bucket "{{ .Values.objectStorage.bucket }}".
+{{- end }}
+
+{{- $security := .Values.security | default dict }}
+{{- $auth := get $security "auth" | default dict }}
+{{- $adminToken := get $auth "adminToken" | default dict }}
+{{- if get $adminToken "existingSecret" }}
+
+Preconfigured admin token:
+  Enabled via secret: {{ get $adminToken "existingSecret" }}
+  Token file path: /etc/influxdb/admin-token/admin-token.json
+{{- end }}
+
+Access endpoint:
+{{- if .Values.ingress.enabled }}
+  http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else }}
+  kubectl port-forward svc/{{ include "influxdb3-core.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+{{- end }}
+
+Getting started:
+
+  1. Create an admin token:
+
+     kubectl exec -it {{ include "influxdb3-core.fullname" . }}-0 -n {{ .Release.Namespace }} -- \
+        influxdb3 create token --admin
+
+  2. Create a database:
+
+     export INFLUXDB3_AUTH_TOKEN=<your-admin-token>
+{{- if .Values.ingress.enabled }}
+     export INFLUXDB3_HOST_URL=http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else }}
+     export INFLUXDB3_HOST_URL=http://localhost:{{ .Values.service.port }}
+{{- end }}
+     influxdb3 create database mydb
+
+  3. Write data:
+
+     influxdb3 write mydb "measurement field=value"
+
+  4. Query data:
+
+     influxdb3 query mydb "SELECT * FROM measurement"
+
+Documentation: https://docs.influxdata.com/influxdb3/core/
