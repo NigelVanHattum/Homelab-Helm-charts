@@ -17,4 +17,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "influxdb3-core.selectorLabels" . | nindent 4 }}
+    {{- include "influxdb3-core.server.selectorLabels" . | nindent 4 }}

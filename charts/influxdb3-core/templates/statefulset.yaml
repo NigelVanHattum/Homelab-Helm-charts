@@ -36,7 +36,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "influxdb3-core.selectorLabels" . | nindent 8 }}
+        {{- include "influxdb3-core.server.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
