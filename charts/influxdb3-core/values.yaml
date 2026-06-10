@@ -606,3 +606,21 @@ extraVolumes: []
 extraVolumeMounts: []
   # - name: custom-config
 #   mountPath: /etc/custom
+
+# Extra Kubernetes manifests to deploy alongside the chart. Each item may be a
+# structured object or a (templated) raw YAML string; both are passed through
+# `tpl`, so `{{ }}` expressions and `.Release` / `.Values` references work.
+extraManifests: []
+  # - apiVersion: v1
+  #   kind: ConfigMap
+  #   metadata:
+  #     name: "{{ .Release.Name }}-extra"
+  #   data:
+  #     key: value
+  # - |
+  #   apiVersion: v1
+  #   kind: Secret
+  #   metadata:
+  #     name: my-extra-secret
+  #   stringData:
+  #     token: "{{ .Values.someValue }}"

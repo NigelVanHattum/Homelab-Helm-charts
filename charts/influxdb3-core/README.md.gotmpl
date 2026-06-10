@@ -101,6 +101,27 @@ explorer:
     operator.1password.io/item-name: "influxdb-explorer-token" # Explorer reads the raw-token key
 ```
 
+### Extra manifests
+
+Deploy arbitrary additional manifests alongside the chart with `extraManifests`. Each entry may be a structured object or a raw YAML string; both are run through `tpl`, so templating against `.Release` and `.Values` works:
+
+```yaml
+extraManifests:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: "{{ .Release.Name }}-extra"
+    data:
+      key: value
+  - |
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: my-extra-secret
+    stringData:
+      token: "{{ .Values.someValue }}"
+```
+
 {{ template "chart.requirementsSection" . }}
 
 {{ template "chart.valuesSection" . }}
