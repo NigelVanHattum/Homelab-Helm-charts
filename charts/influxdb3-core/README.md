@@ -1,6 +1,6 @@
 # influxdb3-core
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 3.9.3](https://img.shields.io/badge/AppVersion-3.9.3-informational?style=flat-square)
+![Version: 0.1.1](https://img.shields.io/badge/Version-0.1.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 3.9.3](https://img.shields.io/badge/AppVersion-3.9.3-informational?style=flat-square)
 
 A Helm chart for deploying InfluxDB 3 Core on Kubernetes
 
@@ -121,6 +121,7 @@ kubectl delete statefulset <release-name>-influxdb3-core --cascade=orphan
 | objectStorage.file.persistence.enabled | bool | `true` | Create a PVC for the data directory. When disabled, an emptyDir is used and all data is lost when the pod restarts. |
 | objectStorage.file.persistence.size | string | `"50Gi"` |  |
 | objectStorage.file.persistence.storageClass | string | `""` |  |
+| objectStorage.file.persistence.volumeName | string | `""` | Bind the data PVC to a specific PersistentVolume (e.g. a pre-created static PV) |
 | objectStorage.google.existingSecret | string | `""` |  |
 | objectStorage.google.serviceAccountJson | string | `""` |  |
 | objectStorage.s3.accessKeyId | string | `""` |  |
