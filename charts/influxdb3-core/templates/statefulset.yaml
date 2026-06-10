@@ -16,6 +16,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "influxdb3-core.labels" . | nindent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   serviceName: {{ include "influxdb3-core.fullname" . }}
   # InfluxDB 3 Core is a single-node database - do not scale this up

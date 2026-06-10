@@ -168,6 +168,11 @@ affinity: {}
 nodeSelector: {}
 tolerations: []
 
+# -- Annotations for the StatefulSet object itself (controller metadata, not the
+# pods). Use for controllers that watch the workload object, e.g. the 1Password
+# operator's operator.1password.io/item-path and item-name annotations.
+annotations: {}
+
 # Additional pod annotations and labels
 podAnnotations: {}
 podLabels: {}
@@ -459,6 +464,10 @@ explorer:
   affinity: {}
   tolerations: []
   priorityClassName: ""
+
+  # -- Annotations for the Explorer StatefulSet object itself (controller
+  # metadata, not the pods), e.g. 1Password operator item-path/item-name.
+  annotations: {}
 
   # Additional pod annotations and labels
   podAnnotations: {}

@@ -1,6 +1,6 @@
 # influxdb3-core
 
-![Version: 0.2.2](https://img.shields.io/badge/Version-0.2.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 3.9.3](https://img.shields.io/badge/AppVersion-3.9.3-informational?style=flat-square)
+![Version: 0.3.0](https://img.shields.io/badge/Version-0.3.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 3.9.3](https://img.shields.io/badge/AppVersion-3.9.3-informational?style=flat-square)
 
 A Helm chart for deploying InfluxDB 3 Core on Kubernetes
 
@@ -89,8 +89,10 @@ explorer:
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
+| annotations | object | `{}` | Annotations for the StatefulSet object itself (controller metadata, not the pods). Use for controllers that watch the workload object, e.g. the 1Password operator's operator.1password.io/item-path and item-name annotations. |
 | caching | string | `nil` |  |
 | explorer.affinity | object | `{}` |  |
+| explorer.annotations | object | `{}` | Annotations for the Explorer StatefulSet object itself (controller metadata, not the pods), e.g. 1Password operator item-path/item-name. |
 | explorer.connection.database | string | `""` | Default database to open (optional) |
 | explorer.connection.enabled | bool | `true` |  |
 | explorer.connection.existingSecret | string | `""` | Existing secret holding the raw API token (takes precedence over token) |

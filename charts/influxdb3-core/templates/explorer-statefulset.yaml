@@ -10,6 +10,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "influxdb3-core.explorer.labels" . | nindent 4 }}
+  {{- with .Values.explorer.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   serviceName: {{ include "influxdb3-core.explorer.fullname" . }}
   replicas: 1
