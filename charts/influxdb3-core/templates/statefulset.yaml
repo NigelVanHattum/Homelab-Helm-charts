@@ -79,6 +79,12 @@ spec:
             - /bin/sh
             - -c
             - |
+              {{- if not .Values.processingEngine.enabled }}
+              # The Docker image sets INFLUXDB3_PLUGIN_DIR=/plugins, which makes
+              # Core initialize the Python processing engine on startup. Unset it
+              # when the processing engine is disabled so no virtualenv is needed.
+              unset INFLUXDB3_PLUGIN_DIR
+              {{- end }}
               exec influxdb3 \
                 {{- with .Values.numIOThreads }}
                 --num-io-threads={{ . }} \
