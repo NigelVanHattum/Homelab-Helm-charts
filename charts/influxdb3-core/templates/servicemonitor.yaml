@@ -18,7 +18,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      {{- include "influxdb3-core.selectorLabels" . | nindent 6 }}
+      {{- include "influxdb3-core.server.selectorLabels" . | nindent 6 }}
   namespaceSelector:
     matchNames:
       - {{ .Release.Namespace }}

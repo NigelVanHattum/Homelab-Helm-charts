@@ -49,6 +49,19 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
+Server (core) selector labels - selectorLabels plus a component label so the
+Core Service does not also match the Explorer pods (same name/instance).
+Used for the Service/ServiceMonitor/NetworkPolicy selectors and the pod labels.
+NOTE: deliberately NOT used for the StatefulSet .spec.selector, which is
+immutable - existing installs upgrade with a rolling restart (the pod just
+gains the component label) instead of requiring a recreate.
+*/}}
+{{- define "influxdb3-core.server.selectorLabels" -}}
+{{ include "influxdb3-core.selectorLabels" . }}
+app.kubernetes.io/component: database
+{{- end }}
+
+{{/*
 Service account name
 */}}
 {{- define "influxdb3-core.serviceAccountName" -}}
