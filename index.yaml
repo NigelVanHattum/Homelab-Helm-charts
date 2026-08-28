@@ -511,6 +511,28 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/ombi-0.1.0/ombi-0.1.0.tgz
     version: 0.1.0
+  paperclip:
+  - apiVersion: v2
+    appVersion: v2026.824.1
+    created: "2026-08-28T23:13:51.734066348Z"
+    description: Paperclip - run teams of AI agents as a company. Deploys the app
+      with its own CloudNativePG cluster.
+    digest: d89042effb5ff07f5b1a54c789133889efd743ae1f458219459517d4db6775c3
+    home: https://paperclip.ai
+    keywords:
+    - paperclip
+    - ai
+    - agents
+    - orchestration
+    maintainers:
+    - name: NigelVanHattum
+    name: paperclip
+    sources:
+    - https://github.com/paperclipai/paperclip
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/paperclip-0.1.0/paperclip-0.1.0.tgz
+    version: 0.1.0
   paperless-ngx:
   - apiVersion: v2
     appVersion: 2.20.10
@@ -1483,4 +1505,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2026-06-10T23:28:04.540120033Z"
+generated: "2026-08-28T23:13:53.00176145Z"
