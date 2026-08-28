@@ -1,0 +1,31 @@
+suite: validation guardrails
+release:
+  name: influxdb3-core
+  namespace: influxdb
+tests:
+  - it: rejects an unknown object storage type
+    set:
+      objectStorage.type: ceph
+    asserts:
+      - failedTemplate:
+          errorPattern: "Invalid objectStorage.type: ceph"
+
+  - it: accepts every supported object storage type
+    set:
+      objectStorage.type: memory
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: refuses two sources for the admin token
+    set:
+      security.auth.adminToken.existingSecret: influxdb-token
+      security.auth.adminToken.file: /etc/influxdb/token
+    asserts:
+      - failedTemplate:
+          errorPattern: "Set only one of security.auth.adminToken.existingSecret or security.auth.adminToken.file"
+
+  - it: accepts a single admin token source
+    set:
+      security.auth.adminToken.existingSecret: influxdb-token
+    asserts:
+      - notFailedTemplate: {}

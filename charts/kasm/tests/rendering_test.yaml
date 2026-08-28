@@ -1,0 +1,96 @@
+suite: rendering behaviour
+release:
+  name: kasm
+  namespace: kasm
+tests:
+  - it: deploys the bundled database by default
+    templates:
+      - templates/db-statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "^kasmweb/postgres:"
+
+  - it: drops the database StatefulSet when pointed at an external server
+    templates:
+      - templates/db-statefulset.yaml
+    set:
+      database.standalone: true
+      database.hostname: postgresql-cluster-rw.postgresql.svc.cluster.local
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: runs the init job on a fresh deployment
+    templates:
+      - templates/db-init-job.yaml
+    asserts:
+      - isKind:
+          of: Job
+
+  - it: skips the init job once initialisation is turned off
+    templates:
+      - templates/db-init-job.yaml
+    set:
+      dbManagement.initialize: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: exposes the proxy through a LoadBalancer by default
+    templates:
+      - templates/proxy-service-external.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+
+  - it: renders no ingress by default
+    templates:
+      - templates/ingress.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: routes the ingress at the public address
+    templates:
+      - templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      proxyService.type: ClusterIP
+      publicAddr: browse.example.com
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.rules[0].host
+          value: browse.example.com
+
+  - it: renders no cert-manager Certificate by default
+    templates:
+      - templates/cert-manager-certificate.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders extra objects verbatim
+    templates:
+      - templates/extra-objects.yaml
+    set:
+      extraObjects:
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: kasm-extra
+          data:
+            key: value
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: kasm-extra

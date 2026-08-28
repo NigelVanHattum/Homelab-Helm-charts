@@ -1,0 +1,108 @@
+suite: rendering behaviour
+release:
+  name: influxdb3-core
+  namespace: influxdb
+tests:
+  - it: renders a single-node StatefulSet
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: influxdb3-core
+      # InfluxDB 3 Core is single-node; the chart hardcodes this on purpose.
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: rolls the pods when the config or the object-storage secret changes
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/config"]
+      - exists:
+          path: spec.template.metadata.annotations["checksum/secret"]
+
+  - it: serves on the container port and takes config from the ConfigMap
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8181
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            configMapRef:
+              name: influxdb3-core-config
+
+  # Regression cover for 3bf7896 "disable processing engine venv init when not
+  # enabled": the image ships INFLUXDB3_PLUGIN_DIR, which makes Core bootstrap a
+  # Python virtualenv on start. With the engine off that has to be unset.
+  - it: unsets the plugin dir when the processing engine is off
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "unset INFLUXDB3_PLUGIN_DIR"
+
+  - it: keeps the plugin dir when the processing engine is on
+    templates:
+      - templates/statefulset.yaml
+    set:
+      processingEngine.enabled: true
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "unset INFLUXDB3_PLUGIN_DIR"
+
+  - it: installs requested plugins in init containers
+    templates:
+      - templates/statefulset.yaml
+    set:
+      processingEngine.enabled: true
+      processingEngine.initPlugins:
+        - name: influxdata/downsampler
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: init-plugin-influxdata/downsampler
+
+  - it: renders extra manifests from a map
+    templates:
+      - templates/extra-manifests.yaml
+    set:
+      extraManifests:
+        - apiVersion: onepassword.com/v1
+          kind: OnePasswordItem
+          metadata:
+            name: influxdb-token
+          spec:
+            itemPath: vaults/Homelab/items/InfluxDB-admin-token
+    asserts:
+      - isKind:
+          of: OnePasswordItem
+      - equal:
+          path: metadata.name
+          value: influxdb-token
+
+  - it: templates extra manifests supplied as a string
+    templates:
+      - templates/extra-manifests.yaml
+    set:
+      extraManifests:
+        - |
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: {{ include "influxdb3-core.fullname" . }}-extra
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: influxdb3-core-extra
