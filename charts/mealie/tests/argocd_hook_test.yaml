@@ -1,0 +1,60 @@
+suite: Argo CD pre-sync hook
+templates:
+  - templates/hooks/pre-sync-notification.yaml
+release:
+  name: mealie
+  namespace: mealie
+tests:
+  - it: is off by default
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: registers as a PreSync hook that cleans itself up
+    set:
+      argocdHooks.preSyncNotification.enabled: true
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/hook"]
+          value: PreSync
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/hook-delete-policy"]
+          value: HookSucceeded
+      - equal:
+          path: spec.ttlSecondsAfterFinished
+          value: 120
+      - equal:
+          path: spec.template.spec.restartPolicy
+          value: Never
+
+  # The hook Job lands in the Argo CD namespace, not the release namespace, so
+  # Argo CD can run it before the application namespace is reconciled.
+  - it: is created in the configured Argo CD namespace
+    set:
+      argocdHooks.preSyncNotification.enabled: true
+      argocdHooks.preSyncNotification.namespace: argo
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: argo
+
+  - it: builds the signal payload from values
+    set:
+      argocdHooks.preSyncNotification.enabled: true
+      argocdHooks.preSyncNotification.signalApiUrl: http://signal-api.signal.svc.cluster.local:8080
+      argocdHooks.preSyncNotification.sender: "+31600000000"
+      argocdHooks.preSyncNotification.recipients:
+        - "+31611111111"
+      argocdHooks.preSyncNotification.message: Mealie is syncing...
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '"number": "\+31600000000"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '"recipients": \["\+31611111111"\]'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: "http://signal-api.signal.svc.cluster.local:8080/v2/send"

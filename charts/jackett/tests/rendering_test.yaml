@@ -1,0 +1,175 @@
+suite: rendering behaviour
+release:
+  name: jackett
+  namespace: media
+tests:
+  - it: renders a StatefulSet named after the release
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: jackett
+      - equal:
+          path: metadata.namespace
+          value: media
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: pulls the linuxserver image and defaults the tag to latest
+    templates:
+      - templates/statefulset.yaml
+    set:
+      image.tag: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: lscr.io/linuxserver/jackett:latest
+
+  - it: honours an explicit image tag
+    templates:
+      - templates/statefulset.yaml
+    set:
+      image.tag: "1.2.3"
+      image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: lscr.io/linuxserver/jackett:1.2.3
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  - it: sets the linuxserver PUID, PGID and timezone
+    templates:
+      - templates/statefulset.yaml
+    set:
+      jackett.PUID: "1036"
+      jackett.PGID: "100"
+      jackett.timezone: Europe/Amsterdam
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PUID
+            value: "1036"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PGID
+            value: "100"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TZ
+            value: Europe/Amsterdam
+
+  - it: mounts the config volume at /config/Jackett
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: "/config/Jackett"
+            name: jackett-config
+
+  - it: claims the chart-managed config PVC by default
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jackett-config
+            persistentVolumeClaim:
+              claimName: jackett-config
+
+  - it: points the config volume at an existing PVC when given one
+    templates:
+      - templates/statefulset.yaml
+    set:
+      jackett.persistence.config.useExistingPvc: pv-jackett-config
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jackett-config
+            persistentVolumeClaim:
+              claimName: pv-jackett-config
+
+  - it: sizes the config claim template from values
+    templates:
+      - templates/statefulset.yaml
+    set:
+      jackett.persistence.config.size: 5Gi
+      jackett.persistence.config.storageClassName: nfs-csi-applications
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: jackett-config
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 5Gi
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: nfs-csi-applications
+
+  - it: binds the claim to a named volume when asked
+    templates:
+      - templates/statefulset.yaml
+    set:
+      jackett.persistence.config.existingVolume: pv-jackett
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.volumeName
+          value: pv-jackett
+
+  - it: uses emptyDir for downloads by default
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jackett-downloads
+            emptyDir: {}
+
+  - it: claims a downloads PVC when enabled
+    templates:
+      - templates/statefulset.yaml
+    set:
+      jackett.persistence.downloads.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: jackett-downloads
+            persistentVolumeClaim:
+              claimName: jackett-downloads
+
+  - it: leaves the pod template free of the nondeterministic rollme annotation
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations
+
+  # rollme is randAlphaNum, so it changes on every render. With podAnnotations
+  # set, a GitOps controller that re-renders the chart sees a fresh value every
+  # refresh and reports the workload permanently OutOfSync.
+  - it: stamps a random rollme once podAnnotations are set
+    templates:
+      - templates/statefulset.yaml
+    set:
+      podAnnotations:
+        example.com/owner: homelab
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations.rollme
+      - equal:
+          path: spec.template.metadata.annotations["example.com/owner"]
+          value: homelab
