@@ -1,0 +1,5 @@
+# Minimum viable configuration for `helm lint` / `helm template` in CI.
+floatplane:
+  credentials:
+    username: ci-user
+    password: ci-password

@@ -1,0 +1,204 @@
+suite: rendering behaviour
+release:
+  name: radarr
+  namespace: media
+tests:
+  - it: renders a StatefulSet named after the release
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: metadata.name
+          value: radarr
+      - equal:
+          path: metadata.namespace
+          value: media
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: pulls the linuxserver image and defaults the tag to latest
+    templates:
+      - templates/statefulset.yaml
+    set:
+      image.tag: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: lscr.io/linuxserver/radarr:latest
+
+  - it: honours an explicit image tag
+    templates:
+      - templates/statefulset.yaml
+    set:
+      image.tag: "1.2.3"
+      image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: lscr.io/linuxserver/radarr:1.2.3
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  - it: passes radarr.env through verbatim
+    templates:
+      - templates/statefulset.yaml
+    set:
+      radarr.env:
+        - name: PUID
+          value: "1036"
+        - name: POSTGRES_HOST
+          value: pg.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_HOST
+            value: pg.example.com
+
+  - it: mounts the config volume at /config
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: "/config"
+            name: radarr-config
+
+  - it: claims the chart-managed config PVC by default
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: radarr-config
+            persistentVolumeClaim:
+              claimName: radarr-config
+
+  - it: points the config volume at an existing PVC when given one
+    templates:
+      - templates/statefulset.yaml
+    set:
+      radarr.persistence.config.useExistingPvc: pv-radarr-config
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: radarr-config
+            persistentVolumeClaim:
+              claimName: pv-radarr-config
+
+  - it: sizes the config claim template from values
+    templates:
+      - templates/statefulset.yaml
+    set:
+      radarr.persistence.config.size: 5Gi
+      radarr.persistence.config.storageClassName: nfs-csi-applications
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: radarr-config
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 5Gi
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: nfs-csi-applications
+
+  - it: binds the claim to a named volume when asked
+    templates:
+      - templates/statefulset.yaml
+    set:
+      radarr.persistence.config.existingVolume: pv-radarr
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.volumeName
+          value: pv-radarr
+
+  # The template emits the volumeClaimTemplates key unconditionally, so with
+  # persistence off the StatefulSet carries `volumeClaimTemplates: null`.
+  # Kubernetes accepts it; the assertion pins the behaviour so a later cleanup
+  # is a deliberate change rather than a surprise.
+  - it: falls back to emptyDir when config persistence is off
+    templates:
+      - templates/statefulset.yaml
+    set:
+      radarr.persistence.config.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: radarr-config
+            emptyDir: {}
+      - isNullOrEmpty:
+          path: spec.volumeClaimTemplates
+
+  - it: mounts an extra volume and creates its claim template
+    templates:
+      - templates/statefulset.yaml
+    set:
+      radarr.persistence.extraVolumes:
+        - volumeName: media
+          containerPath: /media
+          size: 100Gi
+          accessModes: ["ReadWriteMany"]
+          storageClassName: nfs-csi-plex
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /media
+            name: radarr-media
+      - equal:
+          path: spec.volumeClaimTemplates[1].metadata.name
+          value: radarr-media
+      - equal:
+          path: spec.volumeClaimTemplates[1].spec.resources.requests.storage
+          value: 100Gi
+
+  - it: references an existing PVC for an extra volume instead of claiming one
+    templates:
+      - templates/statefulset.yaml
+    set:
+      radarr.persistence.extraVolumes:
+        - volumeName: media
+          containerPath: /media
+          useExistingPvc: pvc-p2p
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: pvc-p2p
+            persistentVolumeClaim:
+              claimName: pvc-p2p
+      - lengthEqual:
+          path: spec.volumeClaimTemplates
+          count: 1
+
+  - it: leaves the pod template free of the nondeterministic rollme annotation
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations
+
+  # rollme is randAlphaNum, so it changes on every render. With podAnnotations
+  # set, a GitOps controller that re-renders the chart sees a fresh value every
+  # refresh and reports the workload permanently OutOfSync.
+  - it: stamps a random rollme once podAnnotations are set
+    templates:
+      - templates/statefulset.yaml
+    set:
+      podAnnotations:
+        example.com/owner: homelab
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations.rollme
+      - equal:
+          path: spec.template.metadata.annotations["example.com/owner"]
+          value: homelab

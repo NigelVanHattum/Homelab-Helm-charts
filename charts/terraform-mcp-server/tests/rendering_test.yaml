@@ -1,0 +1,101 @@
+suite: rendering behaviour
+release:
+  name: terraform-mcp-server
+  namespace: mcp
+tests:
+  - it: renders a Deployment on the chart appVersion
+    templates:
+      - templates/deployment.yaml
+    set:
+      image.tag: ""
+    asserts:
+      - isKind:
+          of: Deployment
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: "^hashicorp/terraform-mcp-server:.+$"
+
+  - it: honours an explicit image tag
+    templates:
+      - templates/deployment.yaml
+    set:
+      image.tag: "0.3.3"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: hashicorp/terraform-mcp-server:0.3.3
+
+  - it: takes both env sources and exposes the target port
+    templates:
+      - templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            configMapRef:
+              name: terraform-mcp-server-config
+      - contains:
+          path: spec.template.spec.containers[0].envFrom
+          content:
+            secretRef:
+              name: terraform-mcp-server-secret
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+
+  - it: puts non-secret env in the ConfigMap
+    templates:
+      - templates/configmap.yaml
+    asserts:
+      - equal:
+          path: data.TFE_ADDRESS
+          value: "https://app.terraform.io"
+      - equal:
+          path: data.ENABLE_TF_OPERATIONS
+          value: "false"
+
+  # The token lands in the release manifest, so it also lands in Terraform state
+  # when the values come from templatefile(). Reference an external secret
+  # instead if that matters.
+  - it: puts the API token in the Secret, not the ConfigMap
+    templates:
+      - templates/secret.yaml
+    set:
+      secretEnv:
+        - name: TFE_TOKEN
+          value: ci-token
+    asserts:
+      - isKind:
+          of: Secret
+      - equal:
+          path: stringData.TFE_TOKEN
+          value: ci-token
+
+  - it: keeps CORS strict and TF write operations off by default
+    templates:
+      - templates/configmap.yaml
+    asserts:
+      - equal:
+          path: data.MCP_CORS_MODE
+          value: strict
+      - equal:
+          path: data.ENABLE_TF_OPERATIONS
+          value: "false"
+
+  - it: routes the service at the container port
+    templates:
+      - templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 8080
+
+  - it: renders no ingress by default
+    templates:
+      - templates/ingress.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -1,0 +1,73 @@
+suite: service selectors and explorer split
+release:
+  name: influxdb3-core
+  namespace: influxdb
+tests:
+  # Regression cover for 9ab652a "stop Core Service from selecting Explorer
+  # pods". Both workloads share name+instance labels, so the Core Service must
+  # select on the component label or it load-balances database traffic onto the
+  # Explorer UI.
+  - it: selects only the database component
+    templates:
+      - templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: database
+      - equal:
+          path: spec.selector["app.kubernetes.io/instance"]
+          value: influxdb3-core
+      - equal:
+          path: spec.ports[0].port
+          value: 8181
+
+  - it: gives the explorer its own service and selector
+    templates:
+      - templates/explorer-service.yaml
+    set:
+      explorer.enabled: true
+    asserts:
+      - equal:
+          path: metadata.name
+          value: influxdb3-core-explorer
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: explorer
+
+  - it: renders no explorer service when the explorer is off
+    templates:
+      - templates/explorer-service.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: labels the server pods as the database component
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: database
+
+  # The Service was narrowed to the database component in 9ab652a, but the
+  # StatefulSet selector still matches on name+instance only, so it also
+  # matches Explorer pods. Kubernetes warns about overlapping selectors, and
+  # spec.selector is immutable, so correcting it means recreating the
+  # StatefulSet. Pinned here so the gap is visible rather than forgotten.
+  - it: still selects on name and instance only, overlapping the explorer pods
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isNull:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: influxdb3-core
+
+  - it: renders no ingress or servicemonitor by default
+    templates:
+      - templates/ingress.yaml
+      - templates/servicemonitor.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

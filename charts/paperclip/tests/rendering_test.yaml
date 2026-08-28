@@ -1,0 +1,358 @@
+suite: rendering behaviour
+release:
+  name: paperclip
+  namespace: paperclip
+set:
+  auth.betterAuthSecret.value: auth-secret
+  secrets.masterKey.value: master-key
+tests:
+  # ---- entrypoint ----
+  - it: overrides the image entrypoint and execs the server directly
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].command
+          value:
+            - /bin/sh
+            - -c
+      - equal:
+          path: spec.template.spec.containers[0].args[0]
+          value: "exec node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"
+
+  - it: does not wrap the entrypoint at a single replica
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "HEARTBEAT_SCHEDULER_ENABLED"
+
+  - it: pins the scheduler to pod-0 above one replica
+    templates:
+      - templates/statefulset.yaml
+    set:
+      replicaCount: 3
+      heartbeat.acknowledgeMultiReplica: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: 'case "\$HOSTNAME" in \*-0\) export HEARTBEAT_SCHEDULER_ENABLED=true'
+
+  - it: disables the scheduler outright when heartbeat is off
+    templates:
+      - templates/statefulset.yaml
+    set:
+      heartbeat.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HEARTBEAT_SCHEDULER_ENABLED
+            value: "false"
+
+  # ---- init containers ----
+  - it: checks the database before onboarding
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: onboard
+      - matchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "psql \"\\$DATABASE_URL\" -qtAX -c 'SELECT 1'"
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: ghcr.io/cloudnative-pg/postgresql:18
+
+  - it: follows the cluster PostgreSQL major for the check image
+    templates:
+      - templates/statefulset.yaml
+    set:
+      database.cnpg.postgresqlVersion: "17"
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: ghcr.io/cloudnative-pg/postgresql:17
+
+  - it: gives the check the same DATABASE_URL and a connect timeout
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: PGCONNECT_TIMEOUT
+            value: "5"
+      - contains:
+          path: spec.template.spec.initContainers[0].env
+          content:
+            name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: paperclip-db-app
+                key: uri
+
+  - it: never echoes the connection string
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.initContainers[0].args[0]
+          pattern: "echo .*DATABASE_URL"
+
+  - it: drops the database check when disabled
+    templates:
+      - templates/statefulset.yaml
+    set:
+      waitForDatabase.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: onboard
+
+  - it: runs the onboard init container by default
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].args[0]
+          pattern: "pnpm paperclipai onboard --yes"
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].args[0]
+          pattern: "/paperclip/instances/default/config.json"
+
+  - it: drops the onboard init container when disabled
+    templates:
+      - templates/statefulset.yaml
+    set:
+      onboard.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: wait-for-db
+      - lengthEqual:
+          path: spec.template.spec.initContainers
+          count: 1
+
+  - it: drops the init containers entirely when both are disabled
+    templates:
+      - templates/statefulset.yaml
+    set:
+      waitForDatabase.enabled: false
+      onboard.enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.initContainers
+
+  # ---- probes ----
+  - it: uses TCP probes in authenticated mode
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http
+      - isNull:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet
+
+  - it: uses HTTP probes in local_trusted mode
+    templates:
+      - templates/statefulset.yaml
+    set:
+      deployment.mode: local_trusted
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/health
+      - isNull:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket
+
+  - it: honours an explicit probe type
+    templates:
+      - templates/statefulset.yaml
+    set:
+      probes.type: http
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/health
+
+  # ---- pod hardening and lifecycle ----
+  - it: shares the PID namespace and drains slowly
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.shareProcessNamespace
+          value: true
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 1800
+      - equal:
+          path: spec.template.spec.containers[0].lifecycle.preStop.exec.command[2]
+          value: sleep 15
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: rolls the pods on config and secret changes
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - exists:
+          path: spec.template.metadata.annotations["checksum/config"]
+      - exists:
+          path: spec.template.metadata.annotations["checksum/secret"]
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: "true"
+
+  # ---- allowed hostnames ----
+  - it: allow-lists the service DNS names and the ingress hosts
+    templates:
+      - templates/statefulset.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: paperclip.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERCLIP_ALLOWED_HOSTNAMES
+            value: "localhost,127.0.0.1,paperclip,paperclip.paperclip,paperclip.paperclip.svc,paperclip.paperclip.svc.cluster.local,paperclip.example.com"
+
+  # ---- secrets ----
+  - it: maps secretEnvFrom onto an existing secret
+    templates:
+      - templates/statefulset.yaml
+    set:
+      secretEnvFrom:
+        ANTHROPIC_API_KEY:
+          existingSecret: paperclip-litellm
+          key: ANTHROPIC_API_KEY
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: ANTHROPIC_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: paperclip-litellm
+                key: ANTHROPIC_API_KEY
+
+  - it: writes inline secretEnv into the chart secret
+    templates:
+      - templates/secret.yaml
+    set:
+      secretEnv:
+        ANTHROPIC_API_KEY: sk-litellm
+    asserts:
+      - equal:
+          path: stringData.ANTHROPIC_API_KEY
+          value: sk-litellm
+
+  - it: renders no chart secret when everything comes from existing secrets
+    templates:
+      - templates/secret.yaml
+    set:
+      auth.betterAuthSecret.value: ""
+      auth.betterAuthSecret.existingSecret: paperclip-credentials
+      auth.betterAuthSecret.existingSecretKey: BETTER_AUTH_SECRET
+      secrets.masterKey.value: ""
+      secrets.masterKey.existingSecret: paperclip-credentials
+      secrets.masterKey.existingSecretKey: master-key
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: sources both secrets from an existing secret when given one
+    templates:
+      - templates/statefulset.yaml
+    set:
+      auth.betterAuthSecret.value: ""
+      auth.betterAuthSecret.existingSecret: paperclip-credentials
+      auth.betterAuthSecret.existingSecretKey: BETTER_AUTH_SECRET
+      secrets.masterKey.value: ""
+      secrets.masterKey.existingSecret: paperclip-credentials
+      secrets.masterKey.existingSecretKey: master-key
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BETTER_AUTH_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: paperclip-credentials
+                key: BETTER_AUTH_SECRET
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERCLIP_SECRETS_MASTER_KEY
+            valueFrom:
+              secretKeyRef:
+                name: paperclip-credentials
+                key: master-key
+
+  # ---- storage ----
+  - it: claims a volume per pod when persistence is on
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.storageClass: nfs-csi-applications
+      persistence.size: 30Gi
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: nfs-csi-applications
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 30Gi
+
+  - it: falls back to emptyDir when persistence is off
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.enabled: false
+    asserts:
+      - isNull:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir: {}
+
+  # ---- ingress ----
+  - it: points the ingress at the http service port
+    templates:
+      - templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.className: traefik
+      ingress.hosts:
+        - host: paperclip.example.com
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: paperclip
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.name
+          value: http
+      - equal:
+          path: spec.rules[0].http.paths[0].pathType
+          value: Prefix

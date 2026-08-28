@@ -1,0 +1,125 @@
+name: Helm CI
+
+on:
+  pull_request:
+    paths:
+      - "charts/**"
+      - ".github/workflows/helm-ci.yaml"
+  push:
+    branches:
+      - master
+    paths:
+      - "charts/**"
+      - ".github/workflows/helm-ci.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: helm-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      charts: ${{ steps.list.outputs.charts }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: List charts
+        id: list
+        # Every directory under charts/ holding a Chart.yaml. Directories
+        # without one (docs-only placeholders) are skipped rather than failed.
+        run: |
+          charts=$(find charts -mindepth 2 -maxdepth 2 -name Chart.yaml -print0 \
+            | xargs -0 -n1 dirname \
+            | sort \
+            | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "charts=$charts" >> "$GITHUB_OUTPUT"
+          echo "Discovered: $charts"
+
+  coverage:
+    needs: discover
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Every chart must ship helm-unittest suites
+        # A chart without tests is the one that breaks silently. Adding a chart
+        # without a tests/ directory fails here rather than in production.
+        run: |
+          missing=0
+          for chart in $(echo '${{ needs.discover.outputs.charts }}' | jq -r '.[]'); do
+            if ! compgen -G "$chart/tests/*_test.yaml" > /dev/null; then
+              echo "::error file=$chart/Chart.yaml::$chart has no tests/*_test.yaml"
+              missing=1
+            fi
+          done
+          exit $missing
+
+  lint:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.discover.outputs.charts) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.2.4
+
+      - name: helm lint and template
+        # ci/default-values.yaml carries the minimum a chart needs to render,
+        # so both steps exercise a real template pass instead of a bare
+        # skeleton.
+        run: |
+          chart="${{ matrix.chart }}"
+          if [ -f "$chart/ci/default-values.yaml" ]; then
+            helm lint "$chart" -f "$chart/ci/default-values.yaml"
+            helm template ci "$chart" -f "$chart/ci/default-values.yaml" > /dev/null
+          else
+            helm lint "$chart"
+            helm template ci "$chart" > /dev/null
+          fi
+
+  unittest:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJson(needs.discover.outputs.charts) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v4.2.4
+
+      - name: Install helm-unittest plugin
+        # Helm 4 verifies plugin signatures by default and this source ships
+        # none. The version is pinned so a plugin release cannot change what
+        # the assertions mean.
+        run: |
+          helm plugin install https://github.com/helm-unittest/helm-unittest \
+            --version 1.1.2 --verify=false
+
+      - name: helm unittest
+        # --strict fails on unknown assertion keys, so a typo in a suite is an
+        # error instead of a silently skipped test.
+        run: helm unittest --strict "${{ matrix.chart }}"

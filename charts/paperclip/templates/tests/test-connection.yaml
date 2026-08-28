@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "paperclip.fullname" . }}-test-connection"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "paperclip.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  containers:
+    - name: wget
+      image: busybox:1.37.0
+      command:
+        - /bin/sh
+        - -c
+        # The app answers 403 on /api/health in authenticated mode, so any HTTP
+        # response proves the server is up and routable.
+        - >
+          wget -q -S -O /dev/null
+          http://{{ include "paperclip.fullname" . }}:{{ .Values.service.port }}{{ .Values.probes.path }} 2>&1
+          | grep -qE 'HTTP/1\.[01] (200|401|403)'

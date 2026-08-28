@@ -1,0 +1,91 @@
+suite: rendering behaviour
+release:
+  name: mealie
+  namespace: mealie
+tests:
+  - it: renders a Deployment by default
+    templates:
+      - templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/mealie-recipes/mealie:latest
+
+  - it: renders no StatefulSet in Deployment mode
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: switches to a StatefulSet on request
+    templates:
+      - templates/statefulset.yaml
+    set:
+      type: StatefulSet
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: renders no Deployment in StatefulSet mode
+    templates:
+      - templates/deployment.yaml
+    set:
+      type: StatefulSet
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: honours an explicit image tag
+    templates:
+      - templates/deployment.yaml
+    set:
+      image.tag: v3.24.0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/mealie-recipes/mealie:v3.24.0
+
+  - it: passes mealie.env through and exposes the service port
+    templates:
+      - templates/deployment.yaml
+    set:
+      service.port: 9000
+      mealie.env:
+        - name: DB_ENGINE
+          value: postgres
+        - name: POSTGRES_SERVER
+          value: pg.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POSTGRES_SERVER
+            value: pg.example.com
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 9000
+
+  - it: routes the service at the application port
+    templates:
+      - templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 9000
+
+  - it: renders no ingress by default
+    templates:
+      - templates/ingress.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: leaves the pod template free of the nondeterministic rollme annotation
+    templates:
+      - templates/deployment.yaml
+    asserts:
+      - isNull:
+          path: spec.template.metadata.annotations

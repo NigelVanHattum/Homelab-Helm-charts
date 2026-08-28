@@ -1,0 +1,74 @@
+suite: service and ingress
+release:
+  name: heimdall
+  namespace: media
+tests:
+  - it: exposes the service port and targets the application port
+    templates:
+      - templates/service.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 9117
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 80
+      - equal:
+          path: spec.ports[0].name
+          value: http
+
+  - it: honours a non-default service type and port
+    templates:
+      - templates/service.yaml
+    set:
+      service.type: LoadBalancer
+      service.port: 8080
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+      - equal:
+          path: spec.ports[0].port
+          value: 8080
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 80
+
+  - it: renders no ingress by default
+    templates:
+      - templates/ingress.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: routes the ingress host at the service
+    templates:
+      - templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.className: traefik
+      ingress.hosts:
+        - host: heimdall.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+      - equal:
+          path: spec.rules[0].host
+          value: heimdall.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: heimdall
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 9117

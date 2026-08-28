@@ -1,0 +1,51 @@
+{{- if and (include "paperclip.cnpg.enabled" .) .Values.database.cnpg.backups.enabled .Values.database.cnpg.backups.create }}
+{{- $b := .Values.database.cnpg.backups }}
+{{- /*
+Deliberately not a helm hook. The upstream cloudnative-pg/cluster chart annotates
+this object with helm.sh/hook, which makes Argo CD treat it as a hook resource
+and report Synced while the live object is stale.
+*/ -}}
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ include "paperclip.cnpg.objectStoreName" . }}
+  namespace: {{ .Release.Namespace }}
+  {{- if .Values.argocd.syncWaves.enabled }}
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.argocd.syncWaves.objectStore | quote }}
+  {{- end }}
+  labels:
+    cnpg.io/cluster: {{ include "paperclip.cnpg.clusterName" . }}
+    {{- include "paperclip.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database-backup
+spec:
+  retentionPolicy: {{ $b.retentionPolicy }}
+  configuration:
+    destinationPath: {{ $b.destinationPath | quote }}
+    {{- with $b.endpointURL }}
+    endpointURL: {{ . | quote }}
+    {{- end }}
+    s3Credentials:
+      accessKeyId:
+        name: {{ $b.secretName }}
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: {{ $b.secretName }}
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: {{ $b.wal.compression }}
+      {{- with $b.wal.encryption }}
+      encryption: {{ . }}
+      {{- end }}
+      maxParallel: {{ $b.wal.maxParallel }}
+    data:
+      compression: {{ $b.data.compression }}
+      {{- with $b.data.encryption }}
+      encryption: {{ . }}
+      {{- end }}
+      jobs: {{ $b.data.jobs }}
+  {{- with $b.instanceSidecarConfiguration }}
+  instanceSidecarConfiguration:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

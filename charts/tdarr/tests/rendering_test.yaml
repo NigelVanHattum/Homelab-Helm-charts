@@ -1,0 +1,126 @@
+suite: rendering behaviour
+release:
+  name: tdarr
+  namespace: plex-management
+tests:
+  - it: renders a StatefulSet on the tdarr image
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/haveagitgat/tdarr:latest
+
+  - it: honours an explicit image tag
+    templates:
+      - templates/statefulset.yaml
+    set:
+      image.tag: "2.45.01"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/haveagitgat/tdarr:2.45.01
+
+  - it: mounts the server and config volumes at the paths tdarr expects
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: "/app/server"
+            name: tdarr-server
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: "/app/configs"
+            name: tdarr-config
+
+  - it: claims both PVCs by default
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tdarr-server
+            persistentVolumeClaim:
+              claimName: tdarr-server
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tdarr-config
+            persistentVolumeClaim:
+              claimName: tdarr-config
+
+  - it: falls back to emptyDir per volume when persistence is off
+    templates:
+      - templates/statefulset.yaml
+    set:
+      tdarr.persistence.server.enabled: false
+      tdarr.persistence.config.enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tdarr-server
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tdarr-config
+            emptyDir: {}
+
+  - it: points a volume at an existing PVC when given one
+    templates:
+      - templates/statefulset.yaml
+    set:
+      tdarr.persistence.config.useExistingPvc: pv-tdarr-config
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tdarr-config
+            persistentVolumeClaim:
+              claimName: pv-tdarr-config
+
+  - it: mounts an extra volume and creates its claim template
+    templates:
+      - templates/statefulset.yaml
+    set:
+      tdarr.persistence.extraVolumes:
+        - volumeName: cache
+          containerPath: /temp
+          size: 200Gi
+          accessModes: ["ReadWriteOnce"]
+          storageClassName: nfs-csi-applications
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /temp
+            name: tdarr-cache
+      - equal:
+          path: spec.volumeClaimTemplates[2].metadata.name
+          value: tdarr-cache
+      - equal:
+          path: spec.volumeClaimTemplates[2].spec.resources.requests.storage
+          value: 200Gi
+
+  - it: passes tdarr.env through verbatim
+    templates:
+      - templates/statefulset.yaml
+    set:
+      tdarr.env:
+        - name: serverIP
+          value: 0.0.0.0
+        - name: webUIPort
+          value: "8265"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: serverIP
+            value: 0.0.0.0

@@ -1,0 +1,23 @@
+{{- if and (include "paperclip.cnpg.enabled" .) .Values.database.cnpg.backups.enabled }}
+{{- range .Values.database.cnpg.backups.scheduledBackups }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "paperclip.cnpg.clusterName" $ }}-{{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    cnpg.io/cluster: {{ include "paperclip.cnpg.clusterName" $ }}
+    {{- include "paperclip.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: database-backup
+spec:
+  immediate: {{ .immediate | default true }}
+  schedule: {{ .schedule | quote }}
+  method: plugin
+  backupOwnerReference: {{ .backupOwnerReference | default "self" }}
+  cluster:
+    name: {{ include "paperclip.cnpg.clusterName" $ }}
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+{{- end }}
+{{- end }}

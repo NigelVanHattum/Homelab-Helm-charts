@@ -1,0 +1,138 @@
+suite: DATABASE_URL wiring
+release:
+  name: paperclip
+  namespace: paperclip
+set:
+  auth.betterAuthSecret.value: auth-secret
+  secrets.masterKey.value: master-key
+tests:
+  - it: reads the connection string from the CloudNativePG app secret
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: paperclip-db-app
+                key: uri
+
+  - it: honours a custom cluster name in the app secret reference
+    templates:
+      - templates/statefulset.yaml
+    set:
+      database.cnpg.clusterName: pg-paperclip
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: pg-paperclip-app
+                key: uri
+
+  - it: honours an explicit app secret name and key
+    templates:
+      - templates/statefulset.yaml
+    set:
+      database.cnpg.appSecretName: paperclip-db-credentials
+      database.cnpg.appSecretUriKey: DATABASE_URL
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: paperclip-db-credentials
+                key: DATABASE_URL
+
+  - it: reads an external connection string from the chart secret when inline
+    templates:
+      - templates/statefulset.yaml
+    set:
+      database.mode: external
+      database.external.url: postgresql://paperclip:pw@db.example.com:5432/paperclip
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: paperclip
+                key: database-url
+
+  - it: reads an external connection string from an existing secret
+    templates:
+      - templates/statefulset.yaml
+    set:
+      database.mode: external
+      database.external.existingSecret: paperclip-credentials
+      database.external.existingSecretKey: DATABASE_URL
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: paperclip-credentials
+                key: DATABASE_URL
+
+  - it: composes the URL at runtime in component mode
+    templates:
+      - templates/statefulset.yaml
+    set:
+      database.mode: external
+      database.external.host.value: db.example.com
+      database.external.database.value: paperclip
+      database.external.username.value: paperclip
+      database.external.password.value: pw
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            value: "postgresql://$(PAPERCLIP_DB_USER):$(PAPERCLIP_DB_PASSWORD)@$(PAPERCLIP_DB_HOST):$(PAPERCLIP_DB_PORT)/$(PAPERCLIP_DB_NAME)"
+
+  - it: keeps a component password out of the manifest when it comes from a secret
+    templates:
+      - templates/statefulset.yaml
+    set:
+      database.mode: external
+      database.external.host.existingSecret: postgresql-paperclip
+      database.external.host.existingSecretKey: hostname
+      database.external.port.existingSecret: postgresql-paperclip
+      database.external.port.existingSecretKey: port
+      database.external.database.existingSecret: postgresql-paperclip
+      database.external.database.existingSecretKey: database
+      database.external.username.existingSecret: postgresql-paperclip
+      database.external.username.existingSecretKey: username
+      database.external.password.existingSecret: postgresql-paperclip
+      database.external.password.existingSecretKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERCLIP_DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: postgresql-paperclip
+                key: password
+
+  - it: gives the onboard init container the same database env
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.initContainers[1].env
+          content:
+            name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: paperclip-db-app
+                key: uri

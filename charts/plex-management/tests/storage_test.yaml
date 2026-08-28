@@ -1,0 +1,52 @@
+suite: shared storage
+templates:
+  - templates/storage.yaml
+release:
+  name: plex-management
+  namespace: plex-management
+tests:
+  - it: claims the shared P2P volume by default
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: metadata.name
+          value: pv-shared
+      - equal:
+          path: metadata.namespace
+          value: plex-management
+
+  - it: renders nothing when the shared claim is disabled
+    set:
+      sharedP2PPvc.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: passes the PVC spec through verbatim
+    set:
+      sharedP2PPvc.name: pvc-p2p
+      sharedP2PPvc.spec:
+        accessModes:
+          - ReadWriteMany
+        storageClassName: nfs-csi-plex
+        volumeName: pv-p2p
+        resources:
+          requests:
+            storage: 4Ti
+    asserts:
+      - equal:
+          path: metadata.name
+          value: pvc-p2p
+      - equal:
+          path: spec.storageClassName
+          value: nfs-csi-plex
+      - equal:
+          path: spec.volumeName
+          value: pv-p2p
+      - equal:
+          path: spec.resources.requests.storage
+          value: 4Ti
+      - contains:
+          path: spec.accessModes
+          content: ReadWriteMany

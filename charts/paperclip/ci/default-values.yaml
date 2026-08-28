@@ -1,0 +1,7 @@
+# Minimum viable configuration for `helm template` / chart-testing.
+auth:
+  betterAuthSecret:
+    value: ci-better-auth-secret
+secrets:
+  masterKey:
+    value: ci-master-key

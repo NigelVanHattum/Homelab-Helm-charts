@@ -1,0 +1,51 @@
+suite: validation guardrails
+release:
+  name: kasm
+  namespace: kasm
+tests:
+  - it: refuses a LoadBalancer proxy service behind an ingress
+    set:
+      ingress.enabled: true
+      proxyService.type: LoadBalancer
+    asserts:
+      - failedTemplate:
+          errorPattern: "service.type must not be LoadBalancer when using an ingress or a route"
+
+  - it: accepts an ingress with a ClusterIP proxy service
+    set:
+      ingress.enabled: true
+      proxyService.type: ClusterIP
+      publicAddr: kasm.example.com
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: refuses a LoadBalancer proxy service for a multi-zone deployment
+    set:
+      proxyService.type: LoadBalancer
+      kasmZones:
+        - name: Zone-A
+          upstream_auth_addr: zone-a.example.com
+    asserts:
+      - failedTemplate:
+          errorPattern: "must not be LoadBalancer when using a Multi-Zone Kasm deployment"
+
+  - it: refuses an ingress and an OpenShift route together
+    set:
+      ingress.enabled: true
+      route.enabled: true
+      proxyService.type: ClusterIP
+    asserts:
+      - failedTemplate:
+          errorPattern: "cannot both be set"
+
+  - it: refuses initialising and upgrading the database in one release
+    set:
+      dbManagement.initialize: true
+      dbManagement.upgrade.enable: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "cannot enable both initialize and upgrade"
+
+# deploymentSize and imagePullSecrets.type are constrained by the chart's
+# values.schema.json, which rejects bad input before any template runs, so
+# there is no template-level failure to assert here.

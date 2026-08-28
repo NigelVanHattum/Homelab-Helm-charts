@@ -1,0 +1,94 @@
+suite: services and ingresses
+release:
+  name: tdarr
+  namespace: plex-management
+tests:
+  - it: exposes the web UI on 8265
+    templates:
+      - templates/service-webui.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: tdarr-webui
+      - equal:
+          path: spec.ports[0].port
+          value: 8265
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 8265
+
+  - it: exposes the node-facing server on 8266
+    templates:
+      - templates/service-server.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: tdarr-server
+      - equal:
+          path: spec.ports[0].port
+          value: 8266
+      - equal:
+          path: spec.ports[0].targetPort
+          value: 8266
+
+  - it: renders neither ingress by default
+    templates:
+      - templates/ingress-webui.yaml
+      - templates/ingress-server.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # The two ingresses are independent: the web UI is the one humans reach, the
+  # server port is for tdarr nodes. Exposing one must not expose the other.
+  - it: routes the web UI ingress at the webui service only
+    templates:
+      - templates/ingress-webui.yaml
+    set:
+      ingress.webUI.enabled: true
+      ingress.webUI.hosts:
+        - host: tdarr.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - isKind:
+          of: Ingress
+      - equal:
+          path: metadata.name
+          value: tdarr
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: tdarr-webui
+
+  - it: leaves the server ingress absent when only the web UI is exposed
+    templates:
+      - templates/ingress-server.yaml
+    set:
+      ingress.webUI.enabled: true
+      ingress.webUI.hosts:
+        - host: tdarr.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: routes the server ingress at the server service
+    templates:
+      - templates/ingress-server.yaml
+    set:
+      ingress.server.enabled: true
+      ingress.server.hosts:
+        - host: tdarr-server.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: metadata.name
+          value: tdarr-server
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: tdarr-server

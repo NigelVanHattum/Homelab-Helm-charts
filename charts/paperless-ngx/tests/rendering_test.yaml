@@ -1,0 +1,124 @@
+suite: rendering behaviour
+release:
+  name: paperless-ngx
+  namespace: paperless-ngx
+tests:
+  # Regression cover for b6c6017 "Fix YAML indentation and parsing errors":
+  # the volumeClaimTemplates block is hand-indented, so every persistence
+  # combination has to parse.
+  - it: renders one claim template per enabled volume
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - lengthEqual:
+          path: spec.volumeClaimTemplates
+          count: 3
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+      - equal:
+          path: spec.volumeClaimTemplates[1].metadata.name
+          value: media
+      - equal:
+          path: spec.volumeClaimTemplates[2].metadata.name
+          value: consume
+
+  - it: still parses with every volume disabled
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.persistence.data.enabled: false
+      paperless.persistence.media.enabled: false
+      paperless.persistence.consume.enabled: false
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - isNullOrEmpty:
+          path: spec.volumeClaimTemplates
+
+  - it: still parses with selectors and an existing volume set
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.persistence.data.storageClass: nfs-csi-applications
+      paperless.persistence.data.existingVolume: pv-paperless-ngx-data
+      paperless.persistence.data.matchLabels:
+        app: paperless
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: nfs-csi-applications
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.volumeName
+          value: pv-paperless-ngx-data
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.selector.matchLabels.app
+          value: paperless
+
+  - it: skips the claim template when pointed at an existing PVC
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.persistence.data.useExistingPvc: pvc-paperless-data
+    asserts:
+      - lengthEqual:
+          path: spec.volumeClaimTemplates
+          count: 2
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: media
+
+  - it: sources the admin password and secret key from the chart secret
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_ADMIN_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: paperless-ngx
+                key: admin-password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: paperless-ngx
+                key: secret-key
+
+  - it: points redis at the bundled service
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_REDIS
+            value: redis://paperless-ngx-redis:6379
+
+  - it: appends extraEnv verbatim, secret references included
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.extraEnv:
+        - name: PAPERLESS_TASK_WORKERS
+          value: "2"
+        - name: PAPERLESS_EMAIL_HOST_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: paperless-smtp
+              key: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_EMAIL_HOST_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: paperless-smtp
+                key: password

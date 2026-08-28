@@ -1,0 +1,182 @@
+suite: URL, database and OIDC wiring
+release:
+  name: paperless-ngx
+  namespace: paperless-ngx
+tests:
+  # ---- PAPERLESS_URL derivation ----
+  - it: derives the public URL from the first ingress host
+    templates:
+      - templates/statefulset.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: paperless.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_URL
+            value: https://paperless.example.com
+
+  - it: prefers an explicit URL over the ingress host
+    templates:
+      - templates/statefulset.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: paperless.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      paperless.env.PAPERLESS_URL: https://docs.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_URL
+            value: https://docs.example.com
+
+  # ---- database ----
+  - it: fails when the bundled database is enabled without a host
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.database.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "you must specify paperless.database.host"
+
+  - it: reads the password from the chart secret for an external database
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.database.host: postgresql-cluster-rw.postgresql.svc.cluster.local
+      paperless.database.user: paperless
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBHOST
+            value: postgresql-cluster-rw.postgresql.svc.cluster.local
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBPASS
+            valueFrom:
+              secretKeyRef:
+                name: paperless-ngx
+                key: db-password
+
+  - it: reads the password from the subchart secret for the bundled database
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.database.enabled: true
+      paperless.database.host: paperless-ngx-postgresql
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_DBPASS
+            valueFrom:
+              secretKeyRef:
+                name: paperless-ngx-postgresql
+                key: password
+
+  - it: omits the db-password key when the bundled database owns it
+    templates:
+      - templates/secret.yaml
+    set:
+      paperless.database.enabled: true
+      paperless.database.host: paperless-ngx-postgresql
+    asserts:
+      - isNull:
+          path: data["db-password"]
+
+  # ---- Tika / Gotenberg ----
+  # Both default to enabled, and the chart deploys neither: the endpoints point
+  # at <release>-tika and <release>-gotenberg, Services this chart never
+  # creates. Out of the box Paperless is wired to two hosts that do not resolve.
+  # Turn them off, or run those workloads separately and point the urls at them.
+  - it: wires Tika and Gotenberg by default at services the chart does not create
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_TIKA_ENDPOINT
+            value: http://paperless-ngx-tika:9998
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_GOTENBERG_ENDPOINT
+            value: http://paperless-ngx-gotenberg:3000
+
+  # ---- Authentik OIDC ----
+  - it: builds the OIDC discovery URL from domain and slug
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.authentik.enabled: true
+      paperless.authentik.domain: auth.example.com
+      paperless.authentik.applicationSlug: paperless
+      paperless.authentik.clientId: client-id
+      paperless.authentik.clientSecret: client-secret
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="PAPERLESS_SOCIALACCOUNT_PROVIDERS")].value
+          pattern: "https://auth.example.com/application/o/paperless/.well-known/openid-configuration"
+
+  - it: prefers an explicit well-known URL
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.authentik.enabled: true
+      paperless.authentik.oidcWellKnownUrl: https://auth.example.com/application/o/docs/.well-known/openid-configuration
+      paperless.authentik.clientId: client-id
+      paperless.authentik.clientSecret: client-secret
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="PAPERLESS_SOCIALACCOUNT_PROVIDERS")].value
+          pattern: "o/docs/.well-known/openid-configuration"
+
+  # The client secret is inlined into PAPERLESS_SOCIALACCOUNT_PROVIDERS as a
+  # plain env value, even though the chart also writes it to a Secret. Anyone
+  # with `get pod` reads it. Pinned so the exposure is visible rather than
+  # accidental; fixing it means switching the app to a file-based provider
+  # config, which is an upstream change.
+  - it: inlines the OIDC client secret into the pod spec
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.authentik.enabled: true
+      paperless.authentik.domain: auth.example.com
+      paperless.authentik.applicationSlug: paperless
+      paperless.authentik.clientId: client-id
+      paperless.authentik.clientSecret: super-secret
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].env[?(@.name=="PAPERLESS_SOCIALACCOUNT_PROVIDERS")].value
+          pattern: '"secret": "super-secret"'
+
+  - it: drops both endpoints when disabled
+    templates:
+      - templates/statefulset.yaml
+    set:
+      paperless.tika.enabled: false
+      paperless.gotenberg.enabled: false
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_TIKA_ENABLED
+            value: "true"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_GOTENBERG_ENDPOINT
+            value: http://paperless-ngx-gotenberg:3000

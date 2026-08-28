@@ -1,0 +1,230 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "paperclip.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "paperclip.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "paperclip.fullname" . }}
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "paperclip.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Roll the pods when the rendered config or the chart-managed secret
+        # changes. Values coming from a secret this chart does not render (an
+        # external secret store, or the CloudNativePG app secret) are invisible
+        # here and still need a manual rollout after rotation.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.service.port | quote }}
+        prometheus.io/path: /metrics
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "paperclip.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "paperclip.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      shareProcessNamespace: {{ .Values.shareProcessNamespace }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- if or .Values.waitForDatabase.enabled .Values.onboard.enabled .Values.extraInitContainers }}
+      initContainers:
+        {{- if .Values.waitForDatabase.enabled }}
+        # Prove the database is reachable and accepts these credentials before
+        # onboarding runs its migrations against it. SELECT 1 covers all three:
+        # the host answers, the role authenticates, the database exists.
+        - name: wait-for-db
+          image: {{ include "paperclip.waitForDatabase.image" . | quote }}
+          imagePullPolicy: {{ .Values.waitForDatabase.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              for i in $(seq 1 {{ .Values.waitForDatabase.attempts }}); do
+                if psql "$DATABASE_URL" -qtAX -c 'SELECT 1' >/dev/null 2>&1; then
+                  echo "Database reachable."
+                  exit 0
+                fi
+                echo "Waiting for the database (attempt $i/{{ .Values.waitForDatabase.attempts }})..."
+                sleep {{ .Values.waitForDatabase.intervalSeconds }}
+              done
+              echo "Timed out waiting for the database."
+              exit 1
+          env:
+            - name: PGCONNECT_TIMEOUT
+              value: {{ .Values.waitForDatabase.connectTimeoutSeconds | quote }}
+            {{- include "paperclip.databaseEnv" . | trim | nindent 12 }}
+        {{- end }}
+        {{- if .Values.onboard.enabled }}
+        # `paperclipai onboard` writes the instance config and applies the
+        # database migrations, but then starts a server as well. Wait for the
+        # config file, then kill the tree. Skipped once the file exists.
+        - name: onboard
+          image: {{ include "paperclip.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              CONFIG="{{ .Values.persistence.mountPath }}/instances/default/config.json"
+              if [ -f "$CONFIG" ]; then
+                echo "Config already exists, skipping onboard."
+                exit 0
+              fi
+              echo "Running initial onboarding..."
+              sh -c 'exec pnpm paperclipai onboard --yes' &
+              ONBOARD_PID=$!
+              for i in $(seq 1 {{ .Values.onboard.timeoutSeconds }}); do
+                if [ -f "$CONFIG" ]; then
+                  echo "Config created successfully."
+                  kill -9 $ONBOARD_PID 2>/dev/null || true
+                  pkill -9 -f "paperclipai" 2>/dev/null || true
+                  pkill -9 -f "server/dist/index" 2>/dev/null || true
+                  exit 0
+                fi
+                sleep 1
+              done
+              echo "Timed out waiting for config file."
+              kill -9 $ONBOARD_PID 2>/dev/null || true
+              exit 1
+          envFrom:
+            - configMapRef:
+                name: {{ include "paperclip.fullname" . }}
+          env:
+            {{- include "paperclip.appEnv" . | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- end }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: paperclip
+          image: {{ include "paperclip.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - {{ include "paperclip.serverCommand" . | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "paperclip.fullname" . }}
+          env:
+            {{- include "paperclip.appEnv" . | nindent 12 }}
+          {{- if .Values.drain.enabled }}
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - sleep {{ .Values.drain.timeoutSeconds }}
+          {{- end }}
+          livenessProbe:
+            {{- include "paperclip.probeHandler" . | nindent 12 }}
+            {{- toYaml .Values.probes.liveness | nindent 12 }}
+          readinessProbe:
+            {{- include "paperclip.probeHandler" . | nindent 12 }}
+            {{- toYaml .Values.probes.readiness | nindent 12 }}
+          startupProbe:
+            {{- include "paperclip.probeHandler" . | nindent 12 }}
+            {{- toYaml .Values.probes.startup | nindent 12 }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.sidecars }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- if or (not .Values.persistence.enabled) .Values.extraVolumes }}
+      volumes:
+        {{- if not .Values.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "paperclip.labels" . | nindent 10 }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.persistence.accessModes | nindent 10 }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size }}
+        {{- with .Values.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+  {{- end }}
