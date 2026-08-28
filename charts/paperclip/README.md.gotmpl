@@ -1,0 +1,79 @@
+{{ template "chart.header" . }}
+{{ template "chart.deprecationWarning" . }}
+
+{{ template "chart.badgesSection" . }}
+
+{{ template "chart.description" . }}
+
+## What this chart does
+
+Deploys the Paperclip server as a StatefulSet, with a dedicated CloudNativePG
+`Cluster` for its database. It is a hand-rolled alternative to the
+`paperclipinc/paperclip-operator`: no CRD of its own, no cluster-scoped RBAC.
+
+The chart owns the application's environment contract directly. Notable
+non-obvious pieces, all of them required for the app to run at all:
+
+- The image ENTRYPOINT is overridden. `docker-entrypoint.sh` gosu-drops to the
+  `node` user, which fails under `runAsNonRoot` with all capabilities dropped.
+- A `wait-for-db` init container runs `SELECT 1` over `DATABASE_URL` until it
+  succeeds, so onboarding never starts its migrations against a database that
+  is not up yet. It proves three things at once: the host answers, the role
+  authenticates, and the database exists.
+- An `onboard` init container then writes the instance config and applies the
+  database migrations. `paperclipai onboard` also starts a server, so the
+  container waits for the config file and then kills the process tree.
+- Probes are TCP in `authenticated` mode: `/api/health` answers 403 there, so an
+  HTTP probe would fail forever.
+- `shareProcessNamespace` is on so the pause container reaps the zombies left by
+  agent-spawned git and shell processes; Node never calls `waitpid()`.
+- `terminationGracePeriodSeconds` defaults to 30 minutes so a rollout does not
+  SIGKILL a multi-minute agent run.
+
+## Scheduler and replicas
+
+The app has no lease-based scheduler leader election
+([paperclipai/paperclip#9005](https://github.com/paperclipai/paperclip/pull/9005)
+is unmerged), so `heartbeat.schedulerGating` only accepts `ordinal`: the
+entrypoint wrapper enables the scheduler on pod-0 only. There is no failover.
+Above one replica the chart refuses to render until
+`heartbeat.acknowledgeMultiReplica` is set, because all replicas also share one
+ReadWriteOnce data volume.
+
+## Secrets
+
+Every sensitive value takes a `{value, existingSecret, existingSecretKey}` block.
+Inline values land in a chart-managed Secret; `existingSecret` references one you
+manage yourself. `secretEnvFrom` maps arbitrary environment variables onto keys
+in existing secrets.
+
+`checksum/secret` only covers the Secret this chart renders. A value rotated in
+an external secret store, or in the CloudNativePG app secret, does not roll the
+pods on its own.
+
+## Database
+
+`database.mode: cnpg` (default) creates a `Cluster` and reads `DATABASE_URL`
+straight from the app secret CloudNativePG generates for it, so no connection
+string has to be assembled or stored anywhere.
+
+`database.mode: external` either takes a whole connection string, or composes one
+at runtime from host/port/database/username/password, each of which can come from
+its own secret.
+
+In `cnpg` mode the pod cannot start at all until CloudNativePG has created the
+app secret, because every container references it: expect
+`CreateContainerConfigError` on a first install until the cluster is up. Once the
+secret exists, `wait-for-db` covers the rest of the gap while PostgreSQL
+finishes bootstrapping.
+
+Backups use the barman-cloud CNPG-I plugin and need
+`plugin-barman-cloud` in the cluster. Unlike the upstream
+`cloudnative-pg/cluster` chart, the `ObjectStore` here is a plain resource rather
+than a Helm hook, so GitOps controllers reconcile it normally.
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}
+
+{{ template "chart.maintainersSection" . }}

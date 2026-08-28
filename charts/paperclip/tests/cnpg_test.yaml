@@ -1,0 +1,198 @@
+suite: CloudNativePG objects
+release:
+  name: paperclip
+  namespace: paperclip
+set:
+  auth.betterAuthSecret.value: auth-secret
+  secrets.masterKey.value: master-key
+tests:
+  - it: creates a Cluster named after the release
+    templates:
+      - templates/cnpg-cluster.yaml
+    asserts:
+      - isKind:
+          of: Cluster
+      - isAPIVersion:
+          of: postgresql.cnpg.io/v1
+      - equal:
+          path: metadata.name
+          value: paperclip-db
+      - equal:
+          path: spec.bootstrap.initdb.database
+          value: paperclip
+      - equal:
+          path: spec.bootstrap.initdb.owner
+          value: paperclip
+      - equal:
+          path: spec.imageName
+          value: ghcr.io/cloudnative-pg/postgresql:18
+      - equal:
+          path: spec.enableSuperuserAccess
+          value: false
+
+  - it: does not create a Cluster in external mode
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      database.mode: external
+      database.external.url: postgresql://paperclip:pw@db.example.com:5432/paperclip
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not create a Cluster when reusing an existing one
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      database.cnpg.create: false
+      database.cnpg.clusterName: shared-pg
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: adds WAL storage only when enabled
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      database.cnpg.walStorage.enabled: true
+      database.cnpg.walStorage.size: 8Gi
+      database.cnpg.walStorage.storageClass: iscsi-csi-postgresql
+    asserts:
+      - equal:
+          path: spec.walStorage.size
+          value: 8Gi
+      - equal:
+          path: spec.walStorage.storageClass
+          value: iscsi-csi-postgresql
+
+  - it: leaves the plugin list out when backups are disabled
+    templates:
+      - templates/cnpg-cluster.yaml
+    asserts:
+      - isNull:
+          path: spec.plugins
+
+  - it: wires the barman plugin as WAL archiver when backups are enabled
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      database.cnpg.backups.enabled: true
+      database.cnpg.backups.destinationPath: s3://paperclip-backups/
+      database.cnpg.backups.secretName: paperclip-backup-s3-credentials
+    asserts:
+      - contains:
+          path: spec.plugins
+          content:
+            name: barman-cloud.cloudnative-pg.io
+            enabled: true
+            isWALArchiver: true
+            parameters:
+              barmanObjectName: paperclip-db-backups
+
+  - it: creates no ObjectStore when backups are disabled
+    templates:
+      - templates/cnpg-objectstore.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates an ObjectStore that is not a helm hook
+    templates:
+      - templates/cnpg-objectstore.yaml
+    set:
+      database.cnpg.backups.enabled: true
+      database.cnpg.backups.destinationPath: s3://paperclip-backups/
+      database.cnpg.backups.endpointURL: http://rustfs.storage.svc:9000
+      database.cnpg.backups.secretName: paperclip-backup-s3-credentials
+    asserts:
+      - isAPIVersion:
+          of: barmancloud.cnpg.io/v1
+      - equal:
+          path: metadata.name
+          value: paperclip-db-backups
+      # Argo CD treats helm.sh/hook resources as hooks and reports Synced while
+      # the live object is stale; this chart keeps the ObjectStore a plain
+      # resource on purpose.
+      - isNull:
+          path: metadata.annotations["helm.sh/hook"]
+      - equal:
+          path: spec.configuration.s3Credentials.accessKeyId.name
+          value: paperclip-backup-s3-credentials
+      - equal:
+          path: spec.configuration.endpointURL
+          value: http://rustfs.storage.svc:9000
+
+  - it: creates the scheduled backups
+    templates:
+      - templates/cnpg-scheduledbackup.yaml
+    set:
+      database.cnpg.backups.enabled: true
+      database.cnpg.backups.destinationPath: s3://paperclip-backups/
+      database.cnpg.backups.secretName: paperclip-backup-s3-credentials
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: paperclip-db-daily
+      - equal:
+          path: spec.method
+          value: plugin
+      - equal:
+          path: spec.cluster.name
+          value: paperclip-db
+
+  - it: scopes database egress to the cluster pods
+    templates:
+      - templates/networkpolicy.yaml
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - contains:
+          path: spec.egress
+          content:
+            to:
+              - podSelector:
+                  matchLabels:
+                    cnpg.io/cluster: paperclip-db
+            ports:
+              - protocol: TCP
+                port: 5432
+
+  - it: puts the database in an earlier Argo CD sync wave than the workload
+    templates:
+      - templates/cnpg-cluster.yaml
+    asserts:
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "-1"
+
+  - it: puts the object store ahead of the cluster that references it
+    templates:
+      - templates/cnpg-objectstore.yaml
+    set:
+      database.cnpg.backups.enabled: true
+      database.cnpg.backups.destinationPath: s3://paperclip-backups/
+      database.cnpg.backups.secretName: paperclip-backup-s3-credentials
+    asserts:
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "-2"
+      - isNull:
+          path: metadata.annotations["helm.sh/hook"]
+
+  - it: leaves the workload in the default wave
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isNull:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+
+  - it: drops the sync waves when disabled
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      argocd.syncWaves.enabled: false
+    asserts:
+      - isNull:
+          path: metadata.annotations

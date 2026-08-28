@@ -1,0 +1,398 @@
+# -- Override the chart name.
+nameOverride: ""
+# -- Override the fully qualified release name.
+fullnameOverride: ""
+
+image:
+  # -- Application image repository.
+  repository: ghcr.io/paperclipai/paperclip
+  # -- Image tag. The registry publishes no version tags, only `sha-<commit>`
+  # and mutable pointers (latest/canary/nightly/beta), so prefer `digest`.
+  tag: ""
+  # -- Image digest. Wins over `tag`. Default is the digest behind release
+  # v2026.824.1 (commit 8e6edcd). One of `tag` or `digest` is required.
+  digest: "sha256:bdc256b2b289c4085d27625d8915b665c509297b526201bfcea5114634ce2548"
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets.
+imagePullSecrets: []
+
+# -- Number of server replicas. Above 1 you must also set
+# `heartbeat.acknowledgeMultiReplica` — see that field.
+replicaCount: 1
+
+# -- Server entrypoint. The image ENTRYPOINT is deliberately overridden: it
+# gosu-drops to the "node" user, which fails under runAsNonRoot + drop ALL.
+entrypoint: "node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"
+
+deployment:
+  # -- `authenticated` (login required) or `local_trusted` (no auth at all).
+  # `local_trusted` requires `exposure: private`.
+  mode: authenticated
+  # -- `private` (ClusterIP only) or `public`. `public` requires `publicUrl`.
+  exposure: private
+  # -- Externally reachable URL. Required when `exposure: public`.
+  publicUrl: ""
+  # -- Extra hostnames added to PAPERCLIP_ALLOWED_HOSTNAMES. The Service DNS
+  # names, loopback and every `ingress.hosts[].host` are added automatically.
+  allowedHostnames: []
+  # -- Disable public self-service sign-up.
+  disableSignUp: true
+
+auth:
+  # -- BETTER_AUTH_SECRET. Required: the app refuses to boot without it.
+  # Rotating it invalidates every session.
+  betterAuthSecret:
+    value: ""
+    existingSecret: ""
+    existingSecretKey: ""
+
+secrets:
+  # -- Secrets backend. Only `local_encrypted` is wired by this chart.
+  provider: local_encrypted
+  # -- Require encrypted references for all sensitive values.
+  strictMode: false
+  # -- PAPERCLIP_SECRETS_MASTER_KEY. Required. Everything the app stores under
+  # `local_encrypted` is encrypted with this key: rotating it is data loss.
+  masterKey:
+    value: ""
+    existingSecret: ""
+    existingSecretKey: ""
+
+heartbeat:
+  # -- Run the agent heartbeat scheduler.
+  enabled: true
+  # -- Scheduler interval in milliseconds.
+  intervalMs: 60000
+  # -- Must stay `ordinal`. The app has no lease-based leader election
+  # (paperclipai/paperclip#9005 is still open), so any other value would let
+  # every replica run the scheduler.
+  schedulerGating: ordinal
+  # -- Acknowledge that `replicaCount > 1` pins the scheduler to pod-0 with no
+  # failover, and that all replicas share one RWO data volume. Required to
+  # render with more than one replica.
+  acknowledgeMultiReplica: false
+
+database:
+  # -- `cnpg` provisions a dedicated CloudNativePG Cluster and reads
+  # DATABASE_URL from the Cluster's generated app secret. `external` points at
+  # a database you manage yourself.
+  mode: cnpg
+
+  cnpg:
+    # -- Create the Cluster object. Set false to reuse an existing Cluster and
+    # only consume its app secret.
+    create: true
+    # -- Cluster name. Defaults to `<fullname>-db`.
+    clusterName: ""
+    # -- Secret holding the application credentials. Defaults to
+    # `<clusterName>-app`, which CloudNativePG generates.
+    appSecretName: ""
+    # -- Key inside that secret holding the full connection string.
+    appSecretUriKey: uri
+    # -- Number of PostgreSQL instances.
+    instances: 1
+    # -- Major PostgreSQL version, used to pick the operator's default image.
+    postgresqlVersion: "18"
+    # -- Explicit image, overriding `postgresqlVersion`.
+    imageName: ""
+    # -- Application database name.
+    database: paperclip
+    # -- Owner role of the application database.
+    owner: paperclip
+    # -- Extra annotations on the Cluster object.
+    annotations: {}
+    storage:
+      size: 10Gi
+      storageClass: ""
+    walStorage:
+      enabled: false
+      size: 5Gi
+      storageClass: ""
+    # -- Compute resources for the PostgreSQL instances.
+    resources: {}
+    # -- Cluster affinity, passed through verbatim.
+    affinity:
+      topologyKey: kubernetes.io/hostname
+    # -- postgresql.conf parameters.
+    parameters: {}
+    # -- Instance log level: error, warning, info, debug or trace.
+    logLevel: info
+    # -- Allow the postgres superuser to log in.
+    enableSuperuserAccess: false
+    # -- Secret holding the superuser password, when superuser access is on.
+    superuserSecret: ""
+    # -- Create a PodDisruptionBudget for the cluster.
+    enablePDB: true
+    primaryUpdateMethod: switchover
+    primaryUpdateStrategy: unsupervised
+    monitoring:
+      # -- Create a PodMonitor. Needs the Prometheus Operator CRDs.
+      enablePodMonitor: false
+    # -- Extra CNPG-I plugins, appended to the barman-cloud plugin when backups
+    # are enabled.
+    plugins: []
+
+    backups:
+      # -- Back the cluster up to S3-compatible storage with the barman-cloud
+      # plugin. Requires the plugin-barman-cloud operator in the cluster.
+      enabled: false
+      # -- Create the ObjectStore object. Set false to reference one that
+      # already exists.
+      create: true
+      # -- ObjectStore name. Defaults to `<clusterName>-backups`.
+      objectStoreName: ""
+      # -- Barman retention policy.
+      retentionPolicy: "21d"
+      # -- S3 endpoint, e.g. `http://rustfs.example.internal:9000`.
+      endpointURL: ""
+      # -- Destination, e.g. `s3://paperclip-backups/`.
+      destinationPath: ""
+      # -- Secret with ACCESS_KEY_ID and ACCESS_SECRET_KEY. Not created by this
+      # chart: the credentials belong to whatever provisions the bucket.
+      secretName: ""
+      wal:
+        compression: gzip
+        encryption: ""
+        maxParallel: 2
+      data:
+        compression: gzip
+        encryption: ""
+        jobs: 2
+      # -- Resources for the barman sidecar. It idles small but gzip during a
+      # backup is CPU-bound; requests == limits keeps the pod Guaranteed.
+      instanceSidecarConfiguration: {}
+      # -- ScheduledBackup objects. Schedules are six-field cron (with seconds).
+      scheduledBackups:
+        - name: daily
+          schedule: "0 45 4 * * *"
+          backupOwnerReference: self
+
+  external:
+    # -- Full connection string, inline. Stored in the chart-managed Secret.
+    url: ""
+    # -- Secret already holding a full connection string.
+    existingSecret: ""
+    existingSecretKey: ""
+    # -- Component mode: used only when neither `url` nor `existingSecret` is
+    # set. DATABASE_URL is then composed at runtime from these parts, so a
+    # secret-sourced password never lands in the manifest.
+    host:
+      value: ""
+      existingSecret: ""
+      existingSecretKey: ""
+    port:
+      value: "5432"
+      existingSecret: ""
+      existingSecretKey: ""
+    database:
+      value: ""
+      existingSecret: ""
+      existingSecretKey: ""
+    username:
+      value: ""
+      existingSecret: ""
+      existingSecretKey: ""
+    password:
+      value: ""
+      existingSecret: ""
+      existingSecretKey: ""
+
+config:
+  # -- Log level: debug, info, warn or error.
+  logLevel: info
+  # -- Extra NON-sensitive environment variables, rendered into the ConfigMap.
+  extraEnv: {}
+
+# -- Sensitive environment variables, inline. Written into the chart-managed
+# Secret, one key per variable. Anything sourced from an external secret store
+# belongs in `secretEnvFrom` instead.
+secretEnv: {}
+
+# -- Sensitive environment variables mapped onto keys in secrets you manage
+# yourself, e.g. one produced by a OnePasswordItem.
+# Example:
+#   ANTHROPIC_API_KEY:
+#     existingSecret: paperclip-litellm
+#     key: ANTHROPIC_API_KEY
+secretEnvFrom: {}
+
+# -- Extra env entries appended verbatim to the container spec.
+extraEnv: []
+
+persistence:
+  # -- Persist the Paperclip data directory. Disabled means emptyDir and losing
+  # agent workspaces on restart.
+  enabled: true
+  # -- Data directory. Also becomes PAPERCLIP_HOME.
+  mountPath: /paperclip
+  size: 20Gi
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+
+waitForDatabase:
+  # -- Block startup on an init container that proves the database is
+  # reachable AND accepts these credentials, before onboarding runs its
+  # migrations. Without it a database that is not up yet surfaces as a failed
+  # onboard and a pod restart loop.
+  enabled: true
+  image:
+    repository: ghcr.io/cloudnative-pg/postgresql
+    # -- Tag. Empty follows `database.cnpg.postgresqlVersion`.
+    tag: ""
+    pullPolicy: IfNotPresent
+  # -- Connection attempts before giving up.
+  attempts: 60
+  # -- Seconds between attempts.
+  intervalSeconds: 2
+  # -- libpq connect timeout per attempt, so a blackholed host fails fast
+  # instead of hanging the whole init.
+  connectTimeoutSeconds: 5
+
+onboard:
+  # -- Run the onboarding init container. It creates
+  # `<mountPath>/instances/default/config.json` and applies the database
+  # migrations; without it the server does not start on an empty volume.
+  enabled: true
+  # -- Seconds to wait for the config file to appear before failing.
+  timeoutSeconds: 120
+
+service:
+  type: ClusterIP
+  port: 3100
+  annotations: {}
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  # -- Hosts. Every entry is also added to PAPERCLIP_ALLOWED_HOSTNAMES.
+  hosts: []
+  #  - host: paperclip.example.com
+  #    paths:
+  #      - path: /
+  #        pathType: Prefix
+  tls: []
+
+argocd:
+  # -- Emit `argocd.argoproj.io/sync-wave` annotations on the database objects.
+  # Argo CD ships a health check for postgresql.cnpg.io/Cluster, so an earlier
+  # wave makes it wait until PostgreSQL is Healthy before it creates the server
+  # workload. Without it the first sync spends minutes in
+  # CreateContainerConfigError while the app secret does not exist yet.
+  # Harmless outside Argo CD: it is only an annotation.
+  syncWaves:
+    enabled: true
+    objectStore: "-2"
+    database: "-1"
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  # -- The app needs no Kubernetes API access in this chart's supported modes.
+  automountServiceAccountToken: false
+
+networkPolicy:
+  # -- Create a NetworkPolicy. Needs a CNI that enforces them; Flannel does not.
+  enabled: false
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # -- Allow any source on the service port. Narrow this with `from` below.
+    allowAll: true
+    # -- Extra ingress rules, appended verbatim.
+    extra: []
+  egress:
+    # -- Allow DNS to any destination.
+    dns: true
+    # -- Allow 443/tcp out (LLM APIs, git over HTTPS, npm).
+    https: true
+    # -- Allow 5432/tcp to the CNPG cluster pods.
+    database: true
+    # -- Extra egress rules, appended verbatim. Git over SSH (22/tcp) and
+    # in-cluster services on other ports need an entry here.
+    extra: []
+
+serviceMonitor:
+  # -- Create a ServiceMonitor. Needs the Prometheus Operator CRDs. Grafana
+  # Alloy scrapes the prometheus.io/* pod annotations instead.
+  enabled: false
+  interval: 30s
+
+probes:
+  # -- `auto`, `http` or `tcp`. `auto` uses TCP in authenticated mode, where
+  # /api/health answers 403 without credentials.
+  type: auto
+  path: /api/health
+  liveness:
+    initialDelaySeconds: 15
+    periodSeconds: 20
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+    successThreshold: 1
+  startup:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 60
+    successThreshold: 1
+
+# -- Share the PID namespace so the pause container reaps the zombies left by
+# agent-spawned git, shell and plugin processes. Node never calls waitpid().
+shareProcessNamespace: true
+
+# -- Ceiling for SIGTERM to SIGKILL. The server soft-drains in-flight agent
+# runs in this window; the default is deliberately long so a rollout does not
+# cut a multi-minute run short.
+terminationGracePeriodSeconds: 1800
+
+drain:
+  # -- preStop hook that holds the container briefly before SIGTERM, so the
+  # pod leaves the Service endpoints before it starts draining.
+  enabled: true
+  timeoutSeconds: 15
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+# -- readOnlyRootFilesystem is deliberately absent: the app writes node_modules
+# and agent workspaces outside the data volume.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+resources: {}
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+
+# -- Extra volumes on the pod.
+extraVolumes: []
+# -- Extra volume mounts on the app container.
+extraVolumeMounts: []
+# -- Extra init containers, appended after the onboard container.
+extraInitContainers: []
+# -- Extra sidecar containers.
+sidecars: []

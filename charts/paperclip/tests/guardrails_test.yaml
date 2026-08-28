@@ -1,0 +1,228 @@
+suite: validation guardrails
+templates:
+  - templates/configmap.yaml
+release:
+  name: paperclip
+  namespace: paperclip
+set:
+  auth.betterAuthSecret.value: auth-secret
+  secrets.masterKey.value: master-key
+tests:
+  # ---- image ----
+  - it: fails when image.repository is empty
+    set:
+      image.repository: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "image.repository is required"
+
+  - it: fails when neither tag nor digest is set
+    set:
+      image.digest: ""
+      image.tag: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "image.tag or image.digest is required"
+
+  - it: fails on the latest tag
+    set:
+      image.digest: ""
+      image.tag: latest
+    asserts:
+      - failedTemplate:
+          errorPattern: "latest is not supported"
+
+  - it: accepts a sha tag without a digest
+    set:
+      image.digest: ""
+      image.tag: sha-8e6edcd
+    asserts:
+      - notFailedTemplate: {}
+
+  # ---- deployment mode / exposure ----
+  - it: fails on an unknown deployment mode
+    set:
+      deployment.mode: open
+    asserts:
+      - failedTemplate:
+          errorPattern: "deployment.mode must be authenticated or local_trusted"
+
+  - it: fails when local_trusted is exposed publicly
+    set:
+      deployment.mode: local_trusted
+      deployment.exposure: public
+      deployment.publicUrl: https://paperclip.example.com
+    asserts:
+      - failedTemplate:
+          errorPattern: "exposure must be private when deployment.mode is local_trusted"
+
+  - it: fails when public exposure has no publicUrl
+    set:
+      deployment.exposure: public
+    asserts:
+      - failedTemplate:
+          errorPattern: "publicUrl is required"
+
+  # ---- secrets ----
+  - it: fails when BETTER_AUTH_SECRET is missing
+    set:
+      auth.betterAuthSecret.value: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "auth.betterAuthSecret.value or auth.betterAuthSecret.existingSecret is required"
+
+  - it: fails when the master key is missing
+    set:
+      secrets.masterKey.value: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "secrets.masterKey.value or secrets.masterKey.existingSecret is required"
+
+  - it: fails when an existingSecret has no key
+    set:
+      auth.betterAuthSecret.value: ""
+      auth.betterAuthSecret.existingSecret: paperclip-credentials
+    asserts:
+      - failedTemplate:
+          errorPattern: "auth.betterAuthSecret.existingSecretKey is required"
+
+  - it: fails on an unsupported secrets provider
+    set:
+      secrets.provider: aws_secrets_manager
+    asserts:
+      - failedTemplate:
+          errorPattern: "secrets.provider must be local_encrypted"
+
+  # ---- scheduler gating / replicas ----
+  - it: fails on lease scheduler gating
+    set:
+      heartbeat.schedulerGating: lease
+    asserts:
+      - failedTemplate:
+          errorPattern: "schedulerGating must be ordinal"
+
+  - it: fails on multiple replicas without acknowledgement
+    set:
+      replicaCount: 2
+    asserts:
+      - failedTemplate:
+          errorPattern: "requires heartbeat.acknowledgeMultiReplica"
+
+  - it: allows multiple replicas once acknowledged
+    set:
+      replicaCount: 2
+      heartbeat.acknowledgeMultiReplica: true
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: fails on zero replicas
+    set:
+      replicaCount: 0
+    asserts:
+      - failedTemplate:
+          errorPattern: "replicaCount must be at least 1"
+
+  # ---- database ----
+  - it: fails on an unknown database mode
+    set:
+      database.mode: embedded
+    asserts:
+      - failedTemplate:
+          errorPattern: "database.mode must be cnpg or external"
+
+  - it: fails when the cnpg database name is empty
+    set:
+      database.cnpg.database: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "database.cnpg.database is required"
+
+  - it: fails when reusing a cluster without naming it
+    set:
+      database.cnpg.create: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "clusterName or database.cnpg.appSecretName is required"
+
+  - it: fails when backups are enabled without a destination
+    set:
+      database.cnpg.backups.enabled: true
+      database.cnpg.backups.secretName: s3-creds
+    asserts:
+      - failedTemplate:
+          errorPattern: "destinationPath is required"
+
+  - it: fails when backups are enabled without credentials
+    set:
+      database.cnpg.backups.enabled: true
+      database.cnpg.backups.destinationPath: s3://paperclip/
+    asserts:
+      - failedTemplate:
+          errorPattern: "secretName is required"
+
+  - it: fails when an external component is missing
+    set:
+      database.mode: external
+      database.external.host.value: db.example.com
+      database.external.database.value: paperclip
+      database.external.username.value: paperclip
+    asserts:
+      - failedTemplate:
+          errorPattern: "database.external.password.value or database.external.password.existingSecret is required"
+
+  - it: fails when the external url secret has no key
+    set:
+      database.mode: external
+      database.external.existingSecret: paperclip-credentials
+    asserts:
+      - failedTemplate:
+          errorPattern: "database.external.existingSecretKey is required"
+
+  # ---- secretEnvFrom ----
+  - it: fails when secretEnvFrom has no key
+    set:
+      secretEnvFrom:
+        ANTHROPIC_API_KEY:
+          existingSecret: paperclip-litellm
+    asserts:
+      - failedTemplate:
+          errorPattern: "secretEnvFrom.ANTHROPIC_API_KEY.key is required"
+
+  # ---- ingress ----
+  - it: fails when ingress is enabled without hosts
+    set:
+      ingress.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "ingress.hosts is required"
+
+  # ---- drain window ----
+  - it: fails when the drain window exceeds the grace period
+    set:
+      drain.timeoutSeconds: 60
+      terminationGracePeriodSeconds: 30
+    asserts:
+      - failedTemplate:
+          errorPattern: "drain.timeoutSeconds must be shorter than terminationGracePeriodSeconds"
+
+  # ---- wait-for-database ----
+  - it: fails when the database check has no image
+    set:
+      waitForDatabase.image.repository: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "waitForDatabase.image.repository is required"
+
+  - it: fails on a zero attempt count
+    set:
+      waitForDatabase.attempts: 0
+    asserts:
+      - failedTemplate:
+          errorPattern: "waitForDatabase.attempts must be at least 1"
+
+  - it: fails on a zero connect timeout
+    set:
+      waitForDatabase.connectTimeoutSeconds: 0
+    asserts:
+      - failedTemplate:
+          errorPattern: "waitForDatabase.connectTimeoutSeconds must be at least 1"

@@ -1,0 +1,76 @@
+{{- if and (include "paperclip.cnpg.enabled" .) .Values.database.cnpg.create }}
+{{- $c := .Values.database.cnpg }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "paperclip.cnpg.clusterName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "paperclip.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database
+  {{- if or $c.annotations .Values.argocd.syncWaves.enabled }}
+  annotations:
+    {{- if .Values.argocd.syncWaves.enabled }}
+    argocd.argoproj.io/sync-wave: {{ .Values.argocd.syncWaves.database | quote }}
+    {{- end }}
+    {{- with $c.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  instances: {{ $c.instances }}
+  imageName: {{ $c.imageName | default (printf "ghcr.io/cloudnative-pg/postgresql:%s" $c.postgresqlVersion) }}
+  logLevel: {{ $c.logLevel }}
+  primaryUpdateMethod: {{ $c.primaryUpdateMethod }}
+  primaryUpdateStrategy: {{ $c.primaryUpdateStrategy }}
+  enablePDB: {{ $c.enablePDB }}
+  enableSuperuserAccess: {{ $c.enableSuperuserAccess }}
+  {{- with $c.superuserSecret }}
+  superuserSecret:
+    name: {{ . }}
+  {{- end }}
+  storage:
+    size: {{ $c.storage.size }}
+    {{- with $c.storage.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  {{- if $c.walStorage.enabled }}
+  walStorage:
+    size: {{ $c.walStorage.size }}
+    {{- with $c.walStorage.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  {{- end }}
+  {{- with $c.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $c.affinity }}
+  affinity:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $c.parameters }}
+  postgresql:
+    parameters:
+      {{- toYaml . | nindent 6 }}
+  {{- end }}
+  monitoring:
+    enablePodMonitor: {{ $c.monitoring.enablePodMonitor }}
+  bootstrap:
+    initdb:
+      database: {{ $c.database }}
+      owner: {{ $c.owner }}
+  {{- if or $c.plugins $c.backups.enabled }}
+  plugins:
+    {{- with $c.plugins }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- if $c.backups.enabled }}
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: {{ include "paperclip.cnpg.objectStoreName" . }}
+    {{- end }}
+  {{- end }}
+{{- end }}

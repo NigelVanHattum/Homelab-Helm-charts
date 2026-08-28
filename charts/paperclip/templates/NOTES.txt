@@ -1,0 +1,44 @@
+Paperclip {{ .Chart.AppVersion }} is installing as {{ include "paperclip.fullname" . }}.
+
+Image:
+  {{ include "paperclip.image" . }}
+
+Database:
+{{- if include "paperclip.cnpg.enabled" . }}
+  CloudNativePG cluster {{ include "paperclip.cnpg.clusterName" . }}
+  DATABASE_URL comes from secret {{ include "paperclip.cnpg.appSecretName" . }}, key {{ .Values.database.cnpg.appSecretUriKey }}
+
+  kubectl get cluster {{ include "paperclip.cnpg.clusterName" . }} -n {{ .Release.Namespace }}
+{{- if .Values.database.cnpg.backups.enabled }}
+  Backups: ObjectStore {{ include "paperclip.cnpg.objectStoreName" . }} ({{ .Values.database.cnpg.backups.destinationPath }})
+{{- else }}
+  Backups: DISABLED. Nothing is being archived off-cluster.
+{{- end }}
+{{- else }}
+  External, supplied through database.external
+{{- end }}
+
+Reach it with:
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+  https://{{ .host }}
+{{- end }}
+{{- else }}
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "paperclip.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+{{- end }}
+
+Notes:
+{{- if eq .Values.deployment.mode "local_trusted" }}
+  * deployment.mode is local_trusted: the app performs NO authentication. Anything
+    that can reach the Service has full access. Only run this behind an
+    authenticating proxy, and only on a CNI that enforces NetworkPolicy.
+{{- end }}
+{{- if not .Values.persistence.enabled }}
+  * persistence is disabled: agent workspaces and the instance config are lost on
+    every restart.
+{{- end }}
+  * Rotating secrets.masterKey is data loss: everything stored under
+    local_encrypted is encrypted with it.
+  * Values sourced from a secret this chart does not render need a manual
+    `kubectl rollout restart statefulset/{{ include "paperclip.fullname" . }}`
+    after rotation.
