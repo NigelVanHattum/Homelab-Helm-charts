@@ -45,4 +45,11 @@ jobs:
         uses: helm/chart-releaser-action@v1.6.0
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          skip_existing: true
+        with:
+          # chart-releaser reads this as an action input, not an environment
+          # variable. Under env: it was silently ignored, so cr tried to create
+          # a release for every changed chart even when that tag already
+          # existed, and the run failed on the first one.
+          # Absent on push, a string on workflow_dispatch, so anything other
+          # than an explicit "false" keeps the safe behaviour.
+          skip_existing: ${{ github.event.inputs.skip_existing != 'false' }}
