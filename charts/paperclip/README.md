@@ -1,6 +1,6 @@
 # paperclip
 
-![Version: 0.1.2](https://img.shields.io/badge/Version-0.1.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
+![Version: 0.1.3](https://img.shields.io/badge/Version-0.1.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
 
 Paperclip - run teams of AI agents as a company. Deploys the app with its own CloudNativePG cluster.
 
@@ -103,8 +103,9 @@ the invite is used or expires.
 | bootstrap.enabled | bool | `false` | Run a hook Job after each sync that mints the one-time first-admin invite URL and prints it to the Job log. At public exposure the app disables the browser claim on purpose and ships no way to seed an admin declaratively, so an invite has to be created and then accepted by a human. `auth bootstrap-ceo` short-circuits once an instance_admin exists, so this is a no-op on every sync after the first.  Off by default: the invite token lands in the Job log, so anyone who can read pod logs in this namespace can claim the instance until the invite is used or expires. Running the command by hand keeps the token in your terminal instead. |
 | bootstrap.expiresHours | string | `""` | Invite lifetime in hours. Empty uses the CLI default of 72. |
 | bootstrap.force | bool | `false` | Mint a new invite even when an instance admin already exists. Only for recovering a lost admin; it removes the short-circuit that makes this Job idempotent. |
+| bootstrap.hookDeletePolicy | string | `"before-hook-creation"` | Helm hook delete policy. The default keeps the finished Job, and with it the invite URL in its log, until the next sync replaces it. Adding `hook-succeeded` deletes the Job as soon as it succeeds, which also discards the only copy of the token: the invite row stores a hash, so the URL cannot be recovered from the database. |
 | bootstrap.intervalSeconds | int | `5` | Seconds between those attempts. |
-| bootstrap.ttlSecondsAfterFinished | int | `3600` |  |
+| bootstrap.ttlSecondsAfterFinished | int | `86400` | How long the finished Job is kept. This is what eventually cleans it up, since the delete policy no longer does. |
 | config.extraEnv | object | `{}` | Extra NON-sensitive environment variables, rendered into the ConfigMap. |
 | config.logLevel | string | `"info"` | Log level: debug, info, warn or error. |
 | database.cnpg.affinity | object | `{"topologyKey":"kubernetes.io/hostname"}` | Cluster affinity, passed through verbatim. |

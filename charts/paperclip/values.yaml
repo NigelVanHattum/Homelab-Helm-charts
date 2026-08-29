@@ -278,8 +278,16 @@ bootstrap:
   # recovering a lost admin; it removes the short-circuit that makes this Job
   # idempotent.
   force: false
+  # -- Helm hook delete policy. The default keeps the finished Job, and with it
+  # the invite URL in its log, until the next sync replaces it. Adding
+  # `hook-succeeded` deletes the Job as soon as it succeeds, which also
+  # discards the only copy of the token: the invite row stores a hash, so the
+  # URL cannot be recovered from the database.
+  hookDeletePolicy: before-hook-creation
   backoffLimit: 3
-  ttlSecondsAfterFinished: 3600
+  # -- How long the finished Job is kept. This is what eventually cleans it up,
+  # since the delete policy no longer does.
+  ttlSecondsAfterFinished: 86400
 
 onboard:
   # -- Run the onboarding init container. It creates

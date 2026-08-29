@@ -31,9 +31,12 @@ tests:
       - equal:
           path: metadata.annotations["helm.sh/hook"]
           value: post-install,post-upgrade
+      # hook-succeeded is deliberately absent: it would delete the Job the
+      # moment it finishes and take the invite URL in its log with it. The
+      # invites row stores only a hash, so that URL is unrecoverable.
       - equal:
           path: metadata.annotations["helm.sh/hook-delete-policy"]
-          value: before-hook-creation,hook-succeeded
+          value: before-hook-creation
       - equal:
           path: spec.template.spec.restartPolicy
           value: Never
@@ -144,3 +147,24 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "bootstrap.enabled requires persistence.enabled"
+
+  - it: keeps the finished Job long enough to read the invite from
+    templates:
+      - templates/bootstrap-job.yaml
+    set:
+      bootstrap.enabled: true
+    asserts:
+      - equal:
+          path: spec.ttlSecondsAfterFinished
+          value: 86400
+
+  - it: allows opting back into immediate cleanup
+    templates:
+      - templates/bootstrap-job.yaml
+    set:
+      bootstrap.enabled: true
+      bootstrap.hookDeletePolicy: before-hook-creation,hook-succeeded
+    asserts:
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
