@@ -254,6 +254,33 @@ waitForDatabase:
   # instead of hanging the whole init.
   connectTimeoutSeconds: 5
 
+bootstrap:
+  # -- Run a hook Job after each sync that mints the one-time first-admin
+  # invite URL and prints it to the Job log. At public exposure the app
+  # disables the browser claim on purpose and ships no way to seed an admin
+  # declaratively, so an invite has to be created and then accepted by a human.
+  # `auth bootstrap-ceo` short-circuits once an instance_admin exists, so this
+  # is a no-op on every sync after the first.
+  #
+  # Off by default: the invite token lands in the Job log, so anyone who can
+  # read pod logs in this namespace can claim the instance until the invite is
+  # used or expires. Running the command by hand keeps the token in your
+  # terminal instead.
+  enabled: false
+  # -- Attempts to find the instance config written by the onboard container
+  # before giving up.
+  attempts: 60
+  # -- Seconds between those attempts.
+  intervalSeconds: 5
+  # -- Invite lifetime in hours. Empty uses the CLI default of 72.
+  expiresHours: ""
+  # -- Mint a new invite even when an instance admin already exists. Only for
+  # recovering a lost admin; it removes the short-circuit that makes this Job
+  # idempotent.
+  force: false
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+
 onboard:
   # -- Run the onboarding init container. It creates
   # `<mountPath>/instances/default/config.json` and applies the database

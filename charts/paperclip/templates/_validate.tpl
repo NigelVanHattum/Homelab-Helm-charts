@@ -65,6 +65,19 @@ so it runs on every render.
 {{- fail "persistence.size is required when persistence.enabled is true" -}}
 {{- end -}}
 
+{{- /* Bootstrap hook Job */ -}}
+{{- if .Values.bootstrap.enabled -}}
+{{- if not .Values.persistence.enabled -}}
+{{- fail "bootstrap.enabled requires persistence.enabled: the invite command reads the instance config from the data volume" -}}
+{{- end -}}
+{{- if lt (int .Values.bootstrap.attempts) 1 -}}
+{{- fail "bootstrap.attempts must be at least 1" -}}
+{{- end -}}
+{{- if lt (int .Values.bootstrap.intervalSeconds) 1 -}}
+{{- fail "bootstrap.intervalSeconds must be at least 1" -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* Wait-for-database init container */ -}}
 {{- if .Values.waitForDatabase.enabled -}}
 {{- if not .Values.waitForDatabase.image.repository -}}
