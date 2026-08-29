@@ -22,8 +22,10 @@ metadata:
     "helm.sh/hook": post-install,post-upgrade
     # before-hook-creation is required: Argo CD applies hooks rather than
     # creating them, so without it the completed Job from the previous sync
-    # would linger and never re-run.
-    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    # would linger and never re-run. Adding hook-succeeded would delete the Job
+    # the moment it finishes, taking the invite URL in its log with it, so it
+    # is not part of the default.
+    "helm.sh/hook-delete-policy": {{ .Values.bootstrap.hookDeletePolicy | quote }}
     "helm.sh/hook-weight": "5"
 spec:
   backoffLimit: {{ .Values.bootstrap.backoffLimit }}
