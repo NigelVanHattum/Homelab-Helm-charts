@@ -260,9 +260,11 @@ Env shared by the app container and the onboard init container.
 - name: PAPERCLIP_SECRETS_PROVIDER
   value: {{ .Values.secrets.provider | quote }}
 {{- include "paperclip.refEnv" (dict "name" "PAPERCLIP_SECRETS_MASTER_KEY" "cfg" .Values.secrets.masterKey "sensitive" true "secretName" (include "paperclip.secretName" .) "secretKey" "PAPERCLIP_SECRETS_MASTER_KEY") | nindent 0 }}
-{{- if .Values.secrets.strictMode }}
 - name: PAPERCLIP_SECRETS_STRICT_MODE
-  value: "true"
+  value: {{ .Values.secrets.strictMode | quote }}
+{{- if not .Values.telemetry.enabled }}
+- name: PAPERCLIP_TELEMETRY_DISABLED
+  value: "1"
 {{- end }}
 {{- if not .Values.heartbeat.enabled }}
 - name: HEARTBEAT_SCHEDULER_ENABLED

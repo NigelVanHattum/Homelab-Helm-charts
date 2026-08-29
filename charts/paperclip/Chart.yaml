@@ -2,7 +2,7 @@ apiVersion: v2
 name: paperclip
 description: Paperclip - run teams of AI agents as a company. Deploys the app with its own CloudNativePG cluster.
 type: application
-version: 0.1.4
+version: 0.1.5
 appVersion: "v2026.824.1"
 home: https://paperclip.ai
 sources:

@@ -389,3 +389,51 @@ tests:
       - matchRegex:
           path: spec.template.spec.initContainers[1].args[0]
           pattern: "onboard --yes --bind tailnet"
+  # The instance config that onboard writes carries secrets.strictMode: false
+  # and the server falls back to it whenever the env var is absent, so the
+  # value is emitted in both states rather than only when true.
+  - it: always states the secrets strict mode
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERCLIP_SECRETS_STRICT_MODE
+            value: "true"
+
+  - it: states strict mode explicitly when turned off
+    templates:
+      - templates/statefulset.yaml
+    set:
+      secrets.strictMode: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERCLIP_SECRETS_STRICT_MODE
+            value: "false"
+
+  # telemetry.enabled in the instance config has no environment override, so
+  # PAPERCLIP_TELEMETRY_DISABLED is the only reachable switch.
+  - it: disables telemetry by default
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERCLIP_TELEMETRY_DISABLED
+            value: "1"
+
+  - it: leaves telemetry alone when opted in
+    templates:
+      - templates/statefulset.yaml
+    set:
+      telemetry.enabled: true
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERCLIP_TELEMETRY_DISABLED
+            value: "1"
