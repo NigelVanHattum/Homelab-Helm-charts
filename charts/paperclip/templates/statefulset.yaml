@@ -102,7 +102,7 @@ spec:
                 exit 0
               fi
               echo "Running initial onboarding..."
-              sh -c 'exec pnpm paperclipai onboard --yes' &
+              sh -c 'exec pnpm paperclipai onboard --yes --bind {{ include "paperclip.onboardBind" . }}' &
               ONBOARD_PID=$!
               for i in $(seq 1 {{ .Values.onboard.timeoutSeconds }}); do
                 if [ -f "$CONFIG" ]; then

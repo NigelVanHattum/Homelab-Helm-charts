@@ -260,9 +260,11 @@ Env shared by the app container and the onboard init container.
 - name: PAPERCLIP_SECRETS_PROVIDER
   value: {{ .Values.secrets.provider | quote }}
 {{- include "paperclip.refEnv" (dict "name" "PAPERCLIP_SECRETS_MASTER_KEY" "cfg" .Values.secrets.masterKey "sensitive" true "secretName" (include "paperclip.secretName" .) "secretKey" "PAPERCLIP_SECRETS_MASTER_KEY") | nindent 0 }}
-{{- if .Values.secrets.strictMode }}
 - name: PAPERCLIP_SECRETS_STRICT_MODE
-  value: "true"
+  value: {{ .Values.secrets.strictMode | quote }}
+{{- if not .Values.telemetry.enabled }}
+- name: PAPERCLIP_TELEMETRY_DISABLED
+  value: "1"
 {{- end }}
 {{- if not .Values.heartbeat.enabled }}
 - name: HEARTBEAT_SCHEDULER_ENABLED
@@ -336,4 +338,20 @@ PostgreSQL major the CloudNativePG cluster runs, so both move together.
 {{- define "paperclip.waitForDatabase.image" -}}
 {{- $tag := .Values.waitForDatabase.image.tag | default .Values.database.cnpg.postgresqlVersion -}}
 {{ .Values.waitForDatabase.image.repository }}:{{ $tag }}
+{{- end }}
+
+{{/*
+Bind preset handed to `paperclipai onboard`. Without a --bind flag the CLI sets
+preferTrustedLocal and writes local_trusted/private/loopback into the instance
+config, ignoring PAPERCLIP_DEPLOYMENT_MODE entirely. The preset only accepts
+loopback, lan and tailnet; "custom" is rejected.
+*/}}
+{{- define "paperclip.onboardBind" -}}
+{{- if .Values.onboard.bind -}}
+{{ .Values.onboard.bind }}
+{{- else if eq .Values.deployment.mode "local_trusted" -}}
+loopback
+{{- else -}}
+lan
+{{- end -}}
 {{- end }}

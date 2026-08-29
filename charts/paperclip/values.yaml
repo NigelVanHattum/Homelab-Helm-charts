@@ -51,8 +51,15 @@ auth:
 secrets:
   # -- Secrets backend. Only `local_encrypted` is wired by this chart.
   provider: local_encrypted
-  # -- Require encrypted references for all sensitive values.
-  strictMode: false
+  # -- Require secrets carried in hire_agent approval payloads to be persisted
+  # as encrypted references rather than inline. The app's own default for an
+  # authenticated deployment is on, and its local_encrypted provider warns when
+  # it is off, so this mirrors upstream intent.
+  #
+  # Always emitted as an environment variable, in either state. The value in
+  # the instance config that `onboard` writes would otherwise decide, and that
+  # file says false regardless of what is configured here.
+  strictMode: true
   # -- PAPERCLIP_SECRETS_MASTER_KEY. Required. Everything the app stores under
   # `local_encrypted` is encrypted with this key: rotating it is data loss.
   masterKey:
@@ -202,6 +209,13 @@ database:
       existingSecret: ""
       existingSecretKey: ""
 
+telemetry:
+  # -- Anonymised usage telemetry. Off by default here; upstream defaults it on.
+  # Disabling sets PAPERCLIP_TELEMETRY_DISABLED, which short-circuits ahead of
+  # the `telemetry.enabled` field in the instance config. That field has no
+  # environment override of its own, so this is the only way to reach it.
+  enabled: false
+
 config:
   # -- Log level: debug, info, warn or error.
   logLevel: info
@@ -296,6 +310,11 @@ onboard:
   enabled: true
   # -- Seconds to wait for the config file to appear before failing.
   timeoutSeconds: 120
+  # -- Bind preset passed to `onboard`. Empty derives it from deployment.mode:
+  # loopback for local_trusted, lan otherwise. Passing one at all is what stops
+  # the CLI from ignoring PAPERCLIP_DEPLOYMENT_MODE and writing local_trusted
+  # into the instance config. Only loopback, lan and tailnet are accepted.
+  bind: ""
 
 service:
   type: ClusterIP
