@@ -1,6 +1,6 @@
 # paperclip
 
-![Version: 0.1.4](https://img.shields.io/badge/Version-0.1.4-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
+![Version: 0.1.5](https://img.shields.io/badge/Version-0.1.5-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
 
 Paperclip - run teams of AI agents as a company. Deploys the app with its own CloudNativePG cluster.
 
@@ -242,7 +242,7 @@ the invite is used or expires.
 | secretEnvFrom | object | `{}` | Sensitive environment variables mapped onto keys in secrets you manage yourself, e.g. one produced by a OnePasswordItem. Example:   ANTHROPIC_API_KEY:     existingSecret: paperclip-litellm     key: ANTHROPIC_API_KEY |
 | secrets.masterKey | object | `{"existingSecret":"","existingSecretKey":"","value":""}` | PAPERCLIP_SECRETS_MASTER_KEY. Required. Everything the app stores under `local_encrypted` is encrypted with this key: rotating it is data loss. |
 | secrets.provider | string | `"local_encrypted"` | Secrets backend. Only `local_encrypted` is wired by this chart. |
-| secrets.strictMode | bool | `false` | Require encrypted references for all sensitive values. |
+| secrets.strictMode | bool | `true` | Require secrets carried in hire_agent approval payloads to be persisted as encrypted references rather than inline. The app's own default for an authenticated deployment is on, and its local_encrypted provider warns when it is off, so this mirrors upstream intent.  Always emitted as an environment variable, in either state. The value in the instance config that `onboard` writes would otherwise decide, and that file says false regardless of what is configured here. |
 | securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"seccompProfile":{"type":"RuntimeDefault"}}` | readOnlyRootFilesystem is deliberately absent: the app writes node_modules and agent workspaces outside the data volume. |
 | service.annotations | object | `{}` |  |
 | service.port | int | `3100` |  |
@@ -255,6 +255,7 @@ the invite is used or expires.
 | serviceMonitor.interval | string | `"30s"` |  |
 | shareProcessNamespace | bool | `true` | Share the PID namespace so the pause container reaps the zombies left by agent-spawned git, shell and plugin processes. Node never calls waitpid(). |
 | sidecars | list | `[]` | Extra sidecar containers. |
+| telemetry.enabled | bool | `false` | Anonymised usage telemetry. Off by default here; upstream defaults it on. Disabling sets PAPERCLIP_TELEMETRY_DISABLED, which short-circuits ahead of the `telemetry.enabled` field in the instance config. That field has no environment override of its own, so this is the only way to reach it. |
 | terminationGracePeriodSeconds | int | `1800` | Ceiling for SIGTERM to SIGKILL. The server soft-drains in-flight agent runs in this window; the default is deliberately long so a rollout does not cut a multi-minute run short. |
 | tolerations | list | `[]` |  |
 | topologySpreadConstraints | list | `[]` |  |
