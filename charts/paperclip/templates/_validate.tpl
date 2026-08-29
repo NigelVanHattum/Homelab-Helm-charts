@@ -65,6 +65,13 @@ so it runs on every render.
 {{- fail "persistence.size is required when persistence.enabled is true" -}}
 {{- end -}}
 
+{{- /* Onboard bind preset */ -}}
+{{- if .Values.onboard.enabled -}}
+{{- if and .Values.onboard.bind (not (has .Values.onboard.bind (list "loopback" "lan" "tailnet"))) -}}
+{{- fail "onboard.bind must be loopback, lan or tailnet: the onboard CLI rejects any other preset, including custom" -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* Bootstrap hook Job */ -}}
 {{- if .Values.bootstrap.enabled -}}
 {{- if not .Values.persistence.enabled -}}

@@ -337,3 +337,19 @@ PostgreSQL major the CloudNativePG cluster runs, so both move together.
 {{- $tag := .Values.waitForDatabase.image.tag | default .Values.database.cnpg.postgresqlVersion -}}
 {{ .Values.waitForDatabase.image.repository }}:{{ $tag }}
 {{- end }}
+
+{{/*
+Bind preset handed to `paperclipai onboard`. Without a --bind flag the CLI sets
+preferTrustedLocal and writes local_trusted/private/loopback into the instance
+config, ignoring PAPERCLIP_DEPLOYMENT_MODE entirely. The preset only accepts
+loopback, lan and tailnet; "custom" is rejected.
+*/}}
+{{- define "paperclip.onboardBind" -}}
+{{- if .Values.onboard.bind -}}
+{{ .Values.onboard.bind }}
+{{- else if eq .Values.deployment.mode "local_trusted" -}}
+loopback
+{{- else -}}
+lan
+{{- end -}}
+{{- end }}

@@ -226,3 +226,10 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "waitForDatabase.connectTimeoutSeconds must be at least 1"
+
+  - it: rejects a bind preset the onboard CLI does not accept
+    set:
+      onboard.bind: custom
+    asserts:
+      - failedTemplate:
+          errorPattern: "onboard.bind must be loopback, lan or tailnet"

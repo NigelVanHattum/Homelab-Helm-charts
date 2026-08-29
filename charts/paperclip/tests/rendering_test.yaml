@@ -356,3 +356,36 @@ tests:
       - equal:
           path: spec.rules[0].http.paths[0].pathType
           value: Prefix
+
+  # `onboard --yes` without a bind preset sets preferTrustedLocal, which
+  # hardcodes local_trusted/private/loopback into the instance config and
+  # ignores PAPERCLIP_DEPLOYMENT_MODE. The CLI reads that file, so
+  # `auth bootstrap-ceo` then refuses with "Deployment mode is local_trusted".
+  - it: hands onboard a bind preset so it honours the deployment mode
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].args[0]
+          pattern: "onboard --yes --bind lan"
+
+  - it: onboards on loopback for a local_trusted instance
+    templates:
+      - templates/statefulset.yaml
+    set:
+      deployment.mode: local_trusted
+      deployment.exposure: private
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].args[0]
+          pattern: "onboard --yes --bind loopback"
+
+  - it: honours an explicit bind preset
+    templates:
+      - templates/statefulset.yaml
+    set:
+      onboard.bind: tailnet
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.initContainers[1].args[0]
+          pattern: "onboard --yes --bind tailnet"

@@ -1,6 +1,6 @@
 # paperclip
 
-![Version: 0.1.3](https://img.shields.io/badge/Version-0.1.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
+![Version: 0.1.4](https://img.shields.io/badge/Version-0.1.4-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
 
 Paperclip - run teams of AI agents as a company. Deploys the app with its own CloudNativePG cluster.
 
@@ -204,6 +204,7 @@ the invite is used or expires.
 | networkPolicy.policyTypes[0] | string | `"Ingress"` |  |
 | networkPolicy.policyTypes[1] | string | `"Egress"` |  |
 | nodeSelector | object | `{}` |  |
+| onboard.bind | string | `""` | Bind preset passed to `onboard`. Empty derives it from deployment.mode: loopback for local_trusted, lan otherwise. Passing one at all is what stops the CLI from ignoring PAPERCLIP_DEPLOYMENT_MODE and writing local_trusted into the instance config. Only loopback, lan and tailnet are accepted. |
 | onboard.enabled | bool | `true` | Run the onboarding init container. It creates `<mountPath>/instances/default/config.json` and applies the database migrations; without it the server does not start on an empty volume. |
 | onboard.timeoutSeconds | int | `120` | Seconds to wait for the config file to appear before failing. |
 | persistence.accessModes[0] | string | `"ReadWriteOnce"` |  |

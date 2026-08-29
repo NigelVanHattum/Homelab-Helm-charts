@@ -296,6 +296,11 @@ onboard:
   enabled: true
   # -- Seconds to wait for the config file to appear before failing.
   timeoutSeconds: 120
+  # -- Bind preset passed to `onboard`. Empty derives it from deployment.mode:
+  # loopback for local_trusted, lan otherwise. Passing one at all is what stops
+  # the CLI from ignoring PAPERCLIP_DEPLOYMENT_MODE and writing local_trusted
+  # into the instance config. Only loopback, lan and tailnet are accepted.
+  bind: ""
 
 service:
   type: ClusterIP
