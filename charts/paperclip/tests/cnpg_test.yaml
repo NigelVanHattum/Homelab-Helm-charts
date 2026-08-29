@@ -196,3 +196,28 @@ tests:
     asserts:
       - isNull:
           path: metadata.annotations
+
+  # A single-instance cluster with a PDB of minAvailable 1 has zero allowed
+  # disruptions, so the node it lands on can never be drained. Verified in a
+  # live cluster: paperclip-db-primary reported ALLOWED 0.
+  - it: creates no PodDisruptionBudget by default
+    templates:
+      - templates/cnpg-cluster.yaml
+    asserts:
+      - equal:
+          path: spec.enablePDB
+          value: false
+
+  - it: allows a PodDisruptionBudget once asked for
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      database.cnpg.instances: 3
+      database.cnpg.enablePDB: true
+    asserts:
+      - equal:
+          path: spec.enablePDB
+          value: true
+      - equal:
+          path: spec.instances
+          value: 3

@@ -123,8 +123,11 @@ database:
     enableSuperuserAccess: false
     # -- Secret holding the superuser password, when superuser access is on.
     superuserSecret: ""
-    # -- Create a PodDisruptionBudget for the cluster.
-    enablePDB: true
+    # -- Create a PodDisruptionBudget for the cluster. Off by default: at a
+    # single instance CloudNativePG's PDB is minAvailable 1, which leaves zero
+    # allowed disruptions and blocks every node drain. Turn it on once the
+    # cluster runs more than one instance.
+    enablePDB: false
     primaryUpdateMethod: switchover
     primaryUpdateStrategy: unsupervised
     monitoring:

@@ -1,6 +1,6 @@
 # paperclip
 
-![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
+![Version: 0.1.1](https://img.shields.io/badge/Version-0.1.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
 
 Paperclip - run teams of AI agents as a company. Deploys the app with its own CloudNativePG cluster.
 
@@ -102,7 +102,7 @@ than a Helm hook, so GitOps controllers reconcile it normally.
 | database.cnpg.clusterName | string | `""` | Cluster name. Defaults to `<fullname>-db`. |
 | database.cnpg.create | bool | `true` | Create the Cluster object. Set false to reuse an existing Cluster and only consume its app secret. |
 | database.cnpg.database | string | `"paperclip"` | Application database name. |
-| database.cnpg.enablePDB | bool | `true` | Create a PodDisruptionBudget for the cluster. |
+| database.cnpg.enablePDB | bool | `false` | Create a PodDisruptionBudget for the cluster. Off by default: at a single instance CloudNativePG's PDB is minAvailable 1, which leaves zero allowed disruptions and blocks every node drain. Turn it on once the cluster runs more than one instance. |
 | database.cnpg.enableSuperuserAccess | bool | `false` | Allow the postgres superuser to log in. |
 | database.cnpg.imageName | string | `""` | Explicit image, overriding `postgresqlVersion`. |
 | database.cnpg.instances | int | `1` | Number of PostgreSQL instances. |
