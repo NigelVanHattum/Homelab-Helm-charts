@@ -1,6 +1,6 @@
 # paperclip
 
-![Version: 0.1.1](https://img.shields.io/badge/Version-0.1.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
+![Version: 0.1.2](https://img.shields.io/badge/Version-0.1.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
 
 Paperclip - run teams of AI agents as a company. Deploys the app with its own CloudNativePG cluster.
 
@@ -71,6 +71,26 @@ Backups use the barman-cloud CNPG-I plugin and need
 `cloudnative-pg/cluster` chart, the `ObjectStore` here is a plain resource rather
 than a Helm hook, so GitOps controllers reconcile it normally.
 
+## First admin
+
+At `deployment.exposure: public` the app disables the browser-based claim on
+purpose, and it ships no way to seed an admin declaratively. Someone has to mint
+a one-time invite and accept it in a browser.
+
+By hand, once:
+
+```bash
+kubectl exec -n <namespace> <release>-0 -c paperclip -- \
+  sh -c 'cd /app && pnpm paperclipai auth bootstrap-ceo --data-dir /paperclip'
+```
+
+Or set `bootstrap.enabled: true` for a post-sync hook Job that runs the same
+command and prints the invite URL to its log. `auth bootstrap-ceo`
+short-circuits once an instance admin exists, so the Job is a no-op on every
+sync after the first. It is off by default because the invite token then lands
+in a Job log, readable by anyone with access to pod logs in that namespace until
+the invite is used or expires.
+
 ## Values
 
 | Key | Type | Default | Description |
@@ -78,6 +98,13 @@ than a Helm hook, so GitOps controllers reconcile it normally.
 | affinity | object | `{}` |  |
 | argocd.syncWaves | object | `{"database":"-1","enabled":true,"objectStore":"-2"}` | Emit `argocd.argoproj.io/sync-wave` annotations on the database objects. Argo CD ships a health check for postgresql.cnpg.io/Cluster, so an earlier wave makes it wait until PostgreSQL is Healthy before it creates the server workload. Without it the first sync spends minutes in CreateContainerConfigError while the app secret does not exist yet. Harmless outside Argo CD: it is only an annotation. |
 | auth.betterAuthSecret | object | `{"existingSecret":"","existingSecretKey":"","value":""}` | BETTER_AUTH_SECRET. Required: the app refuses to boot without it. Rotating it invalidates every session. |
+| bootstrap.attempts | int | `60` | Attempts to find the instance config written by the onboard container before giving up. |
+| bootstrap.backoffLimit | int | `3` |  |
+| bootstrap.enabled | bool | `false` | Run a hook Job after each sync that mints the one-time first-admin invite URL and prints it to the Job log. At public exposure the app disables the browser claim on purpose and ships no way to seed an admin declaratively, so an invite has to be created and then accepted by a human. `auth bootstrap-ceo` short-circuits once an instance_admin exists, so this is a no-op on every sync after the first.  Off by default: the invite token lands in the Job log, so anyone who can read pod logs in this namespace can claim the instance until the invite is used or expires. Running the command by hand keeps the token in your terminal instead. |
+| bootstrap.expiresHours | string | `""` | Invite lifetime in hours. Empty uses the CLI default of 72. |
+| bootstrap.force | bool | `false` | Mint a new invite even when an instance admin already exists. Only for recovering a lost admin; it removes the short-circuit that makes this Job idempotent. |
+| bootstrap.intervalSeconds | int | `5` | Seconds between those attempts. |
+| bootstrap.ttlSecondsAfterFinished | int | `3600` |  |
 | config.extraEnv | object | `{}` | Extra NON-sensitive environment variables, rendered into the ConfigMap. |
 | config.logLevel | string | `"info"` | Log level: debug, info, warn or error. |
 | database.cnpg.affinity | object | `{"topologyKey":"kubernetes.io/hostname"}` | Cluster affinity, passed through verbatim. |

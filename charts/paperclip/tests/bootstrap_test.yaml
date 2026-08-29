@@ -1,0 +1,146 @@
+suite: first-admin bootstrap hook
+release:
+  name: paperclip
+  namespace: paperclip
+set:
+  auth.betterAuthSecret.value: auth-secret
+  secrets.masterKey.value: master-key
+tests:
+  - it: is off by default
+    templates:
+      - templates/bootstrap-job.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # Argo CD maps post-install and post-upgrade onto PostSync, so the Job runs
+  # after the workload is healthy. before-hook-creation matters because Argo CD
+  # applies hooks instead of creating them: without it the completed Job from
+  # the previous sync would linger and never run again.
+  - it: registers as a post-sync hook that replaces itself
+    templates:
+      - templates/bootstrap-job.yaml
+    set:
+      bootstrap.enabled: true
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: paperclip-bootstrap
+      - equal:
+          path: metadata.annotations["helm.sh/hook"]
+          value: post-install,post-upgrade
+      - equal:
+          path: metadata.annotations["helm.sh/hook-delete-policy"]
+          value: before-hook-creation,hook-succeeded
+      - equal:
+          path: spec.template.spec.restartPolicy
+          value: Never
+
+  - it: mints the invite through the bundled CLI
+    templates:
+      - templates/bootstrap-job.yaml
+    set:
+      bootstrap.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "pnpm paperclipai auth bootstrap-ceo"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "--data-dir /paperclip"
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "/paperclip/instances/default/config.json"
+
+  # The CLI reads the config file the onboard container writes, so the Job has
+  # to mount the same ReadWriteOnce volume, which pins it to the server's node.
+  - it: mounts the server's data volume on the server's node
+    templates:
+      - templates/bootstrap-job.yaml
+    set:
+      bootstrap.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: data-paperclip-0
+      - equal:
+          path: spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          value: kubernetes.io/hostname
+      - equal:
+          path: spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels["app.kubernetes.io/name"]
+          value: paperclip
+
+  # Only the database and the public URL, so the Job never mounts the auth
+  # secret or the LLM keys.
+  - it: takes only the database and public URL
+    templates:
+      - templates/bootstrap-job.yaml
+    set:
+      bootstrap.enabled: true
+      deployment.exposure: public
+      deployment.publicUrl: https://paperclip.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: paperclip-db-app
+                key: uri
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERCLIP_PUBLIC_URL
+            value: "https://paperclip.example.com"
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 2
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: passes the invite lifetime through
+    templates:
+      - templates/bootstrap-job.yaml
+    set:
+      bootstrap.enabled: true
+      bootstrap.expiresHours: 12
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "--expires-hours 12"
+
+  - it: leaves force out unless asked
+    templates:
+      - templates/bootstrap-job.yaml
+    set:
+      bootstrap.enabled: true
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "\\-\\-force"
+
+  - it: adds force when recovering a lost admin
+    templates:
+      - templates/bootstrap-job.yaml
+    set:
+      bootstrap.enabled: true
+      bootstrap.force: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].args[0]
+          pattern: "\\-\\-force"
+
+  - it: refuses to run without a data volume to read the config from
+    set:
+      bootstrap.enabled: true
+      persistence.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "bootstrap.enabled requires persistence.enabled"

@@ -72,6 +72,26 @@ Backups use the barman-cloud CNPG-I plugin and need
 `cloudnative-pg/cluster` chart, the `ObjectStore` here is a plain resource rather
 than a Helm hook, so GitOps controllers reconcile it normally.
 
+## First admin
+
+At `deployment.exposure: public` the app disables the browser-based claim on
+purpose, and it ships no way to seed an admin declaratively. Someone has to mint
+a one-time invite and accept it in a browser.
+
+By hand, once:
+
+```bash
+kubectl exec -n <namespace> <release>-0 -c paperclip -- \
+  sh -c 'cd /app && pnpm paperclipai auth bootstrap-ceo --data-dir /paperclip'
+```
+
+Or set `bootstrap.enabled: true` for a post-sync hook Job that runs the same
+command and prints the invite URL to its log. `auth bootstrap-ceo`
+short-circuits once an instance admin exists, so the Job is a no-op on every
+sync after the first. It is off by default because the invite token then lands
+in a Job log, readable by anyone with access to pod logs in that namespace until
+the invite is used or expires.
+
 {{ template "chart.requirementsSection" . }}
 
 {{ template "chart.valuesSection" . }}

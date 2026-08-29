@@ -1,0 +1,102 @@
+{{- if .Values.bootstrap.enabled }}
+{{- /*
+Mints the one-time first-admin invite. In public exposure the app disables the
+browser claim on purpose, and it ships no way to seed an admin declaratively,
+so an invite has to be created and then accepted by a human.
+
+`auth bootstrap-ceo` short-circuits once an instance_admin exists, which makes
+this Job a no-op on every sync after the first.
+
+Argo CD maps post-install and post-upgrade onto PostSync, so this runs after
+the workload reports healthy.
+*/ -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "paperclip.fullname" . }}-bootstrap
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "paperclip.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bootstrap
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    # before-hook-creation is required: Argo CD applies hooks rather than
+    # creating them, so without it the completed Job from the previous sync
+    # would linger and never re-run.
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    "helm.sh/hook-weight": "5"
+spec:
+  backoffLimit: {{ .Values.bootstrap.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.bootstrap.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "paperclip.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: bootstrap
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "paperclip.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # The data volume is ReadWriteOnce and the server pod holds it, so this
+      # Job has to land on the same node to mount it.
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  {{- include "paperclip.selectorLabels" . | nindent 18 }}
+      containers:
+        - name: bootstrap
+          image: {{ include "paperclip.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command:
+            - /bin/sh
+            - -c
+          args:
+            - |
+              CONFIG="{{ .Values.persistence.mountPath }}/instances/default/config.json"
+              for i in $(seq 1 {{ .Values.bootstrap.attempts }}); do
+                if [ -f "$CONFIG" ]; then
+                  cd /app
+                  exec pnpm paperclipai auth bootstrap-ceo \
+                    --data-dir {{ .Values.persistence.mountPath }} \
+                    {{- with .Values.bootstrap.expiresHours }}
+                    --expires-hours {{ . }} \
+                    {{- end }}
+                    {{- if .Values.bootstrap.force }}
+                    --force \
+                    {{- end }}
+                    2>&1
+                fi
+                echo "Waiting for the instance config (attempt $i/{{ .Values.bootstrap.attempts }})..."
+                sleep {{ .Values.bootstrap.intervalSeconds }}
+              done
+              echo "Timed out waiting for the instance config."
+              exit 1
+          env:
+            {{- include "paperclip.databaseEnv" . | trim | nindent 12 }}
+            {{- with .Values.deployment.publicUrl }}
+            - name: PAPERCLIP_PUBLIC_URL
+              value: {{ . | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data-{{ include "paperclip.fullname" . }}-0
+{{- end }}
