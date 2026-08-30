@@ -92,6 +92,34 @@ sync after the first. It is off by default because the invite token then lands
 in a Job log, readable by anyone with access to pod logs in that namespace until
 the invite is used or expires.
 
+## Cluster access
+
+The chart creates a ServiceAccount but grants it nothing, and does not mount its
+token. Both are deliberate: the app only needs the Kubernetes API when you want
+agents to inspect the cluster.
+
+To let agents read the cluster without being able to change it:
+
+```yaml
+serviceAccount:
+  automountServiceAccountToken: true
+rbac:
+  create: true
+  clusterRole: view
+```
+
+`view` is the built-in read-only role — `get`, `list`, `watch`, and no rule for
+secrets. Narrow it with `rbac.scope: namespace`, or replace it entirely with
+`rbac.rules`.
+
+Write access is possible but never accidental: any write verb in `rbac.rules`,
+and binding `cluster-admin`, both fail to template until
+`rbac.acknowledgeWriteAccess` is set.
+
+Worth separating from the RBAC question: read-only stops an agent changing the
+cluster, it does not stop what it reads from reaching a model provider. That
+boundary is the model you pick, not the role you bind.
+
 {{ template "chart.requirementsSection" . }}
 
 {{ template "chart.valuesSection" . }}

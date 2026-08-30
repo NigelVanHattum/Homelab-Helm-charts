@@ -352,6 +352,27 @@ serviceAccount:
   # -- The app needs no Kubernetes API access in this chart's supported modes.
   automountServiceAccountToken: false
 
+rbac:
+  # -- Grant the ServiceAccount access to the Kubernetes API. Off by default:
+  # the app only needs the API when you want agents to inspect the cluster, and
+  # that is a decision to make deliberately. Turning it on without also setting
+  # serviceAccount.automountServiceAccountToken leaves the binding unused.
+  create: false
+  # -- `cluster` for a ClusterRoleBinding, `namespace` for a RoleBinding scoped
+  # to the release namespace.
+  scope: cluster
+  # -- Existing ClusterRole to bind. `view` is the built-in read-only role:
+  # get/list/watch, and no secrets. Mutually exclusive with `rules`.
+  clusterRole: view
+  # -- Define a role from these rules instead of binding an existing one.
+  # Mutually exclusive with `clusterRole`. Any write verb here needs
+  # acknowledgeWriteAccess.
+  rules: []
+  # -- Acknowledge granting the agents the ability to change cluster state.
+  # Required for write verbs in `rules`, and for binding cluster-admin.
+  acknowledgeWriteAccess: false
+  annotations: {}
+
 networkPolicy:
   # -- Create a NetworkPolicy. Needs a CNI that enforces them; Flannel does not.
   enabled: false

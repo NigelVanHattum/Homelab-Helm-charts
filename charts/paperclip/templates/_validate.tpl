@@ -65,6 +65,34 @@ so it runs on every render.
 {{- fail "persistence.size is required when persistence.enabled is true" -}}
 {{- end -}}
 
+{{- /* RBAC */ -}}
+{{- if .Values.rbac.create -}}
+{{- if not (has .Values.rbac.scope (list "cluster" "namespace")) -}}
+{{- fail "rbac.scope must be cluster or namespace" -}}
+{{- end -}}
+{{- if and .Values.rbac.clusterRole .Values.rbac.rules -}}
+{{- fail "set either rbac.clusterRole or rbac.rules, not both: the first binds an existing role, the second defines one" -}}
+{{- end -}}
+{{- if and (not .Values.rbac.clusterRole) (not .Values.rbac.rules) -}}
+{{- fail "rbac.create needs either rbac.clusterRole or rbac.rules" -}}
+{{- end -}}
+{{- if and (eq .Values.rbac.clusterRole "cluster-admin") (not .Values.rbac.acknowledgeWriteAccess) -}}
+{{- fail "binding cluster-admin requires rbac.acknowledgeWriteAccess=true: it lets an agent do anything to the cluster, including deleting it" -}}
+{{- end -}}
+{{- if and .Values.rbac.rules (not .Values.rbac.acknowledgeWriteAccess) -}}
+{{- range .Values.rbac.rules -}}
+{{- range .verbs -}}
+{{- if has . (list "create" "update" "patch" "delete" "deletecollection" "*") -}}
+{{- fail (printf "rbac.rules grants the write verb %q; set rbac.acknowledgeWriteAccess=true if the agents really may change cluster state" .) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if and .Values.rbac.create (not .Values.serviceAccount.create) (not .Values.serviceAccount.name) -}}
+{{- fail "rbac.create needs a ServiceAccount: set serviceAccount.create or serviceAccount.name" -}}
+{{- end -}}
+{{- end -}}
+
 {{- /* Onboard bind preset */ -}}
 {{- if .Values.onboard.enabled -}}
 {{- if and .Values.onboard.bind (not (has .Values.onboard.bind (list "loopback" "lan" "tailnet"))) -}}
