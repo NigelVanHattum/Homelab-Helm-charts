@@ -1,6 +1,6 @@
 # paperclip
 
-![Version: 0.1.5](https://img.shields.io/badge/Version-0.1.5-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
+![Version: 0.1.6](https://img.shields.io/badge/Version-0.1.6-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
 
 Paperclip - run teams of AI agents as a company. Deploys the app with its own CloudNativePG cluster.
 
@@ -90,6 +90,34 @@ short-circuits once an instance admin exists, so the Job is a no-op on every
 sync after the first. It is off by default because the invite token then lands
 in a Job log, readable by anyone with access to pod logs in that namespace until
 the invite is used or expires.
+
+## Cluster access
+
+The chart creates a ServiceAccount but grants it nothing, and does not mount its
+token. Both are deliberate: the app only needs the Kubernetes API when you want
+agents to inspect the cluster.
+
+To let agents read the cluster without being able to change it:
+
+```yaml
+serviceAccount:
+  automountServiceAccountToken: true
+rbac:
+  create: true
+  clusterRole: view
+```
+
+`view` is the built-in read-only role — `get`, `list`, `watch`, and no rule for
+secrets. Narrow it with `rbac.scope: namespace`, or replace it entirely with
+`rbac.rules`.
+
+Write access is possible but never accidental: any write verb in `rbac.rules`,
+and binding `cluster-admin`, both fail to template until
+`rbac.acknowledgeWriteAccess` is set.
+
+Worth separating from the RBAC question: read-only stops an agent changing the
+cluster, it does not stop what it reads from reaching a model provider. That
+boundary is the model you pick, not the role you bind.
 
 ## Values
 
@@ -236,6 +264,12 @@ the invite is used or expires.
 | probes.startup.successThreshold | int | `1` |  |
 | probes.startup.timeoutSeconds | int | `5` |  |
 | probes.type | string | `"auto"` | `auto`, `http` or `tcp`. `auto` uses TCP in authenticated mode, where /api/health answers 403 without credentials. |
+| rbac.acknowledgeWriteAccess | bool | `false` | Acknowledge granting the agents the ability to change cluster state. Required for write verbs in `rules`, and for binding cluster-admin. |
+| rbac.annotations | object | `{}` |  |
+| rbac.clusterRole | string | `"view"` | Existing ClusterRole to bind. `view` is the built-in read-only role: get/list/watch, and no secrets. Mutually exclusive with `rules`. |
+| rbac.create | bool | `false` | Grant the ServiceAccount access to the Kubernetes API. Off by default: the app only needs the API when you want agents to inspect the cluster, and that is a decision to make deliberately. Turning it on without also setting serviceAccount.automountServiceAccountToken leaves the binding unused. |
+| rbac.rules | list | `[]` | Define a role from these rules instead of binding an existing one. Mutually exclusive with `clusterRole`. Any write verb here needs acknowledgeWriteAccess. |
+| rbac.scope | string | `"cluster"` | `cluster` for a ClusterRoleBinding, `namespace` for a RoleBinding scoped to the release namespace. |
 | replicaCount | int | `1` | Number of server replicas. Above 1 you must also set `heartbeat.acknowledgeMultiReplica` — see that field. |
 | resources | object | `{}` |  |
 | secretEnv | object | `{}` | Sensitive environment variables, inline. Written into the chart-managed Secret, one key per variable. Anything sourced from an external secret store belongs in `secretEnvFrom` instead. |

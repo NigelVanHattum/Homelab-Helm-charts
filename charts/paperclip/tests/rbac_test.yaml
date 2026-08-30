@@ -1,0 +1,142 @@
+suite: cluster access
+release:
+  name: paperclip
+  namespace: paperclip
+set:
+  auth.betterAuthSecret.value: auth-secret
+  secrets.masterKey.value: master-key
+tests:
+  - it: grants nothing by default
+    templates:
+      - templates/rbac.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # `view` is the built-in read-only role: get/list/watch, and no rule for
+  # secrets. Binding it lets agents inspect the cluster without changing it.
+  - it: binds the read-only view role cluster-wide
+    templates:
+      - templates/rbac.yaml
+    set:
+      rbac.create: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: roleRef.kind
+          value: ClusterRole
+      - equal:
+          path: roleRef.name
+          value: view
+      - equal:
+          path: subjects[0].name
+          value: paperclip
+      - equal:
+          path: subjects[0].namespace
+          value: paperclip
+
+  - it: scopes to the release namespace on request
+    templates:
+      - templates/rbac.yaml
+    set:
+      rbac.create: true
+      rbac.scope: namespace
+    asserts:
+      - isKind:
+          of: RoleBinding
+      - equal:
+          path: metadata.namespace
+          value: paperclip
+      - equal:
+          path: roleRef.name
+          value: view
+
+  - it: defines its own role from rules
+    templates:
+      - templates/rbac.yaml
+    set:
+      rbac.create: true
+      rbac.clusterRole: ""
+      rbac.rules:
+        - apiGroups: [""]
+          resources: ["pods", "nodes"]
+          verbs: ["get", "list", "watch"]
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: ClusterRole
+        documentIndex: 0
+      - isKind:
+          of: ClusterRoleBinding
+        documentIndex: 1
+      - equal:
+          path: roleRef.name
+          value: paperclip
+        documentIndex: 1
+
+  # ---- guardrails ----
+  - it: rejects an unknown scope
+    set:
+      rbac.create: true
+      rbac.scope: global
+    asserts:
+      - failedTemplate:
+          errorPattern: "rbac.scope must be cluster or namespace"
+
+  - it: rejects binding a role and defining one at the same time
+    set:
+      rbac.create: true
+      rbac.rules:
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs: ["get"]
+    asserts:
+      - failedTemplate:
+          errorPattern: "not both"
+
+  - it: rejects an empty grant
+    set:
+      rbac.create: true
+      rbac.clusterRole: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "needs either rbac.clusterRole or rbac.rules"
+
+  - it: refuses cluster-admin without an explicit acknowledgement
+    set:
+      rbac.create: true
+      rbac.clusterRole: cluster-admin
+    asserts:
+      - failedTemplate:
+          errorPattern: "binding cluster-admin requires rbac.acknowledgeWriteAccess"
+
+  - it: refuses write verbs without an explicit acknowledgement
+    set:
+      rbac.create: true
+      rbac.clusterRole: ""
+      rbac.rules:
+        - apiGroups: ["apps"]
+          resources: ["deployments"]
+          verbs: ["get", "patch"]
+    asserts:
+      - failedTemplate:
+          errorPattern: 'grants the write verb "patch"'
+
+  - it: allows write verbs once acknowledged
+    templates:
+      - templates/rbac.yaml
+    set:
+      rbac.create: true
+      rbac.clusterRole: ""
+      rbac.acknowledgeWriteAccess: true
+      rbac.rules:
+        - apiGroups: ["apps"]
+          resources: ["deployments"]
+          verbs: ["get", "patch"]
+    asserts:
+      - hasDocuments:
+          count: 2
