@@ -6,6 +6,53 @@ set:
   auth.betterAuthSecret.value: auth-secret
   secrets.masterKey.value: master-key
 tests:
+  # ---- image ----
+  - it: defaults to latest without a digest, always pulled
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/paperclipai/paperclip:latest
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  - it: uses a tag on its own
+    templates:
+      - templates/statefulset.yaml
+    set:
+      image.tag: latest-cloud
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/paperclipai/paperclip:latest-cloud
+
+  - it: uses a digest on its own
+    templates:
+      - templates/statefulset.yaml
+    set:
+      image.tag: ""
+      image.digest: sha256:18c68c45a10330b4c8fe6ea590f21c9a31f6e2e1269e9dcf552d214c3f3e8bcd
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/paperclipai/paperclip@sha256:18c68c45a10330b4c8fe6ea590f21c9a31f6e2e1269e9dcf552d214c3f3e8bcd
+
+  - it: combines tag and digest in every container using the app image
+    templates:
+      - templates/statefulset.yaml
+    set:
+      image.tag: 2026.916.1-cloud
+      image.digest: sha256:18c68c45a10330b4c8fe6ea590f21c9a31f6e2e1269e9dcf552d214c3f3e8bcd
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/paperclipai/paperclip:2026.916.1-cloud@sha256:18c68c45a10330b4c8fe6ea590f21c9a31f6e2e1269e9dcf552d214c3f3e8bcd
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: ghcr.io/paperclipai/paperclip:2026.916.1-cloud@sha256:18c68c45a10330b4c8fe6ea590f21c9a31f6e2e1269e9dcf552d214c3f3e8bcd
+
   # ---- entrypoint ----
   - it: overrides the image entrypoint and execs the server directly
     templates:

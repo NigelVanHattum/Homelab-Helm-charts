@@ -18,24 +18,21 @@ tests:
 
   - it: fails when neither tag nor digest is set
     set:
-      image.digest: ""
       image.tag: ""
     asserts:
       - failedTemplate:
           errorPattern: "image.tag or image.digest is required"
 
-  - it: fails on the latest tag
+  - it: fails when the digest is a tag
     set:
-      image.digest: ""
-      image.tag: latest
+      image.digest: latest-cloud
     asserts:
       - failedTemplate:
-          errorPattern: "latest is not supported"
+          errorPattern: "image.digest must be sha256:<64 hex>, got \"latest-cloud\"; put tags like latest-cloud in image.tag"
 
-  - it: accepts a sha tag without a digest
+  - it: accepts a mutable tag
     set:
-      image.digest: ""
-      image.tag: sha-8e6edcd
+      image.tag: latest-cloud
     asserts:
       - notFailedTemplate: {}
 

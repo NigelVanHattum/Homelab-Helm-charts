@@ -48,15 +48,12 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Image reference. A digest always wins over a tag; the chart refuses to render
-without one of the two (see paperclip.validate).
+Image reference: repository[:tag][@digest].
 */}}
 {{- define "paperclip.image" -}}
-{{- if .Values.image.digest -}}
-{{ .Values.image.repository }}@{{ .Values.image.digest }}
-{{- else -}}
-{{ .Values.image.repository }}:{{ .Values.image.tag }}
-{{- end -}}
+{{- .Values.image.repository -}}
+{{- with .Values.image.tag }}:{{ . }}{{ end -}}
+{{- with .Values.image.digest }}@{{ . }}{{ end -}}
 {{- end }}
 
 {{/*

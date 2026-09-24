@@ -1,6 +1,6 @@
 # paperclip
 
-![Version: 0.1.6](https://img.shields.io/badge/Version-0.1.6-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
+![Version: 0.1.7](https://img.shields.io/badge/Version-0.1.7-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
 
 Paperclip - run teams of AI agents as a company. Deploys the app with its own CloudNativePG cluster.
 
@@ -211,10 +211,10 @@ boundary is the model you pick, not the role you bind.
 | heartbeat.enabled | bool | `true` | Run the agent heartbeat scheduler. |
 | heartbeat.intervalMs | int | `60000` | Scheduler interval in milliseconds. |
 | heartbeat.schedulerGating | string | `"ordinal"` | Must stay `ordinal`. The app has no lease-based leader election (paperclipai/paperclip#9005 is still open), so any other value would let every replica run the scheduler. |
-| image.digest | string | `"sha256:bdc256b2b289c4085d27625d8915b665c509297b526201bfcea5114634ce2548"` | Image digest. Wins over `tag`. Default is the digest behind release v2026.824.1 (commit 8e6edcd). One of `tag` or `digest` is required. |
-| image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
+| image.digest | string | `""` | Image digest (`sha256:...`). Takes precedence over `tag` at pull time. |
+| image.pullPolicy | string | `"Always"` | Image pull policy. `Always` so a moving tag like `latest` is re-resolved on every pod start; use `IfNotPresent` when pinning a version or digest. |
 | image.repository | string | `"ghcr.io/paperclipai/paperclip"` | Application image repository. |
-| image.tag | string | `""` | Image tag. The registry publishes no version tags, only `sha-<commit>` and mutable pointers (latest/canary/nightly/beta), so prefer `digest`. |
+| image.tag | string | `"latest"` | Image tag, e.g. `latest`, `latest-cloud`, `2026.916.1` or `2026.916.1-cloud`. Combined with `digest` as `tag@digest` when both are set. |
 | imagePullSecrets | list | `[]` | Image pull secrets. |
 | ingress.annotations | object | `{}` |  |
 | ingress.className | string | `""` |  |
