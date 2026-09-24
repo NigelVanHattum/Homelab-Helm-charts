@@ -514,6 +514,27 @@ entries:
   paperclip:
   - apiVersion: v2
     appVersion: v2026.824.1
+    created: "2026-09-24T22:44:29.505432678Z"
+    description: Paperclip - run teams of AI agents as a company. Deploys the app
+      with its own CloudNativePG cluster.
+    digest: ed0a952e2e93bcaad3e7bf3448c4a72e6c5a8194d2c6953099d072c3223f40ac
+    home: https://paperclip.ai
+    keywords:
+    - paperclip
+    - ai
+    - agents
+    - orchestration
+    maintainers:
+    - name: NigelVanHattum
+    name: paperclip
+    sources:
+    - https://github.com/paperclipai/paperclip
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/paperclip-0.1.7/paperclip-0.1.7.tgz
+    version: 0.1.7
+  - apiVersion: v2
+    appVersion: v2026.824.1
     created: "2026-08-30T20:48:16.889737598Z"
     description: Paperclip - run teams of AI agents as a company. Deploys the app
       with its own CloudNativePG cluster.
@@ -1610,4 +1631,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2026-08-30T20:48:16.889959585Z"
+generated: "2026-09-24T22:44:29.505554306Z"
