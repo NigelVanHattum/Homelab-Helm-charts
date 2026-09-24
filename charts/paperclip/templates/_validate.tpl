@@ -9,10 +9,12 @@ so it runs on every render.
 {{- fail "image.repository is required" -}}
 {{- end -}}
 {{- if and (not .Values.image.tag) (not .Values.image.digest) -}}
-{{- fail "image.tag or image.digest is required: the app image publishes no version tags, so pinning to a mutable tag like :latest is not supported" -}}
+{{- fail "image.tag or image.digest is required" -}}
 {{- end -}}
-{{- if eq .Values.image.tag "latest" -}}
-{{- fail "image.tag: latest is not supported, pin image.digest or a sha-<commit> tag" -}}
+{{- with .Values.image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" .) -}}
+{{- fail (printf "image.digest must be sha256:<64 hex>, got %q; put tags like latest-cloud in image.tag" .) -}}
+{{- end -}}
 {{- end -}}
 
 {{- /* Deployment */ -}}
