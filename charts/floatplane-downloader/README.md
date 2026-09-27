@@ -1,6 +1,6 @@
 # floatplane-downloader
 
-![Version: 0.2.2](https://img.shields.io/badge/Version-0.2.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
+![Version: 0.3.0](https://img.shields.io/badge/Version-0.3.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 1.16.0](https://img.shields.io/badge/AppVersion-1.16.0-informational?style=flat-square)
 
 A Helm chart for deploying the Inrixia/Floatplan-downloader on a kubernetes cluster
 
@@ -9,7 +9,7 @@ A Helm chart for deploying the Inrixia/Floatplan-downloader on a kubernetes clus
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
-| floatplane.credentials.mfa | string | `""` |  |
+| floatplane.credentials.mfa | string | `"000000"` | OTP token (mfa). Only required during initial setup, after that it can be left to the default. |
 | floatplane.credentials.password | string | `""` |  |
 | floatplane.credentials.plexToken | string | `""` |  |
 | floatplane.credentials.useExistingSecret | string | `""` |  |
