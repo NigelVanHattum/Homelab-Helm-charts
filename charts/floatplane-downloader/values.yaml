@@ -44,12 +44,8 @@ affinity: {}
 
 floatplane: 
   credentials: 
-    # If using an existing secret, this will ignore all other fields below - keep in mind that your OTP token (mfa) only has a lifespan of 30 sec. 
+    # Authentication uses the upstream OAuth flow. If using an existing secret, it must contain a `plex-token` key.
     useExistingSecret: ""
-    username: ""
-    password: ""
-    # -- OTP token (mfa). Only required during initial setup, after that it can be left to the default.
-    mfa: "000000"
     plexToken: ""
 
   persistence:
