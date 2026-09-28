@@ -48,8 +48,9 @@ floatplane:
     useExistingSecret: ""
     username: ""
     password: ""
-    # -- OTP token (mfa). Only required during initial setup, after that it can be left to the default.
+    # -- OTP token (mfa). Only required during initial setup, after that it can be left to the default. Must be a quoted string; it is stored in the Secret verbatim.
     mfa: "000000"
+    # -- Plex token. Must be a quoted string; it is stored in the Secret verbatim.
     plexToken: ""
 
   persistence:
