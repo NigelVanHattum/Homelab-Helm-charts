@@ -9,9 +9,9 @@ A Helm chart for deploying the Inrixia/Floatplan-downloader on a kubernetes clus
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
-| floatplane.credentials.mfa | string | `"000000"` | OTP token (mfa). Only required during initial setup, after that it can be left to the default. |
+| floatplane.credentials.mfa | string | `"000000"` | OTP token (mfa). Only required during initial setup, after that it can be left to the default. Must be a quoted string; it is stored in the Secret verbatim. |
 | floatplane.credentials.password | string | `""` |  |
-| floatplane.credentials.plexToken | string | `""` |  |
+| floatplane.credentials.plexToken | string | `""` | Plex token. Must be a quoted string; it is stored in the Secret verbatim. |
 | floatplane.credentials.useExistingSecret | string | `""` |  |
 | floatplane.credentials.username | string | `""` |  |
 | floatplane.persistence.db.existingVolume | string | `""` |  |
