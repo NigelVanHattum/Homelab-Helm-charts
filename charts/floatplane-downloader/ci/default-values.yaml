@@ -3,3 +3,5 @@ floatplane:
   credentials:
     username: ci-user
     password: ci-password
+    # Quoted so `helm lint` also exercises the schema's string constraint on plexToken.
+    plexToken: "ci-plex-token"
