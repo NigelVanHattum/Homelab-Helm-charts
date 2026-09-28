@@ -44,7 +44,9 @@ affinity: {}
 
 floatplane: 
   credentials: 
-    # Authentication uses the upstream OAuth flow. If using an existing secret, it must contain a `plex-token` key.
+    # Floatplane login uses the upstream OAuth device flow: on first start, open the login URL printed in the pod logs.
+    # The resulting token is stored in auth.json on the db volume, so it survives restarts.
+    # If using an existing secret, it must contain a `plex-token` key.
     useExistingSecret: ""
     plexToken: ""
 
