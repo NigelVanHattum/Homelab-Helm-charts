@@ -11,6 +11,10 @@
             "mfa": {
               "type": "string",
               "description": "OTP token (mfa). Must be a quoted string, an unquoted YAML number loses its leading zeros."
+            },
+            "plexToken": {
+              "type": "string",
+              "description": "Plex token. Must be a quoted string; the template stores it in the Secret verbatim."
             }
           }
         }
