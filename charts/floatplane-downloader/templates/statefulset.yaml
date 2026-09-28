@@ -38,21 +38,6 @@ spec:
           env: 
             - name: headless
               value: "true"
-            - name: username
-              valueFrom:
-                secretKeyRef:
-                  name: {{ default ( "floatplane-credentials" ) .Values.floatplane.credentials.useExistingSecret }}
-                  key: username
-            - name: password
-              valueFrom:
-                secretKeyRef:
-                  name: {{ default ( "floatplane-credentials" ) .Values.floatplane.credentials.useExistingSecret }}
-                  key: password
-            - name: token
-              valueFrom:
-                secretKeyRef:
-                  name: {{ default ( "floatplane-credentials" ) .Values.floatplane.credentials.useExistingSecret }}
-                  key: mfa 
             - name: plex_token
               valueFrom:
                 secretKeyRef:

@@ -2,9 +2,6 @@ suite: rendering behaviour
 release:
   name: floatplane
   namespace: floatplane
-set:
-  floatplane.credentials.username: ci-user
-  floatplane.credentials.password: ci-password
 tests:
   - it: renders a StatefulSet with the downloader image
     templates:
@@ -26,7 +23,7 @@ tests:
           path: spec.template.spec.containers[0].image
           value: inrix/floatplane-downloader:4.1.0
 
-  - it: runs headless and never inlines a credential
+  - it: runs headless and reads the plex token from the secret
     templates:
       - templates/statefulset.yaml
     asserts:
@@ -38,34 +35,38 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
-            name: username
+            name: plex_token
             valueFrom:
               secretKeyRef:
                 name: floatplane-credentials
-                key: username
-      - contains:
+                key: plex-token
+
+  - it: no longer passes username, password or mfa to the container
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: username
+          any: true
+      - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: password
-            valueFrom:
-              secretKeyRef:
-                name: floatplane-credentials
-                key: password
+          any: true
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: token
+          any: true
 
-  - it: reads every credential from an existing secret when given one
+  - it: reads the plex token from an existing secret when given one
     templates:
       - templates/statefulset.yaml
     set:
       floatplane.credentials.useExistingSecret: onepassword-floatplane
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].env
-          content:
-            name: username
-            valueFrom:
-              secretKeyRef:
-                name: onepassword-floatplane
-                key: username
       - contains:
           path: spec.template.spec.containers[0].env
           content:

@@ -44,12 +44,10 @@ affinity: {}
 
 floatplane: 
   credentials: 
-    # If using an existing secret, this will ignore all other fields below - keep in mind that your OTP token (mfa) only has a lifespan of 30 sec. 
+    # Floatplane login uses the upstream OAuth device flow: on first start, open the login URL printed in the pod logs.
+    # The resulting token is stored in auth.json on the db volume, so it survives restarts.
+    # If using an existing secret, it must contain a `plex-token` key.
     useExistingSecret: ""
-    username: ""
-    password: ""
-    # -- OTP token (mfa). Only required during initial setup, after that it can be left to the default.
-    mfa: "000000"
     plexToken: ""
 
   persistence:
