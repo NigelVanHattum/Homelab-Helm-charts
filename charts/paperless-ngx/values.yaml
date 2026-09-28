@@ -18,6 +18,28 @@ imagePullSecrets: []
 
 # Paperless-ngx configuration
 paperless:
+  # -- Name of a Secret this chart does not own, holding every sensitive value. When set, the
+  # chart renders no Secret of its own and reads the admin password, `PAPERLESS_SECRET_KEY`,
+  # the database password and the whole `PAPERLESS_SOCIALACCOUNT_PROVIDERS` document from it
+  # through `secretKeyRef`. Leave empty for the default inline path, where the chart writes a
+  # Secret from the values below. See the "Secrets" section above.
+  existingSecret: ""
+  # -- Keys to read from `paperless.existingSecret`. Only used when that is set; the Secret the
+  # chart renders itself always uses these same names.
+  existingSecretKeys:
+    # -- Key holding `PAPERLESS_ADMIN_PASSWORD`.
+    adminPassword: admin-password
+    # -- Key holding `PAPERLESS_SECRET_KEY`.
+    secretKey: secret-key
+    # -- Key holding `PAPERLESS_DBPASS`. Not read when `paperless.database.enabled` is true —
+    # that path takes the password from the PostgreSQL subchart's own Secret.
+    dbPassword: db-password
+    # -- Key holding the complete `PAPERLESS_SOCIALACCOUNT_PROVIDERS` JSON document, client id,
+    # client secret and `server_url` included. Only read when `paperless.authentik.enabled` is
+    # true, and then `paperless.authentik.clientId`, `clientSecret`, `domain`,
+    # `applicationSlug` and `oidcWellKnownUrl` are all unused.
+    socialaccountProviders: socialaccount-providers
+
   # Database configuration
   database:
     host: ""

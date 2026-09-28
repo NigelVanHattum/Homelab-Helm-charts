@@ -117,9 +117,11 @@ tests:
             value: http://paperless-ngx-gotenberg:3000
 
   # ---- Authentik OIDC ----
+  # The provider document is composed into the chart's Secret, not into an env
+  # value, so these assert on templates/secret.yaml.
   - it: builds the OIDC discovery URL from domain and slug
     templates:
-      - templates/statefulset.yaml
+      - templates/secret.yaml
     set:
       paperless.authentik.enabled: true
       paperless.authentik.domain: auth.example.com
@@ -128,12 +130,13 @@ tests:
       paperless.authentik.clientSecret: client-secret
     asserts:
       - matchRegex:
-          path: spec.template.spec.containers[0].env[?(@.name=="PAPERLESS_SOCIALACCOUNT_PROVIDERS")].value
-          pattern: "https://auth.example.com/application/o/paperless/.well-known/openid-configuration"
+          path: data["socialaccount-providers"]
+          decodeBase64: true
+          pattern: '"server_url": "https://auth\.example\.com/application/o/paperless/\.well-known/openid-configuration"'
 
   - it: prefers an explicit well-known URL
     templates:
-      - templates/statefulset.yaml
+      - templates/secret.yaml
     set:
       paperless.authentik.enabled: true
       paperless.authentik.oidcWellKnownUrl: https://auth.example.com/application/o/docs/.well-known/openid-configuration
@@ -141,15 +144,15 @@ tests:
       paperless.authentik.clientSecret: client-secret
     asserts:
       - matchRegex:
-          path: spec.template.spec.containers[0].env[?(@.name=="PAPERLESS_SOCIALACCOUNT_PROVIDERS")].value
-          pattern: "o/docs/.well-known/openid-configuration"
+          path: data["socialaccount-providers"]
+          decodeBase64: true
+          pattern: 'o/docs/\.well-known/openid-configuration'
 
-  # The client secret is inlined into PAPERLESS_SOCIALACCOUNT_PROVIDERS as a
-  # plain env value, even though the chart also writes it to a Secret. Anyone
-  # with `get pod` reads it. Pinned so the exposure is visible rather than
-  # accidental; fixing it means switching the app to a file-based provider
-  # config, which is an upstream change.
-  - it: inlines the OIDC client secret into the pod spec
+  # PAPERLESS_SOCIALACCOUNT_PROVIDERS carries the OIDC client secret, so it is
+  # never an env `value`: it would sit in the pod spec in cleartext for anyone
+  # with `get pod`. The document goes into the Secret and the env var is a
+  # secretKeyRef, on this path and on the existingSecret one alike.
+  - it: keeps the OIDC client secret out of the pod spec
     templates:
       - templates/statefulset.yaml
     set:
@@ -159,9 +162,45 @@ tests:
       paperless.authentik.clientId: client-id
       paperless.authentik.clientSecret: super-secret
     asserts:
-      - matchRegex:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERLESS_SOCIALACCOUNT_PROVIDERS
+            valueFrom:
+              secretKeyRef:
+                name: paperless-ngx
+                key: socialaccount-providers
+      - isNull:
           path: spec.template.spec.containers[0].env[?(@.name=="PAPERLESS_SOCIALACCOUNT_PROVIDERS")].value
-          pattern: '"secret": "super-secret"'
+
+  - it: puts the client id and secret in the chart Secret's provider document
+    templates:
+      - templates/secret.yaml
+    set:
+      paperless.authentik.enabled: true
+      paperless.authentik.domain: auth.example.com
+      paperless.authentik.applicationSlug: paperless
+      paperless.authentik.clientId: client-id
+      paperless.authentik.clientSecret: super-secret
+    asserts:
+      - matchRegex:
+          path: data["socialaccount-providers"]
+          decodeBase64: true
+          pattern: '"client_id": "client-id", "secret": "super-secret"'
+      # kept alongside the document for consumers that reference it directly
+      - equal:
+          path: data["authentik-client-secret"]
+          value: super-secret
+          decodeBase64: true
+
+  - it: omits both OIDC keys when Authentik is disabled
+    templates:
+      - templates/secret.yaml
+    asserts:
+      - isNull:
+          path: data["socialaccount-providers"]
+      - isNull:
+          path: data["authentik-client-secret"]
 
   - it: drops both endpoints when disabled
     templates:
