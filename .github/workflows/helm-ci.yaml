@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - "charts/**"
+      - ".github/scripts/check_unittest_keys.py"
       - ".github/workflows/helm-ci.yaml"
   push:
     branches:
       - master
     paths:
       - "charts/**"
+      - ".github/scripts/check_unittest_keys.py"
       - ".github/workflows/helm-ci.yaml"
   workflow_dispatch:
 
@@ -62,6 +64,31 @@ jobs:
             fi
           done
           exit $missing
+
+  suite-keys:
+    needs: discover
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: python -m pip install --quiet pyyaml==6.0.2
+
+      - name: Reject unknown keys in helm-unittest suites
+        # helm unittest decodes an assertion's parameters with mapstructure and
+        # no ErrorUnused, so a key it does not know is dropped in silence and
+        # --strict never sees it: `decodeBase64` typo'd degrades a guard into an
+        # assertion that cannot fail. This walks the same charts as the unittest
+        # job and fails on a key that is not in helm-unittest 1.1.2's tables.
+        run: |
+          python .github/scripts/check_unittest_keys.py \
+            $(echo '${{ needs.discover.outputs.charts }}' | jq -r '.[]')
 
   lint:
     needs: discover
@@ -120,6 +147,9 @@ jobs:
             --version 1.1.2 --verify=false
 
       - name: helm unittest
-        # --strict fails on unknown assertion keys, so a typo in a suite is an
-        # error instead of a silently skipped test.
+        # --strict applies Go's strict YAML unmarshalling to the suite and test
+        # level, so an unknown key there is an error instead of a silently
+        # skipped setting. It stops at the assertion: keys inside one are
+        # decoded with mapstructure and dropped without a word, which is what
+        # the suite-keys job covers.
         run: helm unittest --strict "${{ matrix.chart }}"
