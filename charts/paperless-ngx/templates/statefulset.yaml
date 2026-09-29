@@ -138,13 +138,13 @@ spec:
             - name: PAPERLESS_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "paperless-ngx.fullname" . }}
-                  key: admin-password
+                  name: {{ include "paperless-ngx.secretName" . }}
+                  key: {{ include "paperless-ngx.secretKey" (dict "root" . "key" "adminPassword") }}
             - name: PAPERLESS_SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "paperless-ngx.fullname" . }}
-                  key: secret-key
+                  name: {{ include "paperless-ngx.secretName" . }}
+                  key: {{ include "paperless-ngx.secretKey" (dict "root" . "key" "secretKey") }}
             - name: PAPERLESS_URL
               value: {{ if .Values.paperless.env.PAPERLESS_URL }}{{ .Values.paperless.env.PAPERLESS_URL | quote }}{{- else if and .Values.ingress.enabled .Values.ingress.hosts }}{{- printf "https://%s" (first .Values.ingress.hosts).host | quote }}{{- else }}{{ .Values.paperless.env.PAPERLESS_URL | quote }}{{- end }}
 {{- if .Values.paperless.database.enabled }}
@@ -176,8 +176,8 @@ spec:
             - name: PAPERLESS_DBPASS
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "paperless-ngx.fullname" . }}
-                  key: db-password
+                  name: {{ include "paperless-ngx.secretName" . }}
+                  key: {{ include "paperless-ngx.secretKey" (dict "root" . "key" "dbPassword") }}
 {{- end }}
             - name: PAPERLESS_REDIS
               value: redis://{{ include "paperless-ngx.fullname" . }}-redis:6379
@@ -192,13 +192,15 @@ spec:
               value: {{ .Values.paperless.gotenberg.url | default (printf "http://%s-gotenberg:3000" (include "paperless-ngx.fullname" .)) }}
 {{- end }}
 {{- if .Values.paperless.authentik.enabled }}
-{{- $serverUrl := .Values.paperless.authentik.oidcWellKnownUrl | default (printf "https://%s/application/o/%s/.well-known/openid-configuration"
-  .Values.paperless.authentik.domain
-  .Values.paperless.authentik.applicationSlug) }}
             - name: PAPERLESS_APPS
               value: "allauth.socialaccount.providers.openid_connect"
+            # The provider document embeds the OIDC client secret, so it is read from a Secret
+            # rather than inlined here - see templates/secret.yaml and paperless.existingSecret.
             - name: PAPERLESS_SOCIALACCOUNT_PROVIDERS
-              value: '{"openid_connect": {"OAUTH_PKCE_ENABLED": true, "APPS": [{"provider_id": "authentik", "name": "authentik", "client_id": "{{ .Values.paperless.authentik.clientId }}", "secret": "{{ .Values.paperless.authentik.clientSecret }}", "settings": {"server_url": "{{ $serverUrl }}", "fetch_userinfo": true}}], "SCOPE": ["openid", "profile", "email"]}}'
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "paperless-ngx.secretName" . }}
+                  key: {{ include "paperless-ngx.secretKey" (dict "root" . "key" "socialaccountProviders") }}
 {{- if .Values.paperless.authentik.logoutUrl }}
             - name: PAPERLESS_LOGOUT_REDIRECT_URL
               value: "{{ .Values.paperless.authentik.logoutUrl }}"

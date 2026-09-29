@@ -1,8 +1,78 @@
 # paperless-ngx
 
-![Version: 1.1.6](https://img.shields.io/badge/Version-1.1.6-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.10](https://img.shields.io/badge/AppVersion-2.20.10-informational?style=flat-square)
+![Version: 1.2.0](https://img.shields.io/badge/Version-1.2.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.10](https://img.shields.io/badge/AppVersion-2.20.10-informational?style=flat-square)
 
 A Helm chart for Paperless-ngx - A community-supported open-source document management system
+
+## Secrets
+
+There are two paths, and they are mutually exclusive.
+
+**Inline (the default).** Leave `paperless.existingSecret` empty and the chart renders a Secret
+named after the release, from the values you pass it:
+
+| Key | From |
+|---|---|
+| `admin-password` | `paperless.env.PAPERLESS_ADMIN_PASSWORD` |
+| `secret-key` | `paperless.env.PAPERLESS_SECRET_KEY` |
+| `db-password` | `paperless.database.password`, only when `paperless.database.enabled` is false |
+| `authentik-client-secret` | `paperless.authentik.clientSecret`, only when `paperless.authentik.enabled` is true |
+| `socialaccount-providers` | the `PAPERLESS_SOCIALACCOUNT_PROVIDERS` document the chart composes, only when `paperless.authentik.enabled` is true |
+
+**External.** Set `paperless.existingSecret` to the name of a Secret in the release namespace
+that you manage yourself — a 1Password Connect operator item, an ExternalSecret, anything. The
+chart then renders no Secret at all and reads every sensitive env var from yours. The key names
+default to the ones in the table above and are overridable per value under
+`paperless.existingSecretKeys`, so an operator-delivered Secret can keep its own field names:
+
+```yaml
+paperless:
+  existingSecret: paperless-ngx-credentials
+  existingSecretKeys:
+    adminPassword: admin-password
+    secretKey: secret-key
+    dbPassword: db-password
+    socialaccountProviders: socialaccount-providers
+```
+
+The external Secret has to carry every key the release actually uses: `adminPassword` and
+`secretKey` always, `dbPassword` unless `paperless.database.enabled` is true (that path takes
+the password from the PostgreSQL subchart's own Secret), and `socialaccountProviders` when
+`paperless.authentik.enabled` is true.
+
+Usernames stay in values either way: `PAPERLESS_ADMIN_USER` and `PAPERLESS_DBUSER` are plain env
+values, as are the host, port and database name.
+
+## The OIDC provider document
+
+Paperless takes its whole social-account configuration as one JSON env var,
+`PAPERLESS_SOCIALACCOUNT_PROVIDERS`, and that document contains the OIDC client secret. An env
+`value` would put it in the pod spec in cleartext, readable by anyone with `get pod`, so the
+chart never renders it as one: the document goes into a Secret and the env var is a
+`secretKeyRef`.
+
+On the inline path the chart composes the document from `paperless.authentik.clientId`,
+`clientSecret` and either `oidcWellKnownUrl` or `domain` + `applicationSlug`, and writes it to
+its own Secret under `socialaccount-providers`. Nothing changes for you.
+
+On the external path *you* supply the finished document under the `socialaccountProviders` key,
+`server_url` included, and the chart ignores `paperless.authentik.clientId`, `clientSecret`,
+`domain`, `applicationSlug` and `oidcWellKnownUrl`. The shape the chart itself produces, for
+reference:
+
+```json
+{"openid_connect": {"OAUTH_PKCE_ENABLED": true, "APPS": [{"provider_id": "authentik", "name": "authentik", "client_id": "…", "secret": "…", "settings": {"server_url": "https://auth.example.com/application/o/paperless/.well-known/openid-configuration", "fetch_userinfo": true}}], "SCOPE": ["openid", "profile", "email"]}}
+```
+
+The remaining Authentik values — `logoutUrl`, `autoSignup`, `allowSignups` — are plain env vars
+on both paths.
+
+## Tika and Gotenberg
+
+Both default to `enabled: true` and the chart deploys neither. The endpoints then point at
+`<release>-tika` and `<release>-gotenberg`, Services this chart never creates. Either turn them
+off, or run those workloads separately and point `paperless.tika.url` / `paperless.gotenberg.url`
+at them.
 
 ## Requirements
 
@@ -54,6 +124,12 @@ A Helm chart for Paperless-ngx - A community-supported open-source document mana
 | paperless.env.PAPERLESS_SECRET_KEY | string | `""` |  |
 | paperless.env.PAPERLESS_TIME_ZONE | string | `"UTC"` |  |
 | paperless.env.PAPERLESS_URL | string | `""` |  |
+| paperless.existingSecret | string | `""` | Name of a Secret this chart does not own, holding every sensitive value. When set, the chart renders no Secret of its own and reads the admin password, `PAPERLESS_SECRET_KEY`, the database password and the whole `PAPERLESS_SOCIALACCOUNT_PROVIDERS` document from it through `secretKeyRef`. Leave empty for the default inline path, where the chart writes a Secret from the values below. See the "Secrets" section above. |
+| paperless.existingSecretKeys | object | `{"adminPassword":"admin-password","dbPassword":"db-password","secretKey":"secret-key","socialaccountProviders":"socialaccount-providers"}` | Keys to read from `paperless.existingSecret`. Only used when that is set; the Secret the chart renders itself always uses these same names. |
+| paperless.existingSecretKeys.adminPassword | string | `"admin-password"` | Key holding `PAPERLESS_ADMIN_PASSWORD`. |
+| paperless.existingSecretKeys.dbPassword | string | `"db-password"` | Key holding `PAPERLESS_DBPASS`. Not read when `paperless.database.enabled` is true — that path takes the password from the PostgreSQL subchart's own Secret. |
+| paperless.existingSecretKeys.secretKey | string | `"secret-key"` | Key holding `PAPERLESS_SECRET_KEY`. |
+| paperless.existingSecretKeys.socialaccountProviders | string | `"socialaccount-providers"` | Key holding the complete `PAPERLESS_SOCIALACCOUNT_PROVIDERS` JSON document, client id, client secret and `server_url` included. Only read when `paperless.authentik.enabled` is true, and then `paperless.authentik.clientId`, `clientSecret`, `domain`, `applicationSlug` and `oidcWellKnownUrl` are all unused. |
 | paperless.extraEnv | list | `[]` |  |
 | paperless.gotenberg.enabled | bool | `true` |  |
 | paperless.gotenberg.url | string | `""` |  |
@@ -94,5 +170,3 @@ A Helm chart for Paperless-ngx - A community-supported open-source document mana
 | volumeMounts | list | `[]` |  |
 | volumes | list | `[]` |  |
 
-----------------------------------------------
-Autogenerated from chart metadata using [helm-docs v1.14.2](https://github.com/norwoodj/helm-docs/releases/v1.14.2)
