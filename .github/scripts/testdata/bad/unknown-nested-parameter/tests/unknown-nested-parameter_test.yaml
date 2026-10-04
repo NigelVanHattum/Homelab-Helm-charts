@@ -1,0 +1,12 @@
+suite: an unknown parameter inside a nested validator struct
+# matchSnapshot.matchRegex reads `pattern` and nothing else. `patern` is dropped,
+# leaving an empty regex that matches anything.
+templates:
+  - templates/secret.yaml
+tests:
+  - it: has an unknown parameter under matchSnapshot.matchRegex
+    asserts:
+      - matchSnapshot:
+          path: data
+          matchRegex:
+            patern: .*

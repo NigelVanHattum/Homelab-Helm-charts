@@ -4,17 +4,27 @@ on:
   pull_request:
     paths:
       - "charts/**"
+      - ".github/scripts/**"
       - ".github/workflows/helm-ci.yaml"
   push:
     branches:
       - master
     paths:
       - "charts/**"
+      - ".github/scripts/**"
       - ".github/workflows/helm-ci.yaml"
   workflow_dispatch:
 
 permissions:
   contents: read
+
+env:
+  # The single source of the helm-unittest version: the plugin the unittest job
+  # installs, and the tag check_unittest_keys.py's tables were generated from.
+  # The script asserts its own PLUGIN_VERSION against this value, so bumping the
+  # plugin here fails loudly on the line that says what to regenerate instead of
+  # leaving the guard silently describing the old plugin.
+  HELM_UNITTEST_VERSION: "1.1.2"
 
 concurrency:
   group: helm-ci-${{ github.ref }}
@@ -62,6 +72,78 @@ jobs:
             fi
           done
           exit $missing
+
+  suite-keys:
+    needs: discover
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: python -m pip install --quiet pyyaml==6.0.2
+
+      - name: Self-check the guard against its fixtures
+        # A guard whose own regression is invisible is the failure this job
+        # exists to prevent. .github/scripts/testdata/bad/* each hold one suite
+        # the script must reject; testdata/good holds the valid spellings of the
+        # same constructs, which it must accept. A refactor that stops catching
+        # a case fails here rather than the next time someone typos a parameter.
+        # The last case covers the version assertion itself, so the check that
+        # catches a plugin bump cannot be removed silently either.
+        run: |
+          fail=0
+          run_version() { python .github/scripts/check_unittest_keys.py \
+            --plugin-version "$1" "$2" 2>&1; }
+          run() { run_version "$HELM_UNITTEST_VERSION" "$1"; }
+
+          if ! out=$(run .github/scripts/testdata/good); then
+            echo "$out"
+            echo "::error::the guard rejected the valid fixtures"
+            fail=1
+          fi
+
+          for case in .github/scripts/testdata/bad/*/; do
+            out=$(run "$case") && status=0 || status=$?
+            # Exit 1 with a reported problem, not any non-zero exit: an import
+            # error or a crash also exits 1 and would otherwise read as a catch.
+            if [ "$status" -ne 1 ] || ! grep -q '^::error::' <<<"$out"; then
+              echo "$out"
+              echo "::error::the guard did not reject bad fixture $case (exit $status)"
+              fail=1
+            fi
+          done
+
+          # The version assertion itself: a --plugin-version the script's tables
+          # were not generated at has to stop the run (exit 2), not be ignored.
+          out=$(run_version 0.0.0 .github/scripts/testdata/good) && status=0 || status=$?
+          if [ "$status" -ne 2 ]; then
+            echo "$out"
+            echo "::error::the guard accepted a plugin version its tables are not from (exit $status)"
+            fail=1
+          fi
+
+          exit $fail
+
+      - name: Reject unknown keys in helm-unittest suites
+        # helm unittest decodes an assertion's parameters with mapstructure and
+        # no ErrorUnused, so a key it does not know is dropped in silence and
+        # --strict never sees it: `decodeBase64` typo'd degrades a guard into an
+        # assertion that cannot fail. This walks the same charts as the unittest
+        # job and fails on a key that is not in the pinned plugin's tables.
+        # --plugin-version makes the script assert that its tables were
+        # generated at the version this workflow installs.
+        env:
+          CHARTS: ${{ needs.discover.outputs.charts }}
+        run: |
+          python .github/scripts/check_unittest_keys.py \
+            --plugin-version "$HELM_UNITTEST_VERSION" \
+            $(jq -r '.[]' <<<"$CHARTS")
 
   lint:
     needs: discover
@@ -117,9 +199,12 @@ jobs:
         # the assertions mean.
         run: |
           helm plugin install https://github.com/helm-unittest/helm-unittest \
-            --version 1.1.2 --verify=false
+            --version "$HELM_UNITTEST_VERSION" --verify=false
 
       - name: helm unittest
-        # --strict fails on unknown assertion keys, so a typo in a suite is an
-        # error instead of a silently skipped test.
+        # --strict applies Go's strict YAML unmarshalling to the suite and test
+        # level, so an unknown key there is an error instead of a silently
+        # skipped setting. It stops at the assertion: keys inside one are
+        # decoded with mapstructure and dropped without a word, which is what
+        # the suite-keys job covers.
         run: helm unittest --strict "${{ matrix.chart }}"

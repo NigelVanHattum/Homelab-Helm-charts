@@ -1,0 +1,12 @@
+suite: two assertion types in one assertion
+# helm-unittest takes one assertion type per list entry; the second is ignored,
+# so half of what the author wrote never runs.
+templates:
+  - templates/secret.yaml
+tests:
+  - it: declares isKind and isAPIVersion in one assertion
+    asserts:
+      - isKind:
+          of: Secret
+        isAPIVersion:
+          of: v1

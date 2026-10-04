@@ -1,0 +1,10 @@
+suite: an assertion with no assertion type
+# Every key here is an assertion-level key, so nothing is asserted at all. The
+# test passes for a chart that renders nothing resembling what the author meant.
+templates:
+  - templates/secret.yaml
+tests:
+  - it: names a template and a document but asserts nothing
+    asserts:
+      - template: templates/secret.yaml
+        documentIndex: 0
