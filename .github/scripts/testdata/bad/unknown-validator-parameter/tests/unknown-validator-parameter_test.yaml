@@ -1,0 +1,13 @@
+suite: a validator parameter helm-unittest does not know
+# `decodeBase65` is dropped by mapstructure, so the assertion compares the raw
+# base64 against the decoded expectation and can never pass - or, with the value
+# written base64, can never fail. This is the typo the guard exists to catch.
+templates:
+  - templates/secret.yaml
+tests:
+  - it: has an unknown parameter under equal
+    asserts:
+      - equal:
+          path: data.token
+          value: s3cr3t
+          decodeBase65: true

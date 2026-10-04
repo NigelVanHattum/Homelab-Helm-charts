@@ -1,0 +1,13 @@
+suite: an assertion-level key helm-unittest does not know
+# `templates` (plural) is the suite-level key; next to an assertion type the only
+# ones read are template, documentIndex, documentSelector and not. The plural is
+# dropped, so the assertion runs against every rendered document.
+templates:
+  - templates/secret.yaml
+tests:
+  - it: has an unknown key next to the assertion type
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: -secret$
+        templates: templates/secret.yaml

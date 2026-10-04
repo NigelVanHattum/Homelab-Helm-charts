@@ -1,0 +1,58 @@
+suite: the valid spelling of every construct the bad fixtures get wrong
+templates:
+  - templates/secret.yaml
+tests:
+  # bad/unknown-validator-parameter typos decodeBase64 here.
+  - it: accepts a known validator parameter
+    asserts:
+      - equal:
+          path: data.token
+          value: s3cr3t
+          decodeBase64: true
+
+  # bad/unknown-assertion-key writes `templates` next to the assertion type.
+  - it: accepts the assertion-level keys
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: -secret$
+        template: templates/secret.yaml
+        documentIndex: 0
+        not: false
+      - hasDocuments:
+          count: 1
+        documentSelector:
+          path: kind
+          value: Secret
+
+  # bad/two-assertion-types puts both of these in one assertion.
+  - it: accepts one assertion type per assertion
+    asserts:
+      - isKind:
+          of: Secret
+      - isAPIVersion:
+          of: v1
+
+  # bad/unknown-nested-parameter typos the nested `pattern`.
+  - it: accepts the nested matchRegex parameter
+    asserts:
+      - matchSnapshot:
+          path: data
+          matchRegex:
+            pattern: .*
+
+  # bad/assertion-without-type has none of these.
+  - it: accepts the remaining validators
+    asserts:
+      - contains:
+          path: spec.ports
+          content:
+            port: 443
+          any: true
+      - isNotNullOrEmpty:
+          path: data
+      - lengthEqual:
+          path: spec.ports
+          count: 1
+      - failedTemplate:
+          errorMessage: values do not meet the specifications

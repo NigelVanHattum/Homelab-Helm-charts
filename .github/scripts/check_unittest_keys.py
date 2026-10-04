@@ -8,17 +8,30 @@ ErrorUnused, so a key it does not recognise is dropped without a word. A typo in
 suite and test level, never inside an assertion.
 
 This script closes that gap for the keys `--strict` cannot see. The tables below
-are the assertion types and validator fields of helm-unittest 1.1.2, the version
-pinned in .github/workflows/helm-ci.yaml; bumping the plugin means regenerating
-them from pkg/unittest/assertion.go and pkg/unittest/validators/ at the new tag.
+are the assertion types and validator fields of helm-unittest PLUGIN_VERSION;
+bumping the plugin means regenerating them from pkg/unittest/assertion.go and
+pkg/unittest/validators/ at the new tag.
 
-Usage: check_unittest_keys.py <chart-dir> [<chart-dir> ...]
+Nothing else can enforce that, so the workflow passes the version it installs as
+--plugin-version and this script refuses to run when it does not match
+PLUGIN_VERSION. A bump then fails on the line that says what to regenerate,
+instead of leaving a guard that silently describes the previous plugin: a type or
+parameter added upstream would be rejected as unknown, and one renamed upstream
+would keep being accepted under its old spelling.
+
+Usage: check_unittest_keys.py [--plugin-version <v>] <chart-dir> [<chart-dir> ...]
 """
 
+import argparse
 import sys
 from pathlib import Path
 
 import yaml
+
+# The helm-unittest tag the tables below were generated from. Keep it equal to
+# HELM_UNITTEST_VERSION in .github/workflows/helm-ci.yaml, and regenerate the
+# tables in the same commit that moves either one.
+PLUGIN_VERSION = "1.1.2"
 
 # Assertion.UnmarshalYAML -> parseBasicFields / parseDocumentSelector: the keys
 # read next to the assertion type itself.
@@ -173,12 +186,34 @@ def check_suite(path, errors):
 
 
 def main(argv):
-    if len(argv) < 2:
-        print(__doc__, file=sys.stderr)
+    parser = argparse.ArgumentParser(
+        prog=Path(argv[0]).name,
+        description="Reject unknown keys in helm-unittest suites.",
+    )
+    parser.add_argument(
+        "--plugin-version",
+        help=(
+            "the helm-unittest version CI installs; must equal PLUGIN_VERSION "
+            f"({PLUGIN_VERSION}), the tag this script's tables come from"
+        ),
+    )
+    parser.add_argument("charts", nargs="+", metavar="chart-dir")
+    args = parser.parse_args(argv[1:])
+
+    if args.plugin_version is not None and args.plugin_version != PLUGIN_VERSION:
+        print(
+            f"::error file=.github/scripts/check_unittest_keys.py::"
+            f"helm-unittest is pinned at {args.plugin_version} but this script's "
+            f"tables were generated at {PLUGIN_VERSION}. Regenerate ASSERT_TYPES, "
+            f"ASSERTION_KEYS and NESTED_FIELDS from pkg/unittest/assertion.go and "
+            f"pkg/unittest/validators/ at tag v{args.plugin_version}, then set "
+            f"PLUGIN_VERSION to {args.plugin_version}.",
+        )
         return 2
+
     errors = []
     suites = 0
-    for chart in argv[1:]:
+    for chart in args.charts:
         for path in sorted(Path(chart).glob("tests/*_test.yaml")):
             suites += 1
             check_suite(path, errors)
