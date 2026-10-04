@@ -63,9 +63,11 @@ jobs:
       - name: Every chart must ship helm-unittest suites
         # A chart without tests is the one that breaks silently. Adding a chart
         # without a tests/ directory fails here rather than in production.
+        env:
+          CHARTS: ${{ needs.discover.outputs.charts }}
         run: |
           missing=0
-          for chart in $(echo '${{ needs.discover.outputs.charts }}' | jq -r '.[]'); do
+          for chart in $(jq -r '.[]' <<<"$CHARTS"); do
             if ! compgen -G "$chart/tests/*_test.yaml" > /dev/null; then
               echo "::error file=$chart/Chart.yaml::$chart has no tests/*_test.yaml"
               missing=1
