@@ -1,15 +1,27 @@
 name: Generate Helm documentation
+
 on:
-  - pull_request
+  pull_request:
+    paths:
+      - "charts/**"
+      - ".github/workflows/helm-docs-pr.yaml"
+
+permissions:
+  contents: write
+
 jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ github.event.pull_request.head.ref }}
+          # helm-docs-github-action pushes with a bare `git push` and takes no token
+          # input, so it needs the checkout's credentials: persist-credentials: false
+          # breaks the push.
+          persist-credentials: true
       - name: Run helm-docs
-        uses: losisin/helm-docs-github-action@v1
+        uses: losisin/helm-docs-github-action@2ccf3e77eb70dc80d62f8cc26f15d0a96b75fef4 # v1.8.0
         with:
           git-push: true
