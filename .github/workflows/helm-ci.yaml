@@ -156,10 +156,7 @@ jobs:
           persist-credentials: false
 
       - name: Install helm-docs
-        # Installer only: keep the pin equal to helm-docs-pr.yaml's; no Chart.yaml under .github/workflows, so nothing renders.
-        uses: losisin/helm-docs-github-action@9e0787c426fdec38be6288bb5c0559dcb388412c # v2.0.1
-        with:
-          chart-search-root: .github/workflows
+        run: .github/scripts/install_helm_docs.sh
 
       - name: Self-check the render guard against its fixtures
         # helm-docs warns and exits 0 on a broken template, so a guard that stops matching the warning fails silently.
