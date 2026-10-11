@@ -2,109 +2,65 @@
 Initialize the DB
 */}}
 {{- $constants := (include "kasm.constants" . | fromYaml) -}}
-{{- $kasmSecrets := (.Values.dbManagement.upgrade.oldDbSecretsName | default (printf "%s-secrets" .Release.Name)) }}
 {{- if .Values.dbManagement.backupCron.enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ .Release.Name }}-db-backup-cron
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: {{ .Release.Name }}-db-backup
-    app.kubernetes.io/component: db-backup
-    {{- include "kasm.defaultLabels" . | indent 4 }}
-    {{- with .Values.extraLabels.cron }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-  {{- with .Values.annotations.cron }}
-  annotations: {{- toYaml . | nindent 4 }}
-  {{- end }}
+  {{- include "kasm.metadata" (dict "context" . "component" "dbBackup" "resource" "cronJob" "include" "all") | indent 2 }}
 spec:
-  successfulJobsHistoryLimit: {{ .Values.dbManagement.backupCron.successLimit | default 3 }}
-  failedJobsHistoryLimit: {{ .Values.dbManagement.backupCron.failLimit | default 1 }}
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   timeZone: {{ .Values.dbManagement.backupCron.timeZone | default "Etc/UTC" }}
   schedule: {{ .Values.dbManagement.backupCron.schedule | default "0 0 * * *" | quote }}
   jobTemplate:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ .Release.Name }}-db-backup
-        app.kubernetes.io/component: db-backup
-        {{- include "kasm.defaultLabels" . | indent 8 }}
-        {{- with .Values.extraLabels.cronPod }}{{- toYaml . | nindent 8 }}{{- end }}
-        {{- with .Values.labels }}{{- toYaml . | nindent 8 }}{{- end }}
-      {{- with .Values.annotations.cronPod }}
-      annotations: {{- toYaml . | nindent 8 }}
-      {{- end }}
+      {{- include "kasm.metadata" (dict "context" . "component" "dbBackup" "resource" "cronJob" "include" "la") | indent 6 }}
     spec:
       template:
+        metadata:
+          {{- include "kasm.metadata" (dict "context" . "component" "dbBackup" "resource" "cronPod" "include" "la") | indent 10 }}
         spec:
           {{- with .Values.nodeSelector }}
-          nodeSelector: {{ toYaml . | nindent 12 }}
+          nodeSelector: {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- if .Values.imagePullSecrets.enabled }}
-      imagePullSecrets:
-        - name: {{ .Values.imagePullSecrets.name | default (printf "%s-image-pull-secret" .Release.Name) }}
-      {{- end }}
+          {{- if .Values.imagePullSecrets.enabled }}
+          imagePullSecrets:
+            - name: {{ .Values.imagePullSecrets.name | default (printf "%s-image-pull-secret" .Release.Name) }}
+          {{- end }}
           {{- with .Values.affinity }}
-          affinity: {{ toYaml . | nindent 10 }}
+          affinity: {{- toYaml . | nindent 12 }}
           {{- end }}
           restartPolicy: OnFailure
-          {{- if .Values.applySecurity }}
-            {{- include "kasm.podSecurity" . | indent 10 }}
-          {{- end }}
+          {{- include "kasm.securityContext" (list . 1000 "pod") | nindent 10 }}
           initContainers:
-            - name: db-is-ready
-              image: {{ $constants.api.image }}
-              imagePullPolicy: {{ .Values.imagePullPolicy }}
-              env:
-                - name: POSTGRES_HOST
-                  value: {{ $constants.db.svc }}
-                - name: POSTGRES_PORT
-                  value: {{ $constants.db.port | quote }}
-              command:
-                - "/bin/bash"
-                - "-c"
-              args:
-                - |
-                  while ! pg_isready -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -t 10; do echo "Waiting for DB..."; sleep 5; done
-            - name: {{ $constants.proxy.name }}-data-perms
-              image: {{ $constants.api.image }}
-              imagePullPolicy: IfNotPresent
-              command:
-                - /bin/sh
-                - -ec
-              args:
-                - |
-                  echo "Setting permissions and ownership for /data/kasm-db-dump..."
-                  chown -R 1000:1000 /data/kasm-db-dump
-                  chmod -R 755 /data/kasm-db-dump
-              securityContext:
-                runAsNonRoot: false
-                runAsUser: 0
-              volumeMounts:
-                - name: {{ .Release.Name }}-db-backup
-                  mountPath: /data/kasm-db-dump
+            {{- include "kasm.trustedCaInit" (list . "api") | nindent 12 }}
+            {{- include "kasm.dbIsReady" (dict "context" . "function" "ready") | nindent 12 }}
           containers:
-            - name: {{ .Release.Name }}-db-backup-container
+            - name: {{ include "kasm.name" (list . "dbBackup" "container") }}
               image: {{ $constants.api.image }}
               imagePullPolicy: {{ .Values.imagePullPolicy }}
               env:
                 - name: POSTGRES_HOST
-                  value: {{ $constants.db.svc }}
+                  value: {{ $constants.db.svc | quote }}
                 - name: POSTGRES_PORT
                   value: {{ $constants.db.port | quote }}
                 - name: POSTGRES_DB
                   value: {{ .Values.database.kasmDbName }}
                 - name: POSTGRES_USER
                   value: {{ .Values.database.kasmDbUser }}
+                {{- include "kasm.trustedCaEnv" $ | nindent 16 }}
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
-                    {{- if .Values.database.kasmDbSecret -}}
-                    {{ .Values.database.kasmDbSecret | toYaml | nindent 22 }}
+                    {{- if .Values.database.kasmDbSecret }}
+                      {{- .Values.database.kasmDbSecret | toYaml | nindent 22 }}
                     {{- else }}
-                      name: {{ $kasmSecrets }}
+                      name: {{ $constants.secrets.name }}
                       key: "db-password"
                     {{- end }}
+              {{- include "kasm.securityContext" (list . 1000 "container") | nindent 14 }}
+              resources:
+                {{- include "resources.preset" (dict "node" "api" "size" "small") | nindent 16 }}
               command:
                 - "/bin/bash"
                 - "-c"
@@ -117,10 +73,18 @@ spec:
                   pg_dump -Ft -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" --exclude-table-data=logs > "${BACKUP_FILE}"
                   echo "Backup complete"
               volumeMounts:
-                - name: {{ .Release.Name }}-db-backup
+                - name: db-backup-dir
                   mountPath: /data/kasm-db-dump
+                  readOnly: false
+                - name: tmp-data
+                  mountPath: /tmp
+                {{- include "kasm.trustedCaVolumeMounts" . | nindent 16 }}
           volumes:
-            - name: {{ .Release.Name }}-db-backup
+            - name: db-backup-dir
               persistentVolumeClaim:
-                claimName: {{ .Values.dbManagement.backupCron.pvcName | default (printf "%s-db-backup-pvc" .Release.Name) }}
+                claimName: {{ .Values.dbManagement.backupCron.pvcName | default (include "kasm.name" (list . "db-backup")) }}
+            - name: tmp-data
+              emptyDir:
+                sizeLimit: 256Mi
+            {{- include "kasm.trustedCaVolumes" . | nindent 12 }}
 {{- end }}

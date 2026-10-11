@@ -2,20 +2,12 @@
 Deploy the Kasm ingress if .Values.ingress.enabled set to true
 */}}
 {{- $constants := (include "kasm.constants" . | fromYaml) -}}
+{{- $primaryZone := (include "kasm.primaryZone" . | fromYaml) -}}
 {{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Release.Name }}-ingress
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: {{ .Release.Name }}-ingress
-    {{- include "kasm.defaultLabels" . | indent 4 }}
-    {{- with .Values.ingress.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-  {{- with .Values.ingress.annotations }}
-  annotations: {{ toYaml . | nindent 4 }}
-  {{- end }}
+  {{- include "kasm.metadata" (dict "context" . "component" "proxy" "resource" "ingress" "include" "all") | indent 2 }}
 spec:
 {{- with .Values.ingress.ingressClassName }}
   ingressClassName: {{ . }}
@@ -29,22 +21,22 @@ spec:
         {{- end }}
         {{- with .Values.kasmZones }}
         {{- range $idx, $zone := . }}
-        - {{ $zone.upstream_auth_addr | quote }}
+        - {{ include "kasm.zoneProxyHostnameRequired" $zone | quote }}
         {{- end }}
         {{- end }}
-      secretName: {{ .Values.certificate.secretName }}
+      secretName: {{ .Values.certificate.secretName | default (include "kasm.name" (list . "cert-manager" "secret")) }}
   {{-  end }}
   rules:
   {{- with .Values.kasmZones }}
   {{- range $idx, $zone := . }}
-  - host: {{ $zone.upstream_auth_addr | quote }}
+  - host: {{ include "kasm.zoneProxyHostnameRequired" $zone | quote }}
     http:
       paths:
         - path: /
           pathType: Prefix
           backend:
             service:
-              name: {{ printf "%s-%s" $constants.proxy.svc (regexReplaceAll "[^a-zA-Z0-9]+" $zone.name "-" | lower) }}
+              name: {{ printf "%s-%s" $constants.proxy.svc (include "kasm.zoneName" $zone.name) }}
               port:
                 number: {{ if eq $.Values.ingress.backendProtocol "https" }}{{ $constants.proxy.https }}{{ else }}{{ $constants.proxy.http }}{{ end }}
   {{- end }}
@@ -56,13 +48,7 @@ spec:
           pathType: Prefix
           backend:
             service:
-            {{- if .Values.kasmZones }}
-              {{- with index .Values.kasmZones 0 }}
-              name: {{ printf "%s-%s" $constants.proxy.svc (regexReplaceAll "[^a-zA-Z0-9]+" .name "-" | lower) -}}
-              {{- end }}
-            {{- else }}
-              name: {{ printf "%s-default" $constants.proxy.svc -}}
-            {{- end }}
+              name: {{ printf "%s-%s" $constants.proxy.svc (include "kasm.zoneName" $primaryZone.name) }}
               port:
                 number: {{ if eq .Values.ingress.backendProtocol "https" }}{{ $constants.proxy.https }}{{ else }}{{ $constants.proxy.http }}{{ end }}
 {{- end }}

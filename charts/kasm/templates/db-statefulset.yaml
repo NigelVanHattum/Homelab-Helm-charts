@@ -3,24 +3,13 @@ Kasm DB server StatefullSet definition
 */}}
 {{- $constants := (include "kasm.constants" . | fromYaml) -}}
 {{- $dbReplicas := include "replicas.preset" (dict "node" $constants.db.component "size" .Values.deploymentSize) -}}
+{{- $merged := fromYaml (include "kasm.mergedValues" (dict "root" . "componentName" "database")) -}}
+{{- include "kasm.validateDatabaseVersionChange" . -}}
 {{- if not .Values.database.standalone }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ $constants.db.name }}-statefulset
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: {{ $constants.db.name }}
-    app.kubernetes.io/component: {{ $constants.db.component }}
-    {{- include "kasm.defaultLabels" . | indent 4 }}
-    {{- with .Values.database.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.extraLabels.statefulSet }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-  {{- if or .Values.database.annotations .Values.annotations.statefulSet }}
-  annotations:
-    {{- with .Values.annotations.statefulSet }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.database.annotations }}{{- toYaml . | nindent 4 }}{{- end }}
-  {{- end }}
+  {{- include "kasm.metadata" (dict "context" . "component" "db" "resource" "statefulSet" "include" "all") | indent 2 }}
 spec:
   replicas: 1
   serviceName: {{ $constants.db.svc }}
@@ -28,21 +17,10 @@ spec:
     type: RollingUpdate
   selector:
     matchLabels:
-      app.kubernetes.io/name: {{ $constants.db.name }}
+      {{- include "kasm.metadata" (dict "context" . "component" "db" "resource" "service" "include" "match") | indent 6 }}
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ $constants.db.name }}
-        app.kubernetes.io/component: {{ $constants.db.component }}
-        {{- include "kasm.defaultLabels" . | indent 8 }}
-        {{- with .Values.database.labels }}{{- toYaml . | nindent 8 }}{{- end }}
-        {{- with .Values.extraLabels.pod }}{{- toYaml . | nindent 8 }}{{- end }}
-        {{- with .Values.labels }}{{- toYaml . | nindent 8 }}{{- end }}
-      {{- if or .Values.database.annotations .Values.annotations.pod }}
-      annotations:
-        {{- with .Values.annotations.pod }}{{- toYaml . | nindent 8 }}{{- end }}
-        {{- with .Values.database.annotations }}{{- toYaml . | nindent 8 }}{{- end }}
-      {{- end }}
+      {{- include "kasm.metadata" (dict "context" . "component" "db" "resource" "pod" "include" "la") | indent 6 }}
     spec:
       restartPolicy: {{ .Values.restartPolicy }}
       {{- if .Values.imagePullSecrets.enabled }}
@@ -55,47 +33,43 @@ spec:
       {{- with .Values.affinity }}
       affinity: {{ toYaml . | nindent 8 }}
       {{- end }}
-      {{- include "db.podSecurity" . | indent 6 }}
+      {{- include "kasm.securityContext" (list . 70 "pod") | nindent 6 }}
+      {{- if or .Values.trustedCaBundle.enabled $merged.extraInitContainers }}
       initContainers:
-        - name: {{ $constants.db.name }}-data-perms
-          image: {{ $constants.api.image }}
-          command:
-            - /bin/sh
-            - -ec
-          args:
-            - |
-              echo "Setting permissions and ownership on /var/lib/postgresql/data..." && mkdir -p /var/lib/postgresql/data/postgres && chown -R 70:70 /var/lib/postgresql/data && chmod -R 0700 /var/lib/postgresql/data
-              echo "Setting permissions and ownership on /var/run/postgresql..." && chown -R 70:70 /var/run/postgresql && chmod -R 0700 /var/run/postgresql
-              echo "Setting permissions and ownership on /tmp..." && mkdir -p /tmp/postgres && chmod -R 0700 /tmp/postgres && chmod -R 777 /tmp
-              echo "Done"
-          securityContext:
-            runAsNonRoot: false
-            runAsUser: 0
-          volumeMounts:
-            - name: {{ printf "%s-%s-data" $constants.db.name .Chart.AppVersion | replace "." "-" }}
-              mountPath: /var/lib/postgresql/data
-            - name: {{ printf "%s-%s-data" $constants.db.name .Chart.AppVersion | replace "." "-" }}
-              mountPath: /tmp
-            {{- if .Values.applySecurity }}
-            - name: {{ printf "%s-%s-data" $constants.db.name .Chart.AppVersion | replace "." "-" }}
-              mountPath: /var/run/postgresql
-            {{- end }}
+        {{- include "kasm.trustedCaInit" (list . "db") | nindent 8 }}
+        {{- with $merged.extraInitContainers }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
       containers:
-        - name: {{ $constants.db.name }}-container
+        - name: {{ include "kasm.name" (list . "db" "container") }}
           image: {{ $constants.db.image }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
+          {{- if eq .Values.logFormat "json" }}
+          command:
+            - "/bin/bash"
+            - "-c"
+          args:
+            - |
+              mkdir -p /tmp/postgres
+              touch /tmp/postgres/postgresql.json
+              ln -sf /dev/stdout /tmp/postgres/postgresql.json
+              exec docker-entrypoint.sh postgres -c config_file=/var/lib/postgresql/conf/postgresql.conf -c hba_file=/var/lib/postgresql/conf/pg_hba.conf
+          {{- end }}
           env:
             - name: POSTGRES_DB
               value: {{ .Values.database.kasmDbName }}
             - name: POSTGRES_USER
               value: {{ .Values.database.kasmDbUser }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                 {{- if .Values.database.kasmDbSecret -}}
                 {{ .Values.database.kasmDbSecret | toYaml | nindent 18 }}
                 {{- else }}
-                  name: {{ .Release.Name }}-secrets
+                  name: {{ $constants.secrets.name }}
                   key: "db-password"
                 {{- end }}
           ports:
@@ -104,11 +78,9 @@ spec:
               protocol: TCP
           {{- if .Values.applyHealthChecks }}
           livenessProbe:
-            {{- include "health.command" (dict "command" (printf "pg_isready --port=%s -t 10" ($constants.db.port | toString))) | indent 12 }}
-          {{- end }}
-          {{- if .Values.applyHealthChecks }}
+            {{- include "health.probe" (dict "root" $ "component" "db" "probeType" "livenessProbe" "type" "command" "command" (printf "pg_isready --port=%s -t 10" ($constants.db.port | toString))) | nindent 12 }}
           readinessProbe:
-            {{- include "health.command" (dict "command" "psql -d ${POSTGRES_DB} -U ${POSTGRES_USER} -c 'SELECT 1' || exit 1") | indent 12 }}
+            {{- include "health.probe" (dict "root" $ "component" "db" "probeType" "readinessProbe" "type" "command" "command" "psql -d ${POSTGRES_DB} -U ${POSTGRES_USER} -c 'SELECT 1' || exit 1") | nindent 12 }}
           {{- end }}
           {{- if .Values.database.resources }}
           resources: {{- toYaml .Values.database.resources | nindent 12 }}
@@ -116,41 +88,53 @@ spec:
           resources: {{- include "resources.preset" (dict "node" $constants.db.component "size" .Values.deploymentSize) | nindent 12 }}
           {{- end }}
           {{- if .Values.applySecurity }}
-            {{- include "db.containerSecurity" . | indent 10 }}
+            {{- include "kasm.securityContext" (list . 70 "container") | nindent 10 }}
           {{- end }}
           volumeMounts:
-          - name: {{ printf "%s-%s-data" $constants.db.name .Chart.AppVersion | replace "." "-" }}
-            mountPath: /var/lib/postgresql/data
-            subPath: postgres
-          - name: {{ $constants.db.name }}-configs
-            mountPath: /docker-entrypoint-initdb.d/data.sql
-            subPath: data.sql
-          - name: {{ $constants.db.name }}-configs
-            mountPath: /var/lib/postgresql/conf/postgresql.conf
-            subPath: postgresql.conf
-          - name: {{ $constants.db.name }}-configs
-            mountPath: /var/lib/postgresql/conf/pg_hba.conf
-            subPath: pg_hba.conf
-          - name: {{ $constants.db.name }}-cert
-            mountPath: /etc/ssl/certs/db_server.crt
-            subPath: tls.crt
-          - name: {{ $constants.db.name }}-cert
-            mountPath: /etc/ssl/certs/db_server.key
-            subPath: tls.key
-          - name: {{ printf "%s-%s-data" $constants.db.name .Chart.AppVersion | replace "." "-" }}
-            mountPath: /tmp
-          {{- if .Values.applySecurity }}
-          - name: {{ printf "%s-%s-data" $constants.db.name .Chart.AppVersion | replace "." "-" }}
-            mountPath: /var/run/postgresql
-          {{- end }}
+            - name: {{ include "kasm.name" (list . "database" "data" .Chart.AppVersion) }}
+              mountPath: /var/lib/postgresql/data
+            - name: kasm-db-configs
+              mountPath: /docker-entrypoint-initdb.d/data.sql
+              subPath: data.sql
+            - name: kasm-db-configs
+              mountPath: /var/lib/postgresql/conf/postgresql.conf
+              subPath: postgresql.conf
+            - name: kasm-db-configs
+              mountPath: /var/lib/postgresql/conf/pg_hba.conf
+              subPath: pg_hba.conf
+            - name: kasm-db-cert
+              mountPath: /etc/ssl/certs/db_server.crt
+              subPath: tls.crt
+            - name: kasm-db-cert
+              mountPath: /etc/ssl/certs/db_server.key
+              subPath: tls.key
+            - name: {{ include "kasm.name" (list . "database" "data" .Chart.AppVersion) }}
+              mountPath: /tmp
+              subPath: log
+            {{- with $merged.containerMounts }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if .Values.applySecurity }}
+            - name: {{ include "kasm.name" (list . "database" "data" .Chart.AppVersion) }}
+              mountPath: /var/run/postgresql
+              subPath: run
+            {{- end }}
+            {{- include "kasm.trustedCaVolumeMounts" . | nindent 12 }}
+        {{- with $merged.extraContainers }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
       volumes:
-        - name: {{ $constants.db.name }}-configs
+        - name: kasm-db-configs
           configMap:
-            name: {{ $constants.db.name }}-configmap
-        - name: {{ $constants.db.name }}-cert
+            name: {{ include "kasm.name" (list . "db" "configmap") }}
+        - name: kasm-db-cert
           secret:
-            secretName: {{ .Values.certificate.secretName }}
+            secretName: {{ .Values.certificate.secretName | default (include "kasm.name" (list . "cert-manager" "secret")) }}
             defaultMode: 0o600
+        {{- with $merged.volumes }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- include "kasm.trustedCaVolumes" . | nindent 8 }}
   {{- if .Values.database.storage.retentionPolicy }}
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: {{ .Values.database.storage.retentionPolicy.whenDeleted }}
@@ -160,7 +144,7 @@ spec:
     - apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
-        name: {{ printf "%s-%s-data" $constants.db.name .Chart.AppVersion | replace "." "-" }}
+        name: {{ include "kasm.name" (list . "database" "data" .Chart.AppVersion) }}
       spec:
         accessModes:
           - ReadWriteOnce

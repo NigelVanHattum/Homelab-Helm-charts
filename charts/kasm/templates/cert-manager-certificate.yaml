@@ -6,32 +6,20 @@ Deploy the Certificates with certManager
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: {{ $constants.proxy.name }}-cert
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: {{ $constants.proxy.name }}-cert
-    app.kubernetes.io/component: certificate
-    {{- include "kasm.defaultLabels" . | indent 4 }}
-    {{- with .Values.certificate.certManager.labels }}{{ toYaml . | nindent 4 }}{{- end }}
-  {{- with .Values.certificate.certManager.annotations }}
-  annotations: {{- toYaml . | nindent 4 }}
-  {{- end }}
+  {{- include "kasm.metadata" (dict "context" . "component" "cert-manager" "resource" "certificate" "include" "all") | indent 2 }}
 spec:
   secretTemplate:
-    labels:
-      app.kubernetes.io/name: {{ .Values.certificate.secretName }}
-      app.kubernetes.io/component: cert-secret
-      {{- include "kasm.defaultLabels" . | indent 6 }}
-      {{- with .Values.extraLabels.certSecret }}{{ toYaml . | nindent 6 }}{{- end }}
-    {{- with .Values.annotations.certSecret }}
-    annotations: {{ toYaml . | nindent 6 }}
-    {{- end }}
-  secretName: {{ .Values.certificate.secretName }}
+    {{- include "kasm.metadata" (dict "context" . "component" "cert-manager" "resource" "secret" "include" "la") | indent 4 }}
+  secretName: {{ .Values.certificate.secretName | default (include "kasm.name" (list . "cert-manager" "secret")) }}
   commonName: {{ .Values.publicAddr | quote }}
   dnsNames:
     - {{ .Values.publicAddr | quote }}
     {{- if .Values.certificate.certManager.addWildCard }}
     - {{ printf "*.%s" .Values.publicAddr | quote }}
+    {{- else }}
+    {{- range $idx, $zone := (.Values.kasmZones) }}
+    - {{ include "kasm.zoneProxyHostnameRequired" $zone | quote }}
+    {{- end }}
     {{- end }}
   issuerRef:
     name: {{ .Values.certificate.certManager.issuerName }}

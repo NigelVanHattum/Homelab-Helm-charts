@@ -11,7 +11,18 @@ tests:
           of: StatefulSet
       - matchRegex:
           path: spec.template.spec.containers[0].image
-          pattern: "^kasmweb/postgres:"
+          pattern: "^docker\\.io/kasmweb/postgres:1\\.19\\.0-rolling$"
+
+  - it: lets the cluster pod ranges reach the bundled database
+    templates:
+      - templates/db-configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["pg_hba.conf"]
+          pattern: "(?m)^host +all +all +10\\.244\\.0\\.0/16 +md5$"
+      - matchRegex:
+          path: data["pg_hba.conf"]
+          pattern: "(?m)^host +all +all +fd00:10:244::/48 +md5$"
 
   - it: drops the database StatefulSet when pointed at an external server
     templates:

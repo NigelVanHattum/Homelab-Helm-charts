@@ -1,6 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "additionalProperties": false,
+  "additionalProperties": true,
+  "type": "object",
   "properties": {
     "affinity": {
       "additionalProperties": true,
@@ -9,30 +10,61 @@
       "type": "object"
     },
     "annotations": {
+      "additionalProperties": true,
+      "description": "Custom annotations to apply to all deployed resources",
+      "title": "annotations",
+      "type": "object"
+    },
+    "trustedCaBundle": {
+      "description": "Base64 encoded trusted CA bundle to be added to Kasm containers",
+      "title": "trustedCaBundle",
+      "additionalProperties": false,
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "configMapName": {
+          "default": "",
+          "description": "The name of the Kubernetes configmap where the CA bundle is stored.",
+          "title": "configMapName",
+          "type": "string"
+        },
+        "caCerts": {
+          "default": {},
+          "additionalProperties": true,
+          "description": "The CA certificates to be stored in the configmap. This is an object where you can paste your PEM-formatted CA certificates in a key-value format where the key is the file name and the value is the PEM-formatted certificate data. All keys MUST end with a `.crt` extension.",
+          "title": "caCerts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "enabled",
+        "configMapName",
+        "caCerts"
+      ]
+    },
+    "extraAnnotations": {
       "additionalProperties": false,
       "description": "See [Kubernetes Annotations](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/) for more information.",
       "properties": {
-        "certSecret": {
-          "additionalProperties": true,
-          "description": "Additional certSecret annotations to apply to resources created by this chart",
-          "title": "certSecret",
-          "type": "object"
-        },
         "configMap": {
           "additionalProperties": true,
           "description": "Additional configMap annotations to apply to resources created by this chart",
           "title": "configMap",
           "type": "object"
         },
-        "cron": {
+        "cronJob": {
           "additionalProperties": true,
-          "description": "Additional cron annotations to apply to resources created by this chart",
-          "title": "cron",
+          "description": "Additional cronJob annotations to apply to resources created by this chart",
+          "title": "cronJob",
           "type": "object"
         },
         "cronPod": {
           "additionalProperties": true,
-          "description": "Additional cron pod cron labels to apply to resources created by this chart",
+          "description": "Additional annotations to apply to the pod template inside CronJobs created by this chart",
           "title": "cronPod",
           "type": "object"
         },
@@ -40,6 +72,18 @@
           "additionalProperties": true,
           "description": "Additional deployment annotations to apply to resources created by this chart",
           "title": "deployment",
+          "type": "object"
+        },
+        "job": {
+          "additionalProperties": true,
+          "description": "Additional job annotations to apply to resources created by this chart",
+          "title": "job",
+          "type": "object"
+        },
+        "networkPolicy": {
+          "additionalProperties": true,
+          "description": "Additional NetworkPolicy annotations to apply to resources created by this chart",
+          "title": "networkPolicy",
           "type": "object"
         },
         "pod": {
@@ -66,6 +110,12 @@
           "title": "service",
           "type": "object"
         },
+        "serviceAccount": {
+          "additionalProperties": true,
+          "description": "Additional serviceAccount annotations to apply to resources created by this chart",
+          "title": "serviceAccount",
+          "type": "object"
+        },
         "statefulSet": {
           "additionalProperties": true,
           "description": "Additional statefulSet annotations to apply to resources created by this chart",
@@ -73,17 +123,20 @@
           "type": "object"
         }
       },
-      "title": "annotations",
+      "title": "extraAnnotations",
       "type": "object",
       "required": [
-        "certSecret",
         "configMap",
-        "cron",
+        "cronJob",
         "cronPod",
         "deployment",
+        "job",
+        "networkPolicy",
         "pod",
         "pvc",
         "service",
+        "secret",
+        "serviceAccount",
         "statefulSet"
       ]
     },
@@ -179,12 +232,19 @@
       "title": "clusterDomain",
       "type": "string"
     },
+    "nginxResolver": {
+      "default": "",
+      "description": "The IP address used by the nginx `resolver` directive in the Kasm nginx configs (proxy, guac, rdp-gateway, rdp-https-gateway). Leave empty to auto-detect the cluster's kube-dns Service ClusterIP at install/upgrade time, falling back to 127.0.0.11 if auto-detection is unavailable. Set explicitly to pin a specific resolver IP.",
+      "title": "nginxResolver",
+      "type": "string"
+    },
     "components": {
       "additionalProperties": false,
+      "description": "Kasm component resources and associated settings",
       "properties": {
         "api": {
           "additionalProperties": false,
-          "description": " ",
+          "description": "Configuration settings for the Kasm API service",
           "properties": {
             "annotations": {
               "additionalProperties": true,
@@ -192,24 +252,108 @@
               "title": "annotations",
               "type": "object"
             },
+            "extraContainers": {
+              "description": "Additional sidecar containers to run in the pod\nExample\n - name: sidecar-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraContainers",
+              "type": "array"
+            },
+            "extraInitContainers": {
+              "description": "Additional sidecar containers to run in the pod\nExample\n - name: init-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraInitContainers",
+              "type": "array"
+            },
+            "extraVolumeMounts": {
+              "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes Kasm API container\nExample: \n  extraVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+              "title": "extraVolumeMounts",
+              "type": "array"
+            },
+            "extraVolumes": {
+              "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm API container\nExample:\n  extraVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+              "title": "extraVolumes",
+              "type": "array"
+            },
+            "healthCheckTiming": {
+              "description": "Override the pod's default healthcheck timing values for liveness and/or readiness probes.\n Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only\n the timeoutSeconds value of the livenessProbe.",
+              "title": "healthCheckTiming",
+              "type": "object",
+              "properties": {
+                "livenessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                },
+                "readinessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
             "image": {
               "additionalProperties": false,
               "description": "Configure the image repository where the image is stored. Use this to point to an private hosted container registry instead of our public DockerHub hosted one.",
               "properties": {
+                "registry": {
+                  "default": "docker.io",
+                  "title": "registry",
+                  "type": "string"
+                },
                 "repository": {
                   "default": "kasmweb/api",
                   "title": "repository",
                   "type": "string"
                 },
                 "tag": {
-                  "default": "1.17.0",
                   "title": "tag",
                   "type": "string"
                 }
               },
               "title": "image",
               "type": "object",
-              "requied": [
+              "required": [
+                "registry",
                 "repository",
                 "tag"
               ]
@@ -220,21 +364,63 @@
               "title": "labels",
               "type": "object"
             },
+            "replicas": {
+              "description": "Override the replica count set by deploymentSize. Set to 0 to use the deploymentSize preset.",
+              "title": "replicas",
+              "type": "integer"
+            },
             "resources": {
               "additionalProperties": true,
               "description": "Manually configure the Kasm api Deployment resources. This overrides the pre-defined `deploymentSize` values.",
               "title": "resources",
               "type": "object"
+            },
+            "serviceAccount": {
+              "additionalProperties": false,
+              "description": "Overrides the global `serviceAccount` block for this component. All keys are optional and merged over the global defaults.",
+              "properties": {
+                "annotations": {
+                  "additionalProperties": {"type": "string"},
+                  "title": "annotations",
+                  "type": "object"
+                },
+                "create": {
+                  "title": "create",
+                  "type": "boolean"
+                },
+                "name": {
+                  "title": "name",
+                  "type": "string"
+                }
+              },
+              "title": "serviceAccount",
+              "type": "object"
+            },
+            "threadPool": {
+              "description": "Number of CherryPy worker threads for the API server. Increase under high concurrency. Default is 20.",
+              "title": "threadPool",
+              "type": "integer",
+              "default": 20
+            },
+            "threadPoolLogInterval": {
+              "description": "Seconds between background logs of CherryPy thread-pool usage (Threads/Active/Idle/Queue). Set to 0 to disable. Default is 0.",
+              "title": "threadPoolLogInterval",
+              "type": "integer",
+              "default": 0
             }
           },
           "title": "api",
           "type": "object",
-          "requied": [
-            "enabled",
+          "required": [
             "image",
-            "resources",
             "annotations",
-            "labels"
+            "resources",
+            "labels",
+            "healthCheckTiming",
+            "extraVolumes",
+            "extraVolumeMounts",
+            "extraContainers",
+            "extraInitContainers"
           ]
         },
         "guac": {
@@ -247,30 +433,119 @@
               "title": "annotations",
               "type": "object"
             },
+            "guacClusterSize": {
+              "description": "Set the number of `guacd` processes to run in each Guacamole pod",
+              "title": "guacClusterSize",
+              "type": "integer"
+            },
             "enabled": {
               "default": true,
-              "description": "Use this setting to enable/disable deployment of the Kasm Guacamole web RDP service - [Kasm Guac Service](https://kasmweb.com/docs/latest/guide/connection_proxies.html#guacamole-guac).",
+              "description": "Use this setting to enable/disable deployment of the Kasm Guacamole web RDP service - [Kasm Guac Service](https://docs.kasm.com/docs/latest/guide/connection_proxies/index.html#guacamole-guac).",
               "title": "enabled",
               "type": "boolean"
+            },
+            "extraContainers": {
+              "description": "Additional sidecar containers to run in the pod\nExample\n - name: sidecar-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraContainers",
+              "type": "array"
+            },
+            "extraInitContainers": {
+              "description": "Additional sidecar containers to run in the pod\nExample\n - name: init-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraInitContainers",
+              "type": "array"
+            },
+            "extraVolumeMounts": {
+              "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes Kasm Guac container\nExample: \n  extraVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+              "title": "extraVolumeMounts",
+              "type": "array"
+            },
+            "extraVolumes": {
+              "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm Guac container\nExample:\n  extraVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+              "title": "extraVolumes",
+              "type": "array"
+            },
+            "healthCheckTiming": {
+              "description": "Override the pod's default healthcheck timing values for liveness and/or readiness probes.\n Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only\n the timeoutSeconds value of the livenessProbe.",
+              "title": "healthCheckTiming",
+              "type": "object",
+              "properties": {
+                "livenessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                },
+                "readinessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
             },
             "image": {
               "additionalProperties": false,
               "description": "Configure the image repository where the image is stored. Use this to point to an private hosted container registry instead of our public DockerHub hosted one.",
               "properties": {
+                "registry": {
+                  "default": "docker.io",
+                  "title": "registry",
+                  "type": "string"
+                },
                 "repository": {
                   "default": "kasmweb/kasm-guac",
                   "title": "repository",
                   "type": "string"
                 },
                 "tag": {
-                  "default": "1.17.0",
                   "title": "tag",
                   "type": "string"
                 }
               },
               "title": "image",
               "type": "object",
-              "requied": [
+              "required": [
+                "registry",
                 "repository",
                 "tag"
               ]
@@ -281,21 +556,144 @@
               "title": "labels",
               "type": "object"
             },
+            "replicas": {
+              "description": "Configure the number of Guacamole pod replicas to deploy",
+              "title": "replicas",
+              "type": "integer"
+            },
             "resources": {
               "additionalProperties": true,
               "description": "Manually configure the Kasm Guac Deployment resources. This overrides the pre-defined `deploymentSize` values.",
               "title": "resources",
               "type": "object"
+            },
+            "nginxSidecar": {
+              "additionalProperties": false,
+              "description": "Configuration for the nginx sidecar container.",
+              "properties": {
+                "resources": {
+                  "additionalProperties": true,
+                  "description": "Manually configure resources for the nginx sidecar container. Leave empty to use the chart default.",
+                  "title": "resources",
+                  "type": "object"
+                },
+                "healthCheckTiming": {
+                  "description": "Override the pod's default healthcheck timing values for liveness and/or readiness probes.\n Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only\n the timeoutSeconds value of the livenessProbe.",
+                  "title": "healthCheckTiming",
+                  "type": "object",
+                  "properties": {
+                    "livenessProbe": {
+                      "title": "livenessProbe",
+                      "type": "object",
+                      "properties": {
+                        "timeoutSeconds": {
+                          "title": "timeoutSeconds",
+                          "type": "integer"
+                        },
+                        "initialDelaySeconds": {
+                          "title": "initialDelaySeconds",
+                          "type": "integer"
+                        },
+                        "periodSeconds": {
+                          "title": "periodSeconds",
+                          "type": "integer"
+                        },
+                        "failureThreshold": {
+                          "title": "failureThreshold",
+                          "type": "integer"
+                        },
+                        "successThreshold": {
+                          "title": "successThreshold",
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "readinessProbe": {
+                      "title": "livenessProbe",
+                      "type": "object",
+                      "properties": {
+                        "timeoutSeconds": {
+                          "title": "timeoutSeconds",
+                          "type": "integer"
+                        },
+                        "initialDelaySeconds": {
+                          "title": "initialDelaySeconds",
+                          "type": "integer"
+                        },
+                        "periodSeconds": {
+                          "title": "periodSeconds",
+                          "type": "integer"
+                        },
+                        "failureThreshold": {
+                          "title": "failureThreshold",
+                          "type": "integer"
+                        },
+                        "successThreshold": {
+                          "title": "successThreshold",
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                },
+                "extraVolumeMounts": {
+                  "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm Guac nginx sidecar container\nExample: \n  extraVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+                  "title": "extraVolumeMounts",
+                  "type": "array"
+                },
+                "extraVolumes": {
+                  "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm Guac nginx sidecar container\nExample:\n  extraVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+                  "title": "extraVolumes",
+                  "type": "array"
+                }
+              },
+              "title": "nginxSidecar",
+              "type": "object",
+              "required": [
+                "resources",
+                "healthCheckTiming",
+                "extraVolumes",
+                "extraVolumeMounts"
+              ]
+            },
+            "recordingData": {
+              "additionalProperties": false,
+              "description": "Backs the guac /tmp directory with a PersistentVolumeClaim so in-flight recordings survive pod restarts.",
+              "properties": {
+                "pvcSize": {
+                  "default": 10,
+                  "title": "pvcSize",
+                  "type": "integer"
+                },
+                "storageClassName": {
+                  "default": "",
+                  "title": "storageClassName",
+                  "type": "string"
+                }
+              },
+              "title": "recordingData",
+              "type": "object",
+              "required": [
+                "pvcSize",
+                "storageClassName"
+              ]
             }
           },
           "title": "guac",
           "type": "object",
-          "requied": [
-            "enabled",
+          "required": [
             "image",
-            "resources",
+            "enabled",
             "annotations",
-            "labels"
+            "resources",
+            "nginxSidecar",
+            "healthCheckTiming",
+            "labels",
+            "extraVolumes",
+            "extraVolumeMounts",
+            "extraContainers",
+            "extraInitContainers",
+            "recordingData"
           ]
         },
         "manager": {
@@ -308,24 +706,108 @@
               "title": "annotations",
               "type": "object"
             },
+            "extraContainers": {
+              "description": "Additional sidecar containers to run in the pod\nExample\n - name: sidecar-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraContainers",
+              "type": "array"
+            },
+            "extraInitContainers": {
+              "description": "Additional sidecar containers to run in the pod\nExample\n - name: init-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraInitContainers",
+              "type": "array"
+            },
+            "extraVolumeMounts": {
+              "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes Kasm Manager container\nExample: \n  extraVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+              "title": "extraVolumeMounts",
+              "type": "array"
+            },
+            "extraVolumes": {
+              "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm Manager container\nExample:\n  extraVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+              "title": "extraVolumes",
+              "type": "array"
+            },
+            "healthCheckTiming": {
+              "description": "Override the pod's default healthcheck timing values for liveness and/or readiness probes.\n Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only\n the timeoutSeconds value of the livenessProbe.",
+              "title": "healthCheckTiming",
+              "type": "object",
+              "properties": {
+                "livenessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                },
+                "readinessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
             "image": {
               "additionalProperties": false,
               "description": "Configure the image repository where the image is stored. Use this to point to an private hosted container registry instead of our public DockerHub hosted one.",
               "properties": {
+                "registry": {
+                  "default": "docker.io",
+                  "title": "registry",
+                  "type": "string"
+                },
                 "repository": {
                   "default": "kasmweb/manager",
                   "title": "repository",
                   "type": "string"
                 },
                 "tag": {
-                  "default": "1.17.0",
                   "title": "tag",
                   "type": "string"
                 }
               },
               "title": "image",
               "type": "object",
-              "requied": [
+              "required": [
+                "registry",
                 "repository",
                 "tag"
               ]
@@ -336,21 +818,63 @@
               "title": "labels",
               "type": "object"
             },
+            "replicas": {
+              "description": "Override the replica count set by deploymentSize. Set to 0 to use the deploymentSize preset.",
+              "title": "replicas",
+              "type": "integer"
+            },
             "resources": {
               "additionalProperties": true,
               "description": "Manually configure the Kasm Manager Deployment resources. This overrides the pre-defined `deploymentSize` values.",
               "title": "resources",
               "type": "object"
+            },
+            "serviceAccount": {
+              "additionalProperties": false,
+              "description": "Overrides the global `serviceAccount` block for this component. All keys are optional and merged over the global defaults.",
+              "properties": {
+                "annotations": {
+                  "additionalProperties": {"type": "string"},
+                  "title": "annotations",
+                  "type": "object"
+                },
+                "create": {
+                  "title": "create",
+                  "type": "boolean"
+                },
+                "name": {
+                  "title": "name",
+                  "type": "string"
+                }
+              },
+              "title": "serviceAccount",
+              "type": "object"
+            },
+            "updateTimer": {
+              "description": "Configures the delay (in seconds) between checking for updates, when automatic updates are enabled. Default value is 86400s, which equals 24 hours.",
+              "title": "updateTimer",
+              "type": "integer",
+              "default": 86400
+            },
+            "supportBundleTimer": {
+              "description": "Configures the batching interval (in seconds) for generating support bundles. This value determines how often the system checks for support bundle completion and expiration. Default value is 60s.",
+              "title": "supportBundleTimer",
+              "type": "integer",
+              "default": 60
             }
           },
           "title": "manager",
           "type": "object",
-          "requied": [
-            "enabled",
+          "required": [
             "image",
-            "resources",
             "annotations",
-            "labels"
+            "resources",
+            "labels",
+            "healthCheckTiming",
+            "extraVolumes",
+            "extraVolumeMounts",
+            "extraContainers",
+            "extraInitContainers"
           ]
         },
         "proxy": {
@@ -363,24 +887,108 @@
               "title": "annotations",
               "type": "object"
             },
+            "extraContainers": {
+              "description": "components.proxy.extraContainers Additional sidecar containers to run in the pod\nExample\n - name: sidecar-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraContainers",
+              "type": "array"
+            },
+            "extraInitContainers": {
+              "description": "components.proxy.extraInitContainers Additional sidecar containers to run in the pod\nExample\n - name: init-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraInitContainers",
+              "type": "array"
+            },
+            "extraVolumeMounts": {
+              "description": "components.proxy.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes Kasm Proxy container\nExample: \n  extraVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+              "title": "extraVolumeMounts",
+              "type": "array"
+            },
+            "extraVolumes": {
+              "description": "components.proxy.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm Proxy container\nExample:\n  extraVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+              "title": "extraVolumes",
+              "type": "array"
+            },
+            "healthCheckTiming": {
+              "description": "Override the pod's default healthcheck timing values for liveness and/or readiness probes.\n Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only\n the timeoutSeconds value of the livenessProbe.",
+              "title": "healthCheckTiming",
+              "type": "object",
+              "properties": {
+                "livenessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                },
+                "readinessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
             "image": {
               "additionalProperties": false,
               "description": "Configure the image repository where the image is stored. Use this to point to an private hosted container registry instead of our public DockerHub hosted one.",
               "properties": {
+                "registry": {
+                  "default": "docker.io",
+                  "title": "registry",
+                  "type": "string"
+                },
                 "repository": {
                   "default": "kasmweb/proxy",
                   "title": "repository",
                   "type": "string"
                 },
                 "tag": {
-                  "default": "1.17.0",
                   "title": "tag",
                   "type": "string"
                 }
               },
               "title": "image",
               "type": "object",
-              "requied": [
+              "required": [
+                "registry",
                 "repository",
                 "tag"
               ]
@@ -391,6 +999,11 @@
               "title": "labels",
               "type": "object"
             },
+            "replicas": {
+              "description": "Override the replica count set by deploymentSize. Set to 0 to use the deploymentSize preset.",
+              "title": "replicas",
+              "type": "integer"
+            },
             "resources": {
               "additionalProperties": true,
               "description": "Manually configure the Kasm Proxy Deployment resources. This overrides the pre-defined `deploymentSize` values.",
@@ -400,12 +1013,16 @@
           },
           "title": "proxy",
           "type": "object",
-          "requied": [
-            "enabled",
+          "required": [
             "image",
-            "resources",
             "annotations",
-            "labels"
+            "resources",
+            "labels",
+            "healthCheckTiming",
+            "extraVolumes",
+            "extraVolumeMounts",
+            "extraContainers",
+            "extraInitContainers"
           ]
         },
         "rdpGateway": {
@@ -420,28 +1037,118 @@
             },
             "enabled": {
               "default": true,
-              "description": "Use this setting to enable/disable deployment of the Kasm RDP Gateway service -  [Kasm RDP Gateway](https://kasmweb.com/docs/latest/guide/connection_proxies.html#rdp-gateway).",
+              "description": "Use this setting to enable/disable deployment of the Kasm RDP Gateway service -  [Kasm RDP Gateway](https://docs.kasm.com/docs/latest/guide/connection_proxies/index.html#rdp-gateway).",
               "title": "enabled",
               "type": "boolean"
+            },
+            "extraContainers": {
+              "description": "Additional sidecar containers to run in the pod\nExample\n - name: sidecar-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraContainers",
+              "type": "array"
+            },
+            "extraInitContainers": {
+              "description": "Additional sidecar containers to run in the pod\nExample\n - name: init-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraInitContainers",
+              "type": "array"
+            },
+            "iniConfigMapName": {
+              "default": "",
+              "description": "Name of a user-created ConfigMap providing a custom `rdpproxy.ini` for the rdp-gateway pod. See the Kasm documentation for details.",
+              "title": "iniConfigMapName",
+              "type": "string"
+            },
+            "extraVolumeMounts": {
+              "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes Kasm RDP Gateway container\nExample: \n  extraVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+              "title": "extraVolumeMounts",
+              "type": "array"
+            },
+            "extraVolumes": {
+              "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm RDP Gateway container\nExample:\n  extraVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+              "title": "extraVolumes",
+              "type": "array"
+            },
+            "healthCheckTiming": {
+              "description": "Override the pod's default healthcheck timing values for liveness and/or readiness probes.\n Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only\n the timeoutSeconds value of the livenessProbe.",
+              "title": "healthCheckTiming",
+              "type": "object",
+              "properties": {
+                "livenessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                },
+                "readinessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
             },
             "image": {
               "additionalProperties": false,
               "description": "Configure the image repository where the image is stored. Use this to point to an private hosted container registry instead of our public DockerHub hosted one.",
               "properties": {
+                "registry": {
+                  "default": "docker.io",
+                  "title": "registry",
+                  "type": "string"
+                },
                 "repository": {
                   "default": "kasmweb/rdp-gateway",
                   "title": "repository",
                   "type": "string"
                 },
                 "tag": {
-                  "default": "1.17.0",
                   "title": "tag",
                   "type": "string"
                 }
               },
               "title": "image",
               "type": "object",
-              "requied": [
+              "required": [
+                "registry",
                 "repository",
                 "tag"
               ]
@@ -452,26 +1159,127 @@
               "title": "labels",
               "type": "object"
             },
+            "replicas": {
+              "description": "Override the replica count set by deploymentSize. Set to 0 to use the deploymentSize preset (which is 1 for rdp-gateway). Multi-replica rdp-gateway is not supported in this release.",
+              "title": "replicas",
+              "type": "integer",
+              "maximum": 1
+            },
             "resources": {
               "additionalProperties": true,
               "description": "Manually configure the Kasm RDP Gateway Deployment resources. This overrides the pre-defined `deploymentSize` values.",
               "title": "resources",
               "type": "object"
+            },
+            "nginxSidecar": {
+              "additionalProperties": false,
+              "description": "Configuration for the nginx sidecar container.",
+              "properties": {
+                "resources": {
+                  "additionalProperties": true,
+                  "description": "Manually configure resources for the nginx sidecar container. Leave empty to use the chart default.",
+                  "title": "resources",
+                  "type": "object"
+                },
+                "healthCheckTiming": {
+                  "description": "Override the pod's default healthcheck timing values for liveness and/or readiness probes.\n Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only\n the timeoutSeconds value of the livenessProbe.",
+                  "title": "healthCheckTiming",
+                  "type": "object",
+                  "properties": {
+                    "livenessProbe": {
+                      "title": "livenessProbe",
+                      "type": "object",
+                      "properties": {
+                        "timeoutSeconds": {
+                          "title": "timeoutSeconds",
+                          "type": "integer"
+                        },
+                        "initialDelaySeconds": {
+                          "title": "initialDelaySeconds",
+                          "type": "integer"
+                        },
+                        "periodSeconds": {
+                          "title": "periodSeconds",
+                          "type": "integer"
+                        },
+                        "failureThreshold": {
+                          "title": "failureThreshold",
+                          "type": "integer"
+                        },
+                        "successThreshold": {
+                          "title": "successThreshold",
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "readinessProbe": {
+                      "title": "livenessProbe",
+                      "type": "object",
+                      "properties": {
+                        "timeoutSeconds": {
+                          "title": "timeoutSeconds",
+                          "type": "integer"
+                        },
+                        "initialDelaySeconds": {
+                          "title": "initialDelaySeconds",
+                          "type": "integer"
+                        },
+                        "periodSeconds": {
+                          "title": "periodSeconds",
+                          "type": "integer"
+                        },
+                        "failureThreshold": {
+                          "title": "failureThreshold",
+                          "type": "integer"
+                        },
+                        "successThreshold": {
+                          "title": "successThreshold",
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                },
+                "extraVolumeMounts": {
+                  "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm RDP Gateway nginx sidecar container\nExample: \n  extraVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+                  "title": "extraVolumeMounts",
+                  "type": "array"
+                },
+                "extraVolumes": {
+                  "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm RDP Gateway nginx sidecar container\nExample:\n  extraVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+                  "title": "extraVolumes",
+                  "type": "array"
+                }
+              },
+              "title": "nginxSidecar",
+              "type": "object",
+              "required": [
+                "resources",
+                "healthCheckTiming",
+                "extraVolumes",
+                "extraVolumeMounts"
+              ]
             }
           },
           "title": "rdpGateway",
           "type": "object",
-          "requied": [
-            "enabled",
+          "required": [
             "image",
-            "resources",
+            "enabled",
             "annotations",
-            "labels"
+            "resources",
+            "nginxSidecar",
+            "healthCheckTiming",
+            "labels",
+            "extraVolumes",
+            "extraVolumeMounts",
+            "extraContainers",
+            "extraInitContainers"
           ]
         },
         "rdpHttpsGateway": {
           "additionalProperties": false,
-          "description": " ",
+          "description": "Configuration settings for the Kasm RDP HTTPS Gateway service",
           "properties": {
             "annotations": {
               "additionalProperties": true,
@@ -481,28 +1289,112 @@
             },
             "enabled": {
               "default": true,
-              "description": "Use this setting to enable/disable deployment of the Kasm RDP HTTPS Gateway service. This service allows users to use native RDP clients via HTTPS connections rather than exposing 3389 - [Kasm RDP HTTPS Gateway](https://kasmweb.com/docs/latest/guide/connection_proxies.html#rdp-https-gateway).",
+              "description": "Use this setting to enable/disable deployment of the Kasm RDP HTTPS Gateway service. This service allows users to use native RDP clients via HTTPS connections rather than exposing 3389 - [Kasm RDP HTTPS Gateway](https://docs.kasm.com/docs/latest/guide/connection_proxies/index.html#rdp-https-gateway).",
               "title": "enabled",
               "type": "boolean"
+            },
+            "extraContainers": {
+              "description": "Additional sidecar containers to run in the pod\nExample\n - name: init-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraContainers",
+              "type": "array"
+            },
+            "extraInitContainers": {
+              "description": "Additional sidecar containers to run in the pod\nExample\n - name: init-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+              "title": "extraInitContainers",
+              "type": "array"
+            },
+            "extraVolumeMounts": {
+              "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes Kasm RDP HTTPS Gateway container\nExample: \n  extraVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+              "title": "extraVolumeMounts",
+              "type": "array"
+            },
+            "extraVolumes": {
+              "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm RDP HTTPS Gateway container\nExample:\n  extraVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+              "title": "extraVolumes",
+              "type": "array"
+            },
+            "healthCheckTiming": {
+              "description": "Override the pod's default healthcheck timing values for liveness and/or readiness probes.\n Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only\n the timeoutSeconds value of the livenessProbe.",
+              "title": "healthCheckTiming",
+              "type": "object",
+              "properties": {
+                "livenessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                },
+                "readinessProbe": {
+                  "title": "livenessProbe",
+                  "type": "object",
+                  "properties": {
+                    "timeoutSeconds": {
+                      "title": "timeoutSeconds",
+                      "type": "integer"
+                    },
+                    "initialDelaySeconds": {
+                      "title": "initialDelaySeconds",
+                      "type": "integer"
+                    },
+                    "periodSeconds": {
+                      "title": "periodSeconds",
+                      "type": "integer"
+                    },
+                    "failureThreshold": {
+                      "title": "failureThreshold",
+                      "type": "integer"
+                    },
+                    "successThreshold": {
+                      "title": "successThreshold",
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
             },
             "image": {
               "additionalProperties": false,
               "description": "Configure the image repository where the image is stored. Use this to point to an private hosted container registry instead of our public DockerHub hosted one.",
               "properties": {
+                "registry": {
+                  "default": "docker.io",
+                  "title": "registry",
+                  "type": "string"
+                },
                 "repository": {
                   "default": "kasmweb/rdp-https-gateway",
                   "title": "repository",
                   "type": "string"
                 },
                 "tag": {
-                  "default": "1.17.0",
                   "title": "tag",
                   "type": "string"
                 }
               },
               "title": "image",
               "type": "object",
-              "requied": [
+              "required": [
+                "registry",
                 "repository",
                 "tag"
               ]
@@ -513,30 +1405,138 @@
               "title": "labels",
               "type": "object"
             },
+            "replicas": {
+              "description": "Configure the number of RDP HTTPS Gateway Pod replicas to deploy",
+              "title": "replicas",
+              "type": "integer"
+            },
             "resources": {
               "additionalProperties": true,
               "description": "Manually configure the Kasm RDP HTTPS Gateway Deployment resources. This overrides the pre-defined `deploymentSize` values.",
               "title": "resources",
               "type": "object"
+            },
+            "nginxSidecar": {
+              "additionalProperties": false,
+              "description": "Configuration for the nginx sidecar container.",
+              "properties": {
+                "resources": {
+                  "additionalProperties": true,
+                  "description": "Manually configure resources for the nginx sidecar container. Leave empty to use the chart default.",
+                  "title": "resources",
+                  "type": "object"
+                },
+                "healthCheckTiming": {
+                  "description": "Override the pod's default healthcheck timing values for liveness and/or readiness probes.\n Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only\n the timeoutSeconds value of the livenessProbe.",
+                  "title": "healthCheckTiming",
+                  "type": "object",
+                  "properties": {
+                    "livenessProbe": {
+                      "title": "livenessProbe",
+                      "type": "object",
+                      "properties": {
+                        "timeoutSeconds": {
+                          "title": "timeoutSeconds",
+                          "type": "integer"
+                        },
+                        "initialDelaySeconds": {
+                          "title": "initialDelaySeconds",
+                          "type": "integer"
+                        },
+                        "periodSeconds": {
+                          "title": "periodSeconds",
+                          "type": "integer"
+                        },
+                        "failureThreshold": {
+                          "title": "failureThreshold",
+                          "type": "integer"
+                        },
+                        "successThreshold": {
+                          "title": "successThreshold",
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    "readinessProbe": {
+                      "title": "livenessProbe",
+                      "type": "object",
+                      "properties": {
+                        "timeoutSeconds": {
+                          "title": "timeoutSeconds",
+                          "type": "integer"
+                        },
+                        "initialDelaySeconds": {
+                          "title": "initialDelaySeconds",
+                          "type": "integer"
+                        },
+                        "periodSeconds": {
+                          "title": "periodSeconds",
+                          "type": "integer"
+                        },
+                        "failureThreshold": {
+                          "title": "failureThreshold",
+                          "type": "integer"
+                        },
+                        "successThreshold": {
+                          "title": "successThreshold",
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                },
+                "extraVolumeMounts": {
+                  "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm RDP HTTPS Gateway nginx sidecar container\nExample: \n  extraVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+                  "title": "extraVolumeMounts",
+                  "type": "array"
+                },
+                "extraVolumes": {
+                  "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm RDP HTTPS Gateway nginx sidecar container\nExample:\n  extraVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+                  "title": "extraVolumes",
+                  "type": "array"
+                }
+              },
+              "title": "nginxSidecar",
+              "type": "object",
+              "required": [
+                "resources",
+                "healthCheckTiming",
+                "extraVolumes",
+                "extraVolumeMounts"
+              ]
             }
           },
           "title": "rdpHttpsGateway",
           "type": "object",
-          "requied": [
-            "enabled",
+          "required": [
             "image",
-            "resources",
+            "enabled",
             "annotations",
-            "labels"
+            "resources",
+            "nginxSidecar",
+            "healthCheckTiming",
+            "labels",
+            "extraVolumes",
+            "extraVolumeMounts",
+            "extraContainers",
+            "extraInitContainers"
           ]
         }
       },
+      "required": [
+        "proxy",
+        "api",
+        "manager",
+        "guac",
+        "rdpGateway",
+        "rdpHttpsGateway"
+      ],
       "title": "components",
       "type": "object"
     },
     "database": {
       "additionalProperties": false,
-      "description": " ",
+      "description": "Kasm DB settings and configuration options",
       "properties": {
         "annotations": {
           "additionalProperties": true,
@@ -544,30 +1544,114 @@
           "title": "annotations",
           "type": "object"
         },
+        "extraContainers": {
+          "description": "Additional sidecar containers to run in the pod\nExample\n - name: sidecar-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+          "title": "extraContainers",
+          "type": "array"
+        },
+        "extraInitContainers": {
+          "description": "Additional sidecar containers to run in the pod\nExample\n - name: init-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+          "title": "extraInitContainers",
+          "type": "array"
+        },
+        "extraVolumeMounts": {
+          "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes Kasm Database container\nExample: \n  extraVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+          "title": "extraVolumeMounts",
+          "type": "array"
+        },
+        "extraVolumes": {
+          "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to the Kasm Database container\nExample:\n  extraVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+          "title": "extraVolumes",
+          "type": "array"
+        },
         "hostname": {
           "default": "kasm-db",
-          "description": "The hostname used to connect to the database server. If you use the Kasm DB StatefulSet this will be the name of the DB service, if you use an external DB, you need to replace this value with the hostname or IP or your DB server.",
+          "description": "The hostname of the external PostgreSQL server.  Only used when database.standalone is true.",
           "title": "hostname",
           "type": "string"
+        },
+        "healthCheckTiming": {
+          "description": "Override the pod's default healthcheck timing values for liveness and/or readiness probes.\n Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only\n the timeoutSeconds value of the livenessProbe.",
+          "title": "healthCheckTiming",
+          "type": "object",
+          "properties": {
+            "livenessProbe": {
+              "title": "livenessProbe",
+              "type": "object",
+              "properties": {
+                "timeoutSeconds": {
+                  "title": "timeoutSeconds",
+                  "type": "integer"
+                },
+                "initialDelaySeconds": {
+                  "title": "initialDelaySeconds",
+                  "type": "integer"
+                },
+                "periodSeconds": {
+                  "title": "periodSeconds",
+                  "type": "integer"
+                },
+                "failureThreshold": {
+                  "title": "failureThreshold",
+                  "type": "integer"
+                },
+                "successThreshold": {
+                  "title": "successThreshold",
+                  "type": "integer"
+                }
+              }
+            },
+            "readinessProbe": {
+              "title": "livenessProbe",
+              "type": "object",
+              "properties": {
+                "timeoutSeconds": {
+                  "title": "timeoutSeconds",
+                  "type": "integer"
+                },
+                "initialDelaySeconds": {
+                  "title": "initialDelaySeconds",
+                  "type": "integer"
+                },
+                "periodSeconds": {
+                  "title": "periodSeconds",
+                  "type": "integer"
+                },
+                "failureThreshold": {
+                  "title": "failureThreshold",
+                  "type": "integer"
+                },
+                "successThreshold": {
+                  "title": "successThreshold",
+                  "type": "integer"
+                }
+              }
+            }
+          }
         },
         "image": {
           "additionalProperties": false,
           "description": "Configure the image repository where the image is stored. Use this to point to an private hosted container registry instead of our public DockerHub hosted one.",
           "properties": {
+            "registry": {
+              "default": "docker.io",
+              "title": "registry",
+              "type": "string"
+            },
             "repository": {
               "default": "kasmweb/postgres",
               "title": "repository",
               "type": "string"
             },
             "tag": {
-              "default": "1.17.0",
               "title": "tag",
               "type": "string"
             }
           },
           "title": "image",
           "type": "object",
-          "requied": [
+          "required": [
+            "registry",
             "repository",
             "tag"
           ]
@@ -705,10 +1789,16 @@
         "kasmDbUser",
         "kasmDbSecret",
         "postgresMasterUser",
+        "healthCheckTiming",
         "image",
         "storage",
         "annotations",
-        "resources"
+        "resources",
+        "labels",
+        "extraVolumes",
+        "extraVolumeMounts",
+        "extraContainers",
+        "extraInitContainers"
       ]
     },
     "dbManagement": {
@@ -772,6 +1862,18 @@
           "title": "initialize",
           "type": "boolean"
         },
+        "initJobTTLSecondsAfterFinished": {
+            "default": 300,
+            "description": "The number of seconds to retain the DB backup job pod after it has finished. The default is 300 seconds (5 minutes).",
+            "title": "initJobTTLSecondsAfterFinished",
+            "type": "integer"
+        },
+        "dbConnectionTimeout": {
+          "default": 10,
+          "description": "The time in seconds to wait for the DB to respond to initContainer connection attempts.",
+          "title": "dbConnectionTimeout",
+          "type": "integer"
+        },
         "upgrade": {
           "additionalProperties": false,
           "description": " ",
@@ -782,40 +1884,61 @@
               "title": "enable",
               "type": "boolean"
             },
+            "oldDbHostname": {
+              "type": "string",
+              "default": "",
+              "description": "Hostname of the database from the previous Helm release. Only required if your old deployment used a non-default DB hostname (i.e. not kasm-db). Leave empty if using a standalone DB or to fall back to the default."
+            },
+            "skipBackupAndRestore": {
+              "default": false,
+              "description": "Skip the chart-included pre-upgrade DB backup AND restore steps. ONLY supported with database.standalone=true; setting this with the chart-included DB causes the upgrade Job to fail-render. When true, the chart does not render the backup PVC/Job and the upgrade Job runs only the Kasm schema (alembic) migration against the already-restored standalone DB. Operator is responsible for performing pg_dump, Postgres major-version upgrade, and pg_restore manually before running helm upgrade. oldDbHostname and oldDbBackupFileName are ignored when this is true.",
+              "title": "skipBackupAndRestore",
+              "type": "boolean"
+            },
+            "backupStorageClass": {
+              "default": "",
+              "description": "The storageClass to use to create PV for the backup PVC.",
+              "title": "backupStorageClass",
+              "type": "string"
+            },
             "oldDbBackupFileName": {
               "default": "kasm_dump.tar",
-              "description": " ",
+              "description": "The file name of the database backup to restore and upgrade.",
               "title": "oldDbBackupFileName",
               "type": "string"
             },
-            "oldDbBackupPvc": {
-              "default": "kasm-db-dump-pvc",
-              "description": " ",
-              "title": "oldDbBackupPvc",
-              "type": "string"
-            },
             "oldDbSecretsName": {
-              "default": "kasm-secrets",
-              "description": "The name of the Kubernetes secret where Kasm and DB passwords are stored.",
+              "default": "",
+              "description": "The name of an existing Kubernetes secret to use as the source for credential lookup during upgrades. Leave empty to use the current release's '<release>-secrets' secret. Set to a different secret name only when upgrading from a deployment that stored credentials under a non-default name.",
               "title": "oldDbSecretsName",
               "type": "string"
             }
           },
           "title": "upgrade",
+          "type": "object",
           "required": [
             "enable",
+            "backupStorageClass",
             "oldDbSecretsName",
-            "oldDbBackupPvc",
             "oldDbBackupFileName"
           ]
         }
       },
       "title": "dbManagement",
+      "type": "object",
       "required": [
         "initialize",
         "upgrade",
-        "backupCron"
+        "backupCron",
+        "initJobTTLSecondsAfterFinished",
+        "dbConnectionTimeout"
       ]
+    },
+    "useImageTags": {
+      "default": "",
+      "description": "Chart-wide default image tag applied to every Kasm component image when a per-component `image.tag` is empty. Per-component `image.tag` (when set) overrides this. If both this and the per-component tag are empty, template rendering fails. Examples: `1.19.0-rolling`, `1.19.0`, `1.19.0-rolling-2026-06-02`.",
+      "title": "useImageTags",
+      "type": "string"
     },
     "deploymentSize": {
       "default": "small",
@@ -828,31 +1951,100 @@
         "large"
       ]
     },
+    "directRdpService": {
+      "additionalProperties": false,
+      "type": "object",
+      "title": "directRdpService",
+      "description": "Configure the directRdpService settings and service type to use for the Kasm RDP Gateway service. This is only applicable if you have enabled the Kasm RDP Gateway component in `components.rdpGateway.enabled`.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Set to true to enable a direct ClusterIP service for the Kasm RDP Gateway. This service will expose the RDP Gateway on port 3389 for direct RDP client connections. NOTE: Enabling this setting will not disable the RDP Gateway's main service which is meant for use with the RDP HTTPS Gateway or for connections proxied through the Kasm Proxy. This is meant to be an additional service to allow direct RDP client connections for users who wish to use the RDP Gateway in this way.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "rdpAccessURL": {
+          "default": "",
+          "description": "The external URL to access the RDP Gateway direct service. This is used for generating correct URLs in the Kasm UI for users to connect their RDP clients to. This should be in the format of `rdp://hostname:port` or `rdp://ip:port` depending on how you have configured access to the direct RDP Gateway service.",
+          "title": "rdpAccessURL",
+          "type": "string"
+        },
+        "type": {
+          "default": "LoadBalancer",
+          "description": "The Kubernetes Service type to use for the direct RDP Gateway service. Allowed values are LoadBalancer or NodePort. The RDP Gateway speaks raw TCP, so any cloud load balancer backing this Service must be a Layer 4 / TCP type (e.g. NLB on AWS, not ALB).",
+          "title": "type",
+          "type": "string",
+          "enum": [
+            "NodePort",
+            "LoadBalancer"
+          ]
+        },
+        "loadBalancerPort": {
+          "default": 3389,
+          "description": "The external port exposed by the directRdpService Service when `directRdpService.type` is LoadBalancer. Defaults to 3389. Has no effect when `directRdpService.type` is NodePort.",
+          "title": "loadBalancerPort",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "annotations": {
+          "additionalProperties": true,
+          "description": "Custom annotations to add to the direct RDP Gateway service. This is useful for adding things like LoadBalancer annotations if you have set `directRdpService.type` to LoadBalancer.",
+          "title": "annotations",
+          "type": "object"
+        },
+        "labels": {
+          "additionalProperties": true,
+          "description": "Custom labels to add to the direct RDP Gateway service.",
+          "title": "labels",
+          "type": "object"
+        }
+      },
+      "required": [
+        "enabled",
+        "type",
+        "rdpAccessURL"
+      ]
+    },
+    "extraContainerVolumeMounts": {
+      "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to all Kasm containers\nExample: \n  extraContainerVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+      "title": "extraContainerVolumeMounts",
+      "type": "array"
+    },
+    "extraContainers": {
+      "description": "Additional sidecar containers to run in every pod\nExample\n - name: sidecar-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+      "title": "extraContainers",
+      "type": "array"
+    },
+    "extraInitContainers": {
+      "description": "Additional sidecar containers to run in every pod\nExample\n - name: init-example\n   image: busybox\n   command: [/bin/sh, -c, 'echo \"Hello world\"']",
+      "title": "extraInitContainers",
+      "type": "array"
+    },
+    "extraInitVolumeMounts": {
+      "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to all Kasm Service Init containers\nExample: \n  extraInitVolumeMounts:\n    - mountPath: /etc/ssl/certs/ca-certificates.crt\n      name: pkichain\n      readOnly: true\n      subPath: ca.crt",
+      "title": "extraInitVolumeMounts",
+      "type": "array"
+    },
     "extraLabels": {
       "additionalProperties": false,
       "description": "See [Kubernetes Labels](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/) for more information.",
       "properties": {
-        "certSecret": {
-          "additionalProperties": true,
-          "description": "Additional statefulSet labels to apply to resources created by this chart",
-          "title": "certSecret",
-          "type": "object"
-        },
         "configMap": {
           "additionalProperties": true,
           "description": "Additional configMap labels to apply to resources created by this chart",
           "title": "configMap",
           "type": "object"
         },
-        "cron": {
+        "cronJob": {
           "additionalProperties": true,
-          "description": "Additional cron labels to apply to resources created by this chart",
-          "title": "cron",
+          "description": "Additional cronJob labels to apply to resources created by this chart",
+          "title": "cronJob",
           "type": "object"
         },
         "cronPod": {
           "additionalProperties": true,
-          "description": "Additional cron Pod labels to apply to resources created by this chart",
+          "description": "Additional labels to apply to the pod template inside CronJobs created by this chart",
           "title": "cronPod",
           "type": "object"
         },
@@ -868,10 +2060,10 @@
           "title": "job",
           "type": "object"
         },
-        "jobPod": {
+        "networkPolicy": {
           "additionalProperties": true,
-          "description": "Additional job Pod labels to apply to resources created by this chart",
-          "title": "jobPod",
+          "description": "Additional NetworkPolicy labels to apply to resources created by this chart",
+          "title": "networkPolicy",
           "type": "object"
         },
         "pod": {
@@ -898,6 +2090,12 @@
           "title": "service",
           "type": "object"
         },
+        "serviceAccount": {
+          "additionalProperties": true,
+          "description": "Additional serviceAccount labels to apply to resources created by this chart",
+          "title": "serviceAccount",
+          "type": "object"
+        },
         "statefulSet": {
           "additionalProperties": true,
           "description": "Additional statefulSet labels to apply to resources created by this chart",
@@ -906,16 +2104,17 @@
         }
       },
       "title": "extraLabels",
+      "type": "object",
       "required": [
-        "certSecret",
         "configMap",
         "deployment",
+        "networkPolicy",
         "pod",
         "secret",
         "service",
+        "serviceAccount",
         "job",
-        "jobPod",
-        "cron",
+        "cronJob",
         "cronPod",
         "pvc",
         "statefulSet"
@@ -925,14 +2124,23 @@
       "additionalProperties": true,
       "description": "Deploy additional Kubernetes manifests. This field is expected to be either a multi-line string, a list of strings, or a list of objects.",
       "title": "extraObjects",
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "array"
-        }
-      ]
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object"
+          }
+        ]
+      },
+      "default": []
+    },
+    "extraVolumes": {
+      "description": "A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things\n like custom SSL certificates, config files, or data volumes to all Kasm containers\nExample:\n  extraContainerVolumes:\n    - secret:\n        defaultMode: 420\n        secretName: kasm-custom-tls\n      name: pkichain",
+      "title": "extraVolumes",
+      "type": "array"
     },
     "imagePullPolicy": {
       "default": "IfNotPresent",
@@ -940,18 +2148,127 @@
       "title": "imagePullPolicy",
       "type": "string"
     },
+    "logFormat": {
+      "default": "log",
+      "description": "Kasm log format written to console. 'log' emits human-readable text; 'json' emits structured JSON suitable for log aggregation pipelines.",
+      "title": "logFormat",
+      "type": "string",
+      "enum": ["log", "json"]
+    },
+    "kasmSecrets": {
+      "additionalProperties": false,
+      "description": "Create a custom Kasm Password secret, or reference an existing one.",
+      "title": "kasmSecrets",
+      "type": "object",
+      "properties": {
+        "create": {
+          "default": true,
+          "description": "Set to false to use an existing Kasm Password secret instead of having the chart manage one.",
+          "title": "create",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "",
+          "description": "The name of the Kasm Password secret. If provided and create=true, Helm uses this as the created secret's name. If create=false, this MUST be the name of an existing Kasm Password secret in the deployment namespace.",
+          "title": "name",
+          "type": "string"
+        },
+        "passwords": {
+          "additionalProperties": true,
+          "description": "Pin specific credential values instead of letting the chart randomly generate them. Extra, non-standard keys are also allowed and are written into the generated Secret as literal base64-encoded values.",
+          "title": "passwords",
+          "type": "object",
+          "properties": {
+            "manager-token": {
+              "default": "",
+              "description": "Pin the manager-token credential to a specific value instead of random generation.",
+              "title": "manager-token",
+              "type": "string"
+            },
+            "service-token": {
+              "default": "",
+              "description": "Pin the service-token credential to a specific value instead of random generation.",
+              "title": "service-token",
+              "type": "string"
+            },
+            "db-password": {
+              "default": "",
+              "description": "Pin the db-password credential to a specific value instead of random generation.",
+              "title": "db-password",
+              "type": "string"
+            },
+            "admin-password": {
+              "default": "",
+              "description": "Pin the admin-password credential to a specific value instead of random generation.",
+              "title": "admin-password",
+              "type": "string"
+            },
+            "user-password": {
+              "default": "",
+              "description": "Pin the user-password credential to a specific value instead of random generation.",
+              "title": "user-password",
+              "type": "string"
+            }
+          }
+        },
+        "annotations": {
+          "additionalProperties": true,
+          "description": "Custom annotations to add to the Kasm Password secret",
+          "title": "annotations",
+          "type": "object"
+        },
+        "labels": {
+          "additionalProperties": true,
+          "description": "Custom labels to add to the Kasm Password secret",
+          "title": "labels",
+          "type": "object"
+        }
+      },
+      "required": ["create", "name", "passwords", "annotations", "labels"]
+    },
+    "serviceAccount": {
+      "additionalProperties": false,
+      "description": "Global default for the ServiceAccount used by components.api and components.manager pods. Useful for EKS Pod Identity (reference an externally-associated SA by name) or IRSA (chart-created SA annotated with a role ARN). Override per-component under components.api.serviceAccount / components.manager.serviceAccount.",
+      "properties": {
+        "annotations": {
+          "additionalProperties": {"type": "string"},
+          "description": "Annotations to add to the created ServiceAccount (e.g. IRSA's eks.amazonaws.com/role-arn). Only applied when create is true.",
+          "title": "annotations",
+          "type": "object"
+        },
+        "create": {
+          "default": false,
+          "description": "Create the ServiceAccount named below. Set false to only reference an existing ServiceAccount by name (e.g. for EKS Pod Identity associations).",
+          "title": "create",
+          "type": "boolean"
+        },
+        "name": {
+          "default": "",
+          "description": "ServiceAccount name to set on the pod spec. Leave blank to use the default ServiceAccount.",
+          "title": "name",
+          "type": "string"
+        }
+      },
+      "title": "serviceAccount",
+      "type": "object",
+      "required": [
+        "create",
+        "name",
+        "annotations"
+      ]
+    },
     "imagePullSecrets": {
       "additionalProperties": false,
       "properties": {
         "annotations": {
-          "additionalProperties": false,
+          "additionalProperties": true,
           "description": "Additional annotations for this secret",
           "title": "annotations",
           "type": "object"
         },
         "email": {
           "default": "",
-          "description": "The email address used to authenticate (optional, used for dockerconfigjson and dockercfg)",
+          "description": "The email address used to authenticate (optional for some registries).",
           "title": "email",
           "type": "string"
         },
@@ -962,7 +2279,7 @@
           "type": "boolean"
         },
         "labels": {
-          "additionalProperties": false,
+          "additionalProperties": true,
           "description": "Additional labels for this secret",
           "title": "labels",
           "type": "object"
@@ -979,16 +2296,10 @@
           "title": "password",
           "type": "string"
         },
-        "server": {
+        "registry": {
           "default": "",
-          "description": "The Registry server to use when pulling images (required for dockerconfigjson and dockercfg)",
-          "title": "server",
-          "type": "string"
-        },
-        "type": {
-          "default": "",
-          "description": "Type of image pull credential to create. Valid types are \"dockerconfigjson\", \"dockercfg\", or \"basic\"",
-          "title": "type",
+          "description": "The Registry server to use when pulling images from a private container registry.",
+          "title": "registry",
           "type": "string"
         },
         "username": {
@@ -1003,8 +2314,7 @@
       "required": [
         "enabled",
         "name",
-        "type",
-        "server",
+        "registry",
         "username",
         "password",
         "email",
@@ -1026,7 +2336,8 @@
           "default": "http",
           "description": "The backend protocol to for the Ingress to communicate with the Kasm proxy service. Valid values: http or https",
           "title": "backendProtocol",
-          "type": "string"
+          "type": "string",
+          "enum": ["http", "https"]
         },
         "enabled": {
           "default": false,
@@ -1063,28 +2374,171 @@
         "labels"
       ]
     },
+    "isOpenshift": {
+      "default": false,
+      "description": "isOpenshift -- Use this flag to remove Pod and Container security ID values and allow OpenShift to dynamically\nset them in accordance with [OpenShift UIDs](https://www.redhat.com/en/blog/a-guide-to-openshift-and-uids) documentation.",
+      "title": "isOpenshift",
+      "type": "boolean"
+    },
+    "kasmConfig": {
+      "description": "An object of arrays of Kasm settings used to generate a preseed initialization file",
+      "type": "object",
+      "properties": {
+        "generatePreseed": {
+          "default": false,
+          "title": "generatePreseed",
+          "description": "Enable DB preseed template file generation. When true, a custom_properties.yaml is rendered from kasmConfig.config and merged with Kasm's default seed data during db-init. Opt-in; set to true explicitly for new installs that require preseed.",
+          "type": "boolean"
+        },
+        "defaultApiUsers": {
+          "default": false,
+          "title": "defaultApiUsers",
+          "description": "Seed Kasm default API configs (Admin and Read/Only API keys). Only meaningful when generatePreseed is true. Opt-in.",
+          "type": "boolean"
+        },
+        "defaultUsers": {
+          "default": false,
+          "title": "defaultUsers",
+          "description": "Seed Kasm default users and groups (admin@kasm.local, user@kasm.local, siteadmin@kasm.local, workspaceadmin@kasm.local, and standard groups). Only meaningful when generatePreseed is true. Opt-in.",
+          "type": "boolean"
+        },
+        "adminUsername": {
+          "default": "admin@kasm.local",
+          "title": "adminUsername",
+          "description": "Username for the privileged admin account in the default user seed. Defaults to admin@kasm.local. Has no effect when defaultUsers is false.",
+          "type": "string"
+        },
+        "existingDefaultPropertiesSecret": {
+          "title": "existingDefaultPropertiesSecret",
+          "description": "Reference a customer-managed Secret containing a complete default_properties.yaml seed file. When name is set, its contents replace the image's baked-in default_properties.yaml as the base seed file, independently of generatePreseed.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "title": "name",
+              "description": "Name of a pre-existing Secret containing the seed file. Leave empty to disable this feature.",
+              "type": "string"
+            },
+            "key": {
+              "default": "default_properties.yaml",
+              "title": "key",
+              "description": "Data key within the Secret that contains the seed file contents.",
+              "type": "string"
+            }
+          }
+        },
+        "config": {
+          "title": "config",
+          "description": "Preseed data sections. All user-supplied Kasm preseed data (users, groups, apiConfigs, settings, images, autoscale, server_pools, cloud VM configs, OIDC/SAML/LDAP, etc.) belong here. Control flags generatePreseed and defaultUsers remain at kasmConfig top level.",
+          "additionalProperties": true,
+          "type": "object"
+        }
+      },
+      "required": [
+        "generatePreseed",
+        "defaultUsers",
+        "defaultApiUsers",
+        "config"
+      ]
+    },
     "kasmZones": {
-      "description": "This is a list of objects defining different Kasm Zone configurations for your deployment. This configuration is typically used for multi-region, large, or custom deployments where the customer requires a high degree of configurability and has multiple resources in disparate areas.  NOTE: If you configure custom zones below, you MUST use a valid `ingress` configuration due to the increased deployment complexity of a multi-zone Kasm deployment. Refer to the Kasm [Deployment Zones](https://kasmweb.com/docs/latest/guide/zones/deployment_zones.html) documentation for more information on Kasm Zones.",
+      "description": "This is a list of objects defining different Kasm Zone configurations for your deployment. This configuration is typically used for multi-region, large, or custom deployments where the customer requires a high degree of configurability and has multiple resources in disparate areas.  NOTE: If you configure custom zones below, you MUST use a valid `ingress` configuration due to the increased deployment complexity of a multi-zone Kasm deployment. Refer to the Kasm [Deployment Zones](https://docs.kasm.com/docs/latest/guide/deployment_zones/index.html) documentation for more information on Kasm Zones.",
       "title": "kasmZones",
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
+          "allow_origin_domain": {
+            "title": "allow_origin_domain",
+            "description": "Connections to Kasm sessions are restricted to authorized Origins. This value is the authorized origin domain. The default is $request_host$.",
+            "type": "string"
+          },
+          "enable_direct_rdp_login": {
+            "title": "enable_direct_rdp_login",
+            "description": "Allow users to connect with this zone purely through RDP and their Kasm credentials. This connection method only works for RDP targets but allows clients to interact with Kasm without a web browser.",
+            "type": "boolean"
+          },
+          "enable_rdp_https_gw": {
+            "title": "enable_rdp_https_gw",
+            "description": "Use the HTTPS RDP Gateway protocol. When disabled, standard RDP over port 3389 is used.",
+            "type": "boolean"
+          },
+          "enable_rdp_https_gw_dlp": {
+            "title": "enable_rdp_https_gw_dlp",
+            "description": "Send HTTPS RDP connections through DLP (Data Loss Prevention). Enabling DLP has performance and scalability implications. Disabling DLP will disable many data loss prevention features enforced by Kasm, however, many of these features can be enforced by proper Group Policy in Windows. Disabling DLP will also break single sign on.",
+            "type": "boolean"
+          },
           "name": {
-            "description": "Define the name of the Kasm Zones to deploy management resources for",
+            "description": "The name of the Kasm Zone to deploy management resources for. Required unless `zone_name` is set. If both `name` and `zone_name` are set, `name` wins.",
             "title": "name",
             "type": "string"
           },
-          "upstream_auth_addr": {
-            "description": "Define the Upstream Auth address of the Kasm Zones to deploy management resources for. Refer to [Deployment Zones](https://kasmweb.com/docs/latest/guide/zones/deployment_zones.html) for more info.",
-            "title": "upstream_auth_addr",
+          "primary": {
+            "title": "primary",
+            "description": "Set this value to true on the zone in the cluster with the Database. If you are deploying multiple zones in a single namespace and region, then just pick whichever Zone you want the chart to consider the primary.",
+            "type": "boolean"
+          },
+          "proxyAddress": {
+            "description": "Deprecated. Use proxy_hostname instead to define the Proxy address of the Kasm Zones to deploy management resources for. Refer to [Deployment Zones](https://docs.kasm.com/docs/latest/guide/deployment_zones/index.html) for more info.",
+            "title": "proxyAddress",
+            "type": "string"
+          },
+          "proxy_hostname": {
+            "description": "Define the Proxy address of the Kasm Zones to deploy management resources for. Refer to [Deployment Zones](https://docs.kasm.com/docs/latest/guide/deployment_zones/index.html) for more info.",
+            "title": "proxy_hostname",
+            "type": "string"
+          },
+          "proxy_path": {
+            "title": "proxy_path",
+            "description": "The base path to append to the Kasm connection when Proxy Connections is enabled. The default is /desktop.",
+            "type": "string"
+          },
+          "proxy_port": {
+            "title": "proxy_port",
+            "description": "The port to use for the proxy server when Proxy Connections is enabled. The default is 443. Kasm Workspaces will attempt to automatically determine the correct port from window.location.port",
+            "type": "integer"
+          },
+          "prioritize_static_agents": {
+            "title": "prioritize_static_agents",
+            "description": "Utilize fixed agents before using auto scaled Docker Agents. The default is enabled.",
+            "type": "boolean"
+          },
+          "proxy_rdp_hostname": {
+            "title": "proxy_rdp_hostname",
+            "description": "The hostname/ip of a load balancer or proxy in front of the HTTPS based RDP Gateway component. By default it is $request_host$.",
+            "type": "string"
+          },
+          "proxy_rdp_port": {
+            "title": "proxy_rdp_port",
+            "description": "The port number of a load balancer or proxy in front of the HTTPS based RDP Gateway component. By default it is 443.",
+            "type": "integer"
+          },
+          "region_name": {
+            "title": "region_name",
+            "description": "The name of the region where the Zone is deployed. This is very useful if you wish to deploy multiple zones in a single region, you can use the same region_name value for all zones in the region and the Helm chart will deploy resources accordingly.",
+            "type": "string"
+          },
+          "search_alternate_zones": {
+            "title": "search_alternate_zones",
+            "description": "When a user requests a Kasm session, the system will first search for available resources on Agents within the same Zone. When enabled, the server can also search alternate Zones to satisfy the request if it can not be satisfied within the same Zone. Agents in the same Zone are always preferred over alternate Zones.",
+            "type": "boolean"
+          },
+          "upstream_auth_address": {
+            "title": "upstream_auth_address",
+            "description": "Connections to Kasm session are authenticated against a Kasm API server. This value is the address of the server. The default is $request_host$.",
+            "type": "string"
+          },
+          "verify_rdp_client_ip": {
+            "title": "verify_rdp_client_ip",
+            "description": "Allow users to connect with this zone purely through RDP and their Kasm credentials. This connection method only works for RDP targets but allows clients to interact with Kasm without a web browser.",
+            "type": "boolean"
+          },
+          "zone_name": {
+            "description": "Preferred alias for `name`, used to define the name of the Kasm Zone to deploy management resources for. If both `name` and `zone_name` are set, `name` wins.",
+            "title": "zone_name",
             "type": "string"
           }
-        },
-        "required": [
-          "name",
-          "upstream_auth_addr"
-        ]
+        }
       }
     },
     "labels": {
@@ -1101,7 +2555,7 @@
     },
     "proxyService": {
       "additionalProperties": false,
-      "description": "Configure the external-facing service type to use. Allowed service types: ClusterIP or LoadBalancer. The service.annotations defined here only apply to the `proxy` service (`proxy-service-external.yaml` file). If you wish to apply annotations to all services, use the annotations.service value at the bottom of this chart.  NOTE: If ingress.enabled or route.enabled set to `true` service.type MUST be set to `ClusterIP`. Also, if you wish to deploy a multi-zone Kasm (see [Deployment Zones](https://kasmweb.com/docs/latest/guide/zones/deployment_zones.html) documentation for reference), you MUST use either a Route or an Ingress and set the `proxyService.type` to `ClusterIP`.",
+      "description": "Configure the external-facing service type to use. Allowed service types: ClusterIP or LoadBalancer. The service.annotations defined here only apply to the `proxy` service (`proxy-service-external.yaml` file). If you wish to apply annotations to all services, use the annotations.service value at the bottom of this chart.  NOTE: If ingress.enabled or route.enabled set to `true` service.type MUST be set to `ClusterIP`. Also, if you wish to deploy a multi-zone Kasm (see [Deployment Zones](https://docs.kasm.com/docs/latest/guide/deployment_zones/index.html) documentation for reference), you MUST use either a Route or an Ingress and set the `proxyService.type` to `ClusterIP`.",
       "properties": {
         "annotations": {
           "additionalProperties": true,
@@ -1119,7 +2573,8 @@
           "type": "string",
           "enum": [
             "ClusterIP",
-            "LoadBalancer"
+            "LoadBalancer",
+            "NodePort"
           ]
         }
       },
@@ -1137,6 +2592,449 @@
       "type": "string",
       "required": [
         "publicAddr"
+      ]
+    },
+    "networkPolicies": {
+      "additionalProperties": false,
+      "description": "Opt-in NetworkPolicies for the Kasm pods of this release.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Render NetworkPolicy resources for the Kasm workloads",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "defaultDeny": {
+          "additionalProperties": false,
+          "description": "",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Deny all ingress and egress for the release's Kasm pods unless another policy allows it",
+              "title": "enabled",
+              "type": "boolean"
+            }
+          },
+          "title": "defaultDeny",
+          "type": "object",
+          "required": [
+            "enabled"
+          ]
+        },
+        "dns": {
+          "additionalProperties": false,
+          "description": "",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Allow DNS (UDP/TCP 53) egress for all Kasm pods",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "to": {
+              "default": [],
+              "description": "DNS destination peers. Leave empty to use kube-system/kube-dns, or openshift-dns when isOpenshift is true.",
+              "items": {
+                "type": "object"
+              },
+              "title": "to",
+              "type": "array"
+            }
+          },
+          "title": "dns",
+          "type": "object",
+          "required": [
+            "enabled",
+            "to"
+          ]
+        },
+        "externalEgress": {
+          "additionalProperties": false,
+          "description": "",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Allow external egress for all Kasm pods. With the default peer this leaves egress effectively open; narrow `to` to restrict it.",
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "to": {
+              "default": [
+                {
+                  "ipBlock": {
+                    "cidr": "0.0.0.0/0"
+                  }
+                }
+              ],
+              "description": "Destination peers for external egress. An empty list allows every destination.",
+              "items": {
+                "type": "object"
+              },
+              "title": "to",
+              "type": "array"
+            }
+          },
+          "title": "externalEgress",
+          "type": "object",
+          "required": [
+            "enabled",
+            "to"
+          ]
+        },
+        "database": {
+          "additionalProperties": false,
+          "description": "",
+          "properties": {
+            "standaloneTo": {
+              "default": [
+                {
+                  "ipBlock": {
+                    "cidr": "0.0.0.0/0"
+                  }
+                }
+              ],
+              "description": "Destination peers for database clients when database.standalone is true. Replace with pod/namespace selectors for an in-cluster external database.",
+              "items": {
+                "type": "object"
+              },
+              "title": "standaloneTo",
+              "type": "array"
+            }
+          },
+          "title": "database",
+          "type": "object",
+          "required": [
+            "standaloneTo"
+          ]
+        },
+        "proxy": {
+          "additionalProperties": false,
+          "description": "",
+          "properties": {
+            "from": {
+              "default": [],
+              "description": "Source peers allowed to reach the proxy, whichever way it is exposed (LoadBalancer, NodePort, Ingress, Route, Gateway API, upstream auth). An empty list allows any source. For an in-cluster ingress controller select its namespace, e.g. `[{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}}]`; for an external load balancer or ingress use its source range, e.g. `[{ipBlock: {cidr: 192.0.2.0/24}}]`.",
+              "items": {
+                "type": "object"
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "title": "proxy",
+          "type": "object",
+          "required": [
+            "from"
+          ]
+        },
+        "rdpGateway": {
+          "additionalProperties": false,
+          "description": "",
+          "properties": {
+            "from": {
+              "default": [],
+              "description": "Source peers allowed to reach the RDP Gateway's external RDP port (3389) when directRdpService.enabled or tcpRoute.enabled is true. An empty list allows any source.",
+              "items": {
+                "type": "object"
+              },
+              "title": "from",
+              "type": "array"
+            }
+          },
+          "title": "rdpGateway",
+          "type": "object",
+          "required": [
+            "from"
+          ]
+        },
+        "components": {
+          "additionalProperties": false,
+          "description": "Per-component ingress policy settings.",
+          "properties": {
+            "proxy": {
+              "additionalProperties": false,
+              "description": "Ingress policy settings for the Kasm proxy pods.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "extraIngress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy ingress rules appended to this component's ingress policy.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraIngress",
+                  "type": "array"
+                },
+                "extraEgress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraEgress",
+                  "type": "array"
+                }
+              },
+              "title": "proxy",
+              "type": "object",
+              "required": [
+                "enabled",
+                "extraIngress",
+                "extraEgress"
+              ]
+            },
+            "api": {
+              "additionalProperties": false,
+              "description": "Ingress policy settings for the Kasm API pods.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "extraIngress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy ingress rules appended to this component's ingress policy.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraIngress",
+                  "type": "array"
+                },
+                "extraEgress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraEgress",
+                  "type": "array"
+                }
+              },
+              "title": "api",
+              "type": "object",
+              "required": [
+                "enabled",
+                "extraIngress",
+                "extraEgress"
+              ]
+            },
+            "manager": {
+              "additionalProperties": false,
+              "description": "Ingress policy settings for the Kasm Manager pods.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "extraIngress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy ingress rules appended to this component's ingress policy.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraIngress",
+                  "type": "array"
+                },
+                "extraEgress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraEgress",
+                  "type": "array"
+                }
+              },
+              "title": "manager",
+              "type": "object",
+              "required": [
+                "enabled",
+                "extraIngress",
+                "extraEgress"
+              ]
+            },
+            "guac": {
+              "additionalProperties": false,
+              "description": "Ingress policy settings for the Kasm Guacamole pods.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "extraIngress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy ingress rules appended to this component's ingress policy.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraIngress",
+                  "type": "array"
+                },
+                "extraEgress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraEgress",
+                  "type": "array"
+                }
+              },
+              "title": "guac",
+              "type": "object",
+              "required": [
+                "enabled",
+                "extraIngress",
+                "extraEgress"
+              ]
+            },
+            "rdpGateway": {
+              "additionalProperties": false,
+              "description": "Ingress policy settings for the Kasm RDP Gateway pods.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "extraIngress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy ingress rules appended to this component's ingress policy.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraIngress",
+                  "type": "array"
+                },
+                "extraEgress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraEgress",
+                  "type": "array"
+                }
+              },
+              "title": "rdpGateway",
+              "type": "object",
+              "required": [
+                "enabled",
+                "extraIngress",
+                "extraEgress"
+              ]
+            },
+            "rdpHttpsGateway": {
+              "additionalProperties": false,
+              "description": "Ingress policy settings for the Kasm RDP HTTPS Gateway pods.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "extraIngress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy ingress rules appended to this component's ingress policy.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraIngress",
+                  "type": "array"
+                },
+                "extraEgress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraEgress",
+                  "type": "array"
+                }
+              },
+              "title": "rdpHttpsGateway",
+              "type": "object",
+              "required": [
+                "enabled",
+                "extraIngress",
+                "extraEgress"
+              ]
+            },
+            "db": {
+              "additionalProperties": false,
+              "description": "Ingress policy settings for the Kasm database pods.",
+              "properties": {
+                "enabled": {
+                  "default": true,
+                  "description": "Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
+                "extraIngress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy ingress rules appended to this component's ingress policy.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraIngress",
+                  "type": "array"
+                },
+                "extraEgress": {
+                  "default": [],
+                  "description": "Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.",
+                  "items": {
+                    "type": "object"
+                  },
+                  "title": "extraEgress",
+                  "type": "array"
+                }
+              },
+              "title": "db",
+              "type": "object",
+              "required": [
+                "enabled",
+                "extraIngress",
+                "extraEgress"
+              ]
+            }
+          },
+          "title": "components",
+          "type": "object",
+          "required": [
+            "proxy",
+            "api",
+            "manager",
+            "guac",
+            "rdpGateway",
+            "rdpHttpsGateway",
+            "db"
+          ]
+        }
+      },
+      "title": "networkPolicies",
+      "type": "object",
+      "required": [
+        "enabled",
+        "defaultDeny",
+        "dns",
+        "externalEgress",
+        "database",
+        "proxy",
+        "rdpGateway",
+        "components"
       ]
     },
     "restartPolicy": {
@@ -1159,6 +3057,19 @@
           "description": "Set the enabled value to `true` to use a pre-defined Route service to expose Kasm",
           "title": "enabled",
           "type": "boolean"
+        },
+        "backendProtocol": {
+          "default": "http",
+          "description": "The backend protocol to for the OpenShift Route to communicate with the Kasm proxy service. Valid values: http or https",
+          "title": "backendProtocol",
+          "type": "string",
+          "enum": ["http", "https"]
+        },
+        "wildcardPolicy": {
+          "default": "None",
+          "description": "Set the wildcard policy for the OpenShift Route. Valid values: None, Subdomain",
+          "title": "wildcardPolicy",
+          "type": "string"
         },
         "labels": {
           "additionalProperties": true,
@@ -1202,7 +3113,452 @@
         "annotations",
         "labels"
       ]
+    },
+    "httpRoute": {
+      "additionalProperties": false,
+      "description": "Configure a Gateway API HTTPRoute for your Kasm deployment.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Set to `true` to publish the Kasm proxy through a Gateway API HTTPRoute.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "parentRefs": {
+          "default": [],
+          "description": "Gateways to attach the route to, passed through verbatim.",
+          "title": "parentRefs",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "backendProtocol": {
+          "default": "http",
+          "description": "The protocol the Gateway uses to reach the Kasm proxy Service. Valid values: http or https",
+          "title": "backendProtocol",
+          "type": "string",
+          "enum": ["http", "https"]
+        },
+        "annotations": {
+          "additionalProperties": true,
+          "title": "annotations",
+          "type": "object"
+        },
+        "labels": {
+          "additionalProperties": true,
+          "title": "labels",
+          "type": "object"
+        }
+      },
+      "title": "httpRoute",
+      "type": "object",
+      "required": [
+        "enabled",
+        "parentRefs",
+        "annotations",
+        "labels"
+      ]
+    },
+    "tlsRoute": {
+      "additionalProperties": false,
+      "description": "Configure a Gateway API TLSRoute for your Kasm deployment (SNI passthrough).",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Set to `true` to publish the Kasm proxy by SNI passthrough through a Gateway API TLSRoute.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "apiVersion": {
+          "default": "gateway.networking.k8s.io/v1",
+          "description": "API version to render the TLSRoute at.",
+          "title": "apiVersion",
+          "type": "string"
+        },
+        "parentRefs": {
+          "default": [],
+          "description": "Gateways to attach the route to, in the same shape as `httpRoute.parentRefs`.",
+          "title": "parentRefs",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "annotations": {
+          "additionalProperties": true,
+          "title": "annotations",
+          "type": "object"
+        },
+        "labels": {
+          "additionalProperties": true,
+          "title": "labels",
+          "type": "object"
+        }
+      },
+      "title": "tlsRoute",
+      "type": "object",
+      "required": [
+        "enabled",
+        "apiVersion",
+        "parentRefs",
+        "annotations",
+        "labels"
+      ]
+    },
+    "tcpRoute": {
+      "additionalProperties": false,
+      "description": "Configure a Gateway API TCPRoute for the Kasm RDP Gateway.",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Set to `true` to publish the RDP Gateway through a Gateway API TCPRoute.",
+          "title": "enabled",
+          "type": "boolean"
+        },
+        "apiVersion": {
+          "default": "gateway.networking.k8s.io/v1",
+          "description": "API version to render the TCPRoute at.",
+          "title": "apiVersion",
+          "type": "string"
+        },
+        "parentRefs": {
+          "default": [],
+          "description": "Gateways to attach the route to, in the same shape as `httpRoute.parentRefs`. Single-zone shorthand.",
+          "title": "parentRefs",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "zones": {
+          "default": [],
+          "description": "Per-zone Gateway attachment, required when more than one primary-region zone is configured.",
+          "title": "zones",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "name": {
+                "title": "name",
+                "type": "string"
+              },
+              "parentRefs": {
+                "title": "parentRefs",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            },
+            "required": ["name"]
+          }
+        },
+        "annotations": {
+          "additionalProperties": true,
+          "title": "annotations",
+          "type": "object"
+        },
+        "labels": {
+          "additionalProperties": true,
+          "title": "labels",
+          "type": "object"
+        }
+      },
+      "title": "tcpRoute",
+      "type": "object",
+      "required": [
+        "enabled",
+        "apiVersion",
+        "parentRefs",
+        "zones",
+        "annotations",
+        "labels"
+      ]
+    },
+    "upstreamAuth": {
+      "additionalProperties": false,
+      "description": "Publish a separate, out-of-band URL for Kasm management traffic (the zone's Upstream Auth Address).",
+      "properties": {
+        "hostname": {
+          "default": "",
+          "description": "The upstream auth hostname for the primary (or implicit default) zone.",
+          "title": "hostname",
+          "type": "string"
+        },
+        "service": {
+          "additionalProperties": false,
+          "description": "Publish the upstream auth endpoint with one Service per zone.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "type": {
+              "default": "LoadBalancer",
+              "title": "type",
+              "type": "string",
+              "enum": ["LoadBalancer", "NodePort"]
+            },
+            "nodePort": {
+              "default": "",
+              "title": "nodePort",
+              "type": "string"
+            },
+            "annotations": {
+              "additionalProperties": true,
+              "title": "annotations",
+              "type": "object"
+            },
+            "labels": {
+              "additionalProperties": true,
+              "title": "labels",
+              "type": "object"
+            }
+          },
+          "title": "service",
+          "type": "object",
+          "required": [
+            "enabled",
+            "type",
+            "annotations",
+            "labels"
+          ]
+        },
+        "ingress": {
+          "additionalProperties": false,
+          "description": "Publish the upstream auth endpoint through an Ingress, one host rule per zone.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "tls": {
+              "default": true,
+              "title": "tls",
+              "type": "boolean"
+            },
+            "secretName": {
+              "default": "",
+              "title": "secretName",
+              "type": "string"
+            },
+            "backendProtocol": {
+              "default": "http",
+              "title": "backendProtocol",
+              "type": "string",
+              "enum": ["http", "https"]
+            },
+            "ingressClassName": {
+              "default": "",
+              "title": "ingressClassName",
+              "type": "string"
+            },
+            "annotations": {
+              "additionalProperties": true,
+              "title": "annotations",
+              "type": "object"
+            },
+            "labels": {
+              "additionalProperties": true,
+              "title": "labels",
+              "type": "object"
+            }
+          },
+          "title": "ingress",
+          "type": "object",
+          "required": [
+            "enabled",
+            "tls",
+            "annotations",
+            "labels"
+          ]
+        },
+        "route": {
+          "additionalProperties": false,
+          "description": "Publish the upstream auth endpoint through OpenShift Routes, one per zone.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "backendProtocol": {
+              "default": "http",
+              "title": "backendProtocol",
+              "type": "string",
+              "enum": ["http", "https"]
+            },
+            "wildcardPolicy": {
+              "default": "None",
+              "title": "wildcardPolicy",
+              "type": "string"
+            },
+            "tls": {
+              "additionalProperties": true,
+              "title": "tls",
+              "type": "object"
+            },
+            "annotations": {
+              "additionalProperties": true,
+              "title": "annotations",
+              "type": "object"
+            },
+            "labels": {
+              "additionalProperties": true,
+              "title": "labels",
+              "type": "object"
+            }
+          },
+          "title": "route",
+          "type": "object",
+          "required": [
+            "enabled",
+            "tls",
+            "annotations",
+            "labels"
+          ]
+        },
+        "httpRoute": {
+          "additionalProperties": false,
+          "description": "Publish the upstream auth endpoint through Gateway API HTTPRoutes, one per zone.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "parentRefs": {
+              "default": [],
+              "title": "parentRefs",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "zones": {
+              "default": [],
+              "title": "zones",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "name": {
+                    "title": "name",
+                    "type": "string"
+                  }
+                },
+                "required": ["name"]
+              }
+            },
+            "backendProtocol": {
+              "default": "http",
+              "title": "backendProtocol",
+              "type": "string",
+              "enum": ["http", "https"]
+            },
+            "annotations": {
+              "additionalProperties": true,
+              "title": "annotations",
+              "type": "object"
+            },
+            "labels": {
+              "additionalProperties": true,
+              "title": "labels",
+              "type": "object"
+            }
+          },
+          "title": "httpRoute",
+          "type": "object",
+          "required": [
+            "enabled",
+            "parentRefs",
+            "zones",
+            "annotations",
+            "labels"
+          ]
+        },
+        "tlsRoute": {
+          "additionalProperties": false,
+          "description": "Publish the upstream auth endpoint by SNI passthrough through Gateway API TLSRoutes, one per zone.",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "title": "enabled",
+              "type": "boolean"
+            },
+            "apiVersion": {
+              "default": "gateway.networking.k8s.io/v1",
+              "title": "apiVersion",
+              "type": "string"
+            },
+            "parentRefs": {
+              "default": [],
+              "title": "parentRefs",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "zones": {
+              "default": [],
+              "title": "zones",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "name": {
+                    "title": "name",
+                    "type": "string"
+                  }
+                },
+                "required": ["name"]
+              }
+            },
+            "annotations": {
+              "additionalProperties": true,
+              "title": "annotations",
+              "type": "object"
+            },
+            "labels": {
+              "additionalProperties": true,
+              "title": "labels",
+              "type": "object"
+            }
+          },
+          "title": "tlsRoute",
+          "type": "object",
+          "required": [
+            "enabled",
+            "apiVersion",
+            "parentRefs",
+            "zones",
+            "annotations",
+            "labels"
+          ]
+        }
+      },
+      "title": "upstreamAuth",
+      "type": "object",
+      "required": [
+        "hostname",
+        "service",
+        "ingress",
+        "route",
+        "httpRoute",
+        "tlsRoute"
+      ]
     }
-  },
-  "type": "object"
+  }
 }

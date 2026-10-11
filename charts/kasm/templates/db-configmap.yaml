@@ -6,18 +6,7 @@ Kasm DB configMaps containing pg_hba.conf and postgresql.conf files
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ $constants.db.name }}-configmap
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: {{ $constants.db.name }}-configmap
-    app.kubernetes.io/component: {{ $constants.db.component }}
-    {{- include "kasm.defaultLabels" . | indent 4 }}
-    {{- with .Values.extraLabels.configMap }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-  {{- with .Values.annotations.configMap }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+  {{- include "kasm.metadata" (dict "context" . "component" "db" "resource" "configMap" "include" "all") | indent 2 }}
 data:
   data.sql: |
     CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
@@ -66,11 +55,13 @@ data:
     # MAKE SURE if you use the docs to make adjustments that you refer to
     # the PostsgreSQL version 14 documentation to ensure compatability.
     #
-
+    max_connections = {{ include "resources.preset" (dict "node" "db-max-connections" "size" .Values.deploymentSize "context" .Values) | trim }}
     listen_addresses = '*'
     tcp_keepalives_idle = 7200
-    tcp_keepalives_interval = 75
+    tcp_keepalives_interval = 76
     tcp_keepalives_count = 9
+    statement_timeout = 1800000
+    idle_in_transaction_session_timeout = 900000
     ssl = on
     ssl_cert_file = '/etc/ssl/certs/db_server.crt'
     ssl_key_file = '/etc/ssl/certs/db_server.key'
@@ -79,22 +70,23 @@ data:
     dynamic_shared_memory_type = posix
     max_wal_size = 1GB
     min_wal_size = 80MB
-    log_destination = 'stderr,syslog'
+    log_destination = 'stderr,{{ ternary "jsonlog" "syslog" (eq .Values.logFormat "json") }}'
     logging_collector = on
     log_directory = '/tmp/postgres'
-    log_filename = 'postgresql-%m-%d.log'
+    log_filename = '{{ ternary "postgresql" "postgresql-%m-%d.log" (eq .Values.logFormat "json") }}'
     log_file_mode = 0600
+    {{- if eq .Values.logFormat "log" }}
     log_rotation_age = 1d
     log_truncate_on_rotation = off
+    {{- end }}
     syslog_facility = 'LOCAL0'
     syslog_ident = 'postgres'
-    log_connections = off
-    log_disconnections = off
+    log_connections = on
+    log_disconnections = on
     log_hostname = on
     log_line_prefix = '< %m %a %u %d %r %p %i %e %s %c:>'
     log_timezone = 'UTC'
     client_min_messages = error
-    statement_timeout = 0
     datestyle = 'iso, mdy'
     timezone = 'UTC'
     lc_messages = 'en_US.utf8'

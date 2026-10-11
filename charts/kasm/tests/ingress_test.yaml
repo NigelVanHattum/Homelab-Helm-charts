@@ -1,0 +1,94 @@
+suite: Ingress wiring
+templates:
+  - templates/ingress.yaml
+tests:
+  - it: does not render an Ingress when ingress.enabled is false
+    set:
+      ingress:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders an Ingress with TLS and wildcard host when enabled
+    values:
+      - values/ingress.yaml
+    set:
+      ingress:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: Ingress
+      - equal:
+          path: spec.rules[0].host
+          value: kasm.example.com
+      - equal:
+          path: spec.tls[0].secretName
+          value: kasm-tls
+      - contains:
+          path: spec.tls[0].hosts
+          content: kasm.example.com
+      - contains:
+          path: spec.tls[0].hosts
+          content: "*.kasm.example.com"
+
+  - it: adds per-zone rules when kasmZones are defined
+    values:
+      - values/multizone-config.yaml
+    set:
+      ingress:
+        enabled: true
+      certificate:
+        secretName: kasm-tls
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: spec.rules[0].host
+          value: zonea.kasm.example.com
+      - equal:
+          path: spec.rules[1].host
+          value: zoneb.kasm.example.com
+      - equal:
+          path: spec.rules[2].host
+          value: kasm.example.com
+      - contains:
+          path: spec.tls[0].hosts
+          content: zonea.kasm.example.com
+      - contains:
+          path: spec.tls[0].hosts
+          content: zoneb.kasm.example.com
+
+  - it: falls back to the deprecated proxyAddress alias when proxy_hostname is unset
+    set:
+      proxyService.type: ClusterIP
+      ingress.enabled: true
+      kasmZones:
+        - name: zonea
+          primary: true
+          proxyAddress: legacy-a.example.com
+        - name: zoneb
+          proxy_hostname: preferred-b.example.com
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: legacy-a.example.com
+      - equal:
+          path: spec.rules[1].host
+          value: preferred-b.example.com
+
+  - it: prefers proxy_hostname when both proxyAddress and proxy_hostname are set on the same zone
+    set:
+      proxyService.type: ClusterIP
+      ingress.enabled: true
+      kasmZones:
+        - name: zonea
+          primary: true
+          proxyAddress: legacy-a.example.com
+          proxy_hostname: preferred-a.example.com
+    asserts:
+      - equal:
+          path: spec.rules[0].host
+          value: preferred-a.example.com

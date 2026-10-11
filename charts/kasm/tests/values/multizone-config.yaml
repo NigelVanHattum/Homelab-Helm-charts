@@ -1,0 +1,9 @@
+publicAddr: kasm.example.com
+proxyService:
+  type: ClusterIP
+kasmZones:
+  - name: zonea
+    proxyAddress: zonea.kasm.example.com
+    primary: true
+  - name: zoneb
+    proxyAddress: zoneb.kasm.example.com

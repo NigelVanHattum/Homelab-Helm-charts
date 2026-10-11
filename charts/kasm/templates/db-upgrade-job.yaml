@@ -4,38 +4,20 @@ Upgrade the DB
 {{- if and .Values.dbManagement.initialize .Values.dbManagement.upgrade.enable -}}
   {{- fail "You cannot enable both initialize and upgrade for the DB. If you have an existing Kasm deployment you wish to upgrade, refer to our upgrade procedures - https://some.upgrade.url. Otherwise, select initialize for a new deployment." -}}
 {{- end -}}
+{{- if and .Values.dbManagement.upgrade.enable .Values.dbManagement.upgrade.skipBackupAndRestore (not .Values.database.standalone) -}}
+  {{- fail "dbManagement.upgrade.skipBackupAndRestore is only supported with database.standalone=true. The chart-included (in-cluster) DB lifecycle is owned by the chart; backup/restore cannot be delegated to the operator in that mode. Either set database.standalone=true (and manage backup/restore yourself before helm upgrade) or set dbManagement.upgrade.skipBackupAndRestore=false." -}}
+{{- end -}}
 {{- $constants := (include "kasm.constants" . | fromYaml) -}}
 {{- if .Values.dbManagement.upgrade.enable }}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}-db-upgrade-job
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: {{ .Release.Name }}-db-upgrade
-    {{- include "kasm.defaultLabels" . | indent 4 }}
-    {{- with .Values.components.api.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.extraLabels.job }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-  {{- with .Values.components.api.annotations }}
-  annotations: {{- toYaml . | nindent 4 }}
-  {{- end }}
+  {{- include "kasm.metadata" (dict "context" . "component" "db-upgrade" "resource" "job" "include" "all") | indent 2 }}
 spec:
-  ttlSecondsAfterFinished: 100
+  ttlSecondsAfterFinished: 300
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ .Release.Name }}-db-upgrade
-        app.kubernetes.io/component: db-upgrade
-        {{- include "kasm.defaultLabels" . | indent 8 }}
-        {{- with .Values.components.api.labels }}{{ toYaml . | nindent 8 }}{{- end }}
-        {{- with .Values.extraLabels.jobPod }}{{ toYaml . | nindent 8 }}{{- end }}
-        {{- with .Values.labels }}{{- toYaml . | nindent 8 }}{{- end }}
-      {{- if or .Values.components.api.annotations .Values.annotations.pod }}
-      annotations:
-        {{- with .Values.annotations.pod }}{{ toYaml . | nindent 8 }}{{- end }}
-        {{- with .Values.components.api.annotations }}{{ toYaml . | nindent 8 }}{{- end }}
-      {{- end }}
+      {{- include "kasm.metadata" (dict "context" . "component" "db-upgrade" "resource" "pod" "include" "la") | nindent 6 }}
     spec:
       {{- if .Values.imagePullSecrets.enabled }}
       imagePullSecrets:
@@ -48,32 +30,21 @@ spec:
       affinity: {{ toYaml . | nindent 8 }}
       {{- end }}
       restartPolicy: OnFailure
+      {{- include "kasm.securityContext" (list . 1000 "pod") | nindent 6 }}
       initContainers:
-        - name: db-is-ready
-          image: {{ $constants.api.image }}
-          imagePullPolicy: {{ .Values.imagePullPolicy }}
-          env:
-            - name: POSTGRES_HOST
-              value: {{ $constants.db.svc }}
-            - name: POSTGRES_PORT
-              value: {{ $constants.db.port | quote }}
-          command:
-            - "/bin/bash"
-            - "-c"
-          args:
-            - |
-              while ! pg_isready -h ${POSTGRES_HOST} -p ${POSTGRES_PORT} -t 10; do echo "Waiting for DB..."; sleep 5; done
+        {{- include "kasm.trustedCaInit" (list . "api") | nindent 8 }}
+        {{- include "kasm.dbIsReady" (dict "context" . "function" "version") | nindent 8 }}
       containers:
-        - name: {{ .Release.Name }}-db-init-container
+        - name: {{ include "kasm.name" (list . "dbUpgrade" "container") }}
           image: {{ $constants.api.image }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           env:
-            - name: START_SERVICES
-              value: "true"
-            - name: KUBERNETES_SERVICE_HOST
+            - name: SERVER_HOSTNAME
+              value: {{ $constants.api.svc }}
+            - name: POST_DB_INIT_EXIT
               value: "true"
             - name: POSTGRES_HOST
-              value: {{ $constants.db.svc }}
+              value: {{ $constants.db.svc | quote }}
             - name: POSTGRES_PORT
               value: {{ $constants.db.port | quote }}
             - name: POSTGRES_DB
@@ -82,31 +53,53 @@ spec:
               value: {{ .Values.database.kasmDbUser }}
             - name: OLD_DB_BACKUP_FILENAME
               value: {{ .Values.dbManagement.upgrade.oldDbBackupFileName }}
+            {{- include "kasm.trustedCaEnv" $ | nindent 12 }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
                 {{- if .Values.database.kasmDbSecret -}}
                 {{ .Values.database.kasmDbSecret | toYaml | nindent 18 }}
                 {{- else }}
-                  name: {{ .Release.Name }}-secrets
+                  name: {{ $constants.secrets.name }}
                   key: "db-password"
                 {{- end }}
+          resources: {{- include "resources.preset" (dict "node" "api" "size" "small") | nindent 12 }}
           command:
             - "/bin/bash"
             - "-c"
           args:
             - |
               export PGPASSWORD=$POSTGRES_PASSWORD;
-              if psql -v ON_ERROR_STOP=on -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT COUNT(*) FROM settings;" 2>&1 > /dev/null; then echo "Database exists, running upgrade now..."; else pg_restore -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB /data/kasm-db-dump/$OLD_DB_BACKUP_FILENAME; fi
+              if psql -v ON_ERROR_STOP=on -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB -c "SELECT COUNT(*) FROM settings;" 2>&1 > /dev/null; then
+                echo "Database exists, running upgrade now...";
+              {{- if .Values.dbManagement.upgrade.skipBackupAndRestore }}
+              else
+                echo "ERROR: skipBackupAndRestore=true but the target DB has no 'settings' table. The operator is responsible for performing pg_dump, Postgres major-version upgrade, and pg_restore manually BEFORE running 'helm upgrade'. Aborting — no chart-included restore will be attempted." >&2;
+                exit 1;
+              fi
+              {{- else }}
+              else
+                pg_restore -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER -d $POSTGRES_DB /data/kasm-db-dump/$OLD_DB_BACKUP_FILENAME;
+              fi
+              {{- end }}
               python3 /src/api_server/server.pyc --upgrade-database --cfg /opt/kasm/current/conf/app/api/api.app.config.yaml --alembic-config /src/database/migration/alembic.ini;
-              PGPASSWORD=$POSTGRES_PASSWORD psql -U $POSTGRES_USER -d $POSTGRES_DB -p $POSTGRES_PORT -h $POSTGRES_HOST -t -c "select * from alembic_version";
+          {{- include "kasm.securityContext" (list . 1000 "container") | nindent 10 }}
           volumeMounts:
+            - name: tmp-data
+              mountPath: /tmp
             - name: kasm-db-dump
               mountPath: /data/kasm-db-dump
-              readOnly: false
+            {{- include "kasm.trustedCaVolumeMounts" . | nindent 12 }}
       volumes:
         - name: kasm-db-dump
+          {{- if .Values.dbManagement.upgrade.skipBackupAndRestore }}
+          emptyDir: {}
+          {{- else }}
           persistentVolumeClaim:
-            claimName: {{ .Values.dbManagement.upgrade.oldDbBackupPvc }}
+            claimName: {{ include "kasm.dbUpgradeBackupPvcName" . }}
+          {{- end }}
+        - name: tmp-data
+          emptyDir:
+            sizeLimit: 256Mi
+        {{- include "kasm.trustedCaVolumes" . | nindent 8 }}
 {{- end }}
-

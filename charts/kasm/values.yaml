@@ -22,31 +22,90 @@ publicAddr: ""
 #
 # NOTE: If you configure custom zones below, you MUST use a valid `ingress` configuration due to the increased
 # deployment complexity of a multi-zone Kasm deployment. Refer to the Kasm
-# [Deployment Zones](https://kasmweb.com/docs/latest/guide/zones/deployment_zones.html) documentation for more
+# [Deployment Zones](https://docs.kasm.com/docs/latest/guide/deployment_zones) documentation for more
 # information on Kasm Zones.
 #
-# The first zone in the list is treated as the primary zone.
+# The zone marked `primary: true` is treated as the primary zone; if no zone is marked primary,
+# the first zone in the list is used instead. At most one zone may be marked `primary: true`.
 # Traffic to the configured `publicAddr` in the ingress rule will be routed to this primary zone.
+#
+# Each zone requires a `name` (or the `zone_name` alias, if `name` is not set; `name` wins if both are set).
+#
+# Each zone's `proxy_hostname` is used to build the ingress/route/certificate hostnames for that zone,
+# as well as the zone's preseed `proxy_hostname` value. `proxyAddress` is a deprecated alias for
+# `proxy_hostname`, kept for backwards compatibility; if both are set, `proxy_hostname` wins.
 #
 kasmZones: []
 # Example Kasm Zone configuration:
-#   - name: Zone-A
-#     upstream_auth_addr: zone-a.kasm.contoso.com
-#   - name: Zone-B
-#     upstream_auth_addr: zone-b.kasm.contoso.com
-    
-# proxyService -- Configure the external-facing service type to use. 
-# Allowed service types: ClusterIP or LoadBalancer. 
+#   - name: zonea
+#     proxy_hostname: zonea.kasm.contoso.com
+#   - name: zoneb
+#     proxy_hostname: zoneb.kasm.contoso.com
+
+# isOpenshift -- Use this flag to remove Pod and Container security ID values and allow OpenShift to dynamically
+# set them in accordance with [OpenShift UIDs](https://www.redhat.com/en/blog/a-guide-to-openshift-and-uids) documentation.
+isOpenshift: false
+
+# logFormat -- Kasm Log format to write to console. Valid options are: json, log
 #
-# The service.annotations defined here only apply to the `proxy` service (`proxy-service-external.yaml` file).
+logFormat: log
+
+# nginxResolver -- The IP address used by the `resolver` directive in the Kasm nginx configs (proxy, guac,
+# rdp-gateway, and rdp-https-gateway nginx sidecars) for dynamic upstream DNS resolution.
+#
+# Leave empty (the default) to auto-detect the cluster's kube-dns Service ClusterIP at install/upgrade time.
+# Auto-detection requires a live cluster and read access to Services in the kube-system namespace; it silently
+# falls back to the historical hardcoded value, 127.0.0.11, when running `helm template`/`--dry-run`, when RBAC
+# denies the lookup, or when the cluster's DNS Service isn't named `kube-dns` in `kube-system` (uncommon, but
+# some distros differ).
+#
+# Set this explicitly to skip auto-detection and pin a specific resolver IP, such as a known CoreDNS/kube-dns
+# ClusterIP, or 127.0.0.11 to restore the previous unconditional default.
+#
+nginxResolver: ""
+
+# proxyService -- Configure the external-facing service type to use.
+# Allowed service types: ClusterIP, LoadBalancer, or NodePort. 
+#
+# The proxyService.annotations defined here only apply to the `proxy` service (`proxy-service-external.yaml` file).
 # If you wish to apply annotations to all services, use the annotations.service value at the bottom of this chart.
 #
 # NOTE: If ingress.enabled or route.enabled set to `true` service.type MUST be set to `ClusterIP`. Also, if you
-# wish to deploy a multi-zone Kasm (see [Deployment Zones](https://kasmweb.com/docs/latest/guide/zones/deployment_zones.html)
+# wish to deploy a multi-zone Kasm (see [Deployment Zones](https://docs.kasm.com/docs/latest/guide/deployment_zones)
 # documentation for reference), you MUST use either a Route or an Ingress and set the `proxyService.type` to `ClusterIP`.
 #
 proxyService:
   type: LoadBalancer
+  annotations: {}
+  labels: {}
+
+# directRdpService -- Configure the directRdpService settings and service type to use for the Kasm RDP Gateway service.
+# This is only applicable if you have enabled the Kasm RDP Gateway component in `components.rdpGateway.enabled`.
+#
+directRdpService:
+  # directRdpService.enabled -- Enable the exposure of the RDP Gateway service via a separate Service of the type defined in
+  # `directRdpService.type`. This is only applicable if you have enabled the Kasm RDP Gateway component in `components.rdpGateway.enabled`.
+  #
+  enabled: false
+  # directRdpService.rdpAccessURL -- If you are exposing the RDP Gateway service via a separate Service, set the access URL
+  # to be used for the RDP Gateway. This is the URL you will use to access the RDP Gateway service and must be resolvable by
+  # your users' systems.
+  #
+  rdpAccessURL: ""
+  # directRdpService.type -- The service type to use for the RDP Gateway service if `directRdpService.enabled` is set to true.
+  # Allowed values are LoadBalancer or NodePort. The RDP Gateway speaks raw TCP, so any cloud load balancer backing this
+  # Service must be a Layer 4 / TCP type (e.g. NLB on AWS, not ALB).
+  #
+  type: LoadBalancer
+  # directRdpService.loadBalancerPort -- The external port exposed by the directRdpService Service when
+  # `directRdpService.type` is LoadBalancer. Defaults to 3389. Has no effect when `directRdpService.type` is NodePort.
+  #
+  loadBalancerPort: 3389
+  # directRdpService.annotations -- Custom annotations to add to the RDP Gateway Service. This only applies if `directRdpService.enabled`
+  # is set to true. If you use the annotations below to deploy a load balancer in your cloud provider, you must ensure the load balancer
+  # type supports RDP. This typically requires using a Network Load Balancer type that supports TCP load balancing, and not a HTTP/HTTPS
+  # load balancer type.
+  #
   annotations: {}
   labels: {}
 
@@ -66,17 +125,26 @@ ingress:
   # ingress.ingressClassName -- Define the ingress Class to use for your Kasm ingress
   #
   ingressClassName: ""
-  # ingress.extraHosts -- A list of additional hostnames to be covered with this ingress record.
-  # Most likely the hostname above will be enough, but in the event more hosts are needed, this is an array
-  #
   annotations: {}
   labels: {}
 
-# route -- Configure an OpenShift Route for your Kasm deployment. 
-# 
+# route -- Configure an OpenShift Route for your Kasm deployment.
+#
+# With kasmZones set, one Route is rendered per zone (plus a primary Route
+# for publicAddr). The TLS cert must cover publicAddr and every zone's
+# proxyAddress; route.* settings apply to all Routes.
+#
 route:
   # route.enabled -- Set the enabled value to `true` to use a pre-defined Route service to expose Kasm
   enabled: false
+  # route.backendProtocol -- The backend protocol to for the OpenShift Route to communicate with the Kasm proxy service.
+  # Valid values: http or https
+  #
+  backendProtocol: http
+  # route.wildcardPolicy -- Set the wildcard policy for the OpenShift Route.
+  # Valid values: None, Subdomain
+  #
+  wildcardPolicy: None
   # route.tls -- Object to define the TLS configuration for your OpenShift Route - 
   # [Configuring Secure Routes](https://docs.redhat.com/en/documentation/openshift_dedicated/4/html/networking/configuring-routes#configuring-default-certificate).
   #
@@ -99,6 +167,220 @@ route:
   #
   annotations: {}
   labels: {}
+
+# Configure a Gateway API HTTPRoute for your Kasm deployment, for clusters fronted by a Gateway
+# rather than by an ingress controller.
+#
+# `ingress`, `route` and `httpRoute` are alternatives - enable at most one of the three, since
+# all of them publish the same Kasm proxy Service.
+#
+# Unlike an Ingress, a Gateway API route carries no certificate: the Gateway's listener does. This
+# chart still mints the Secret (see `certificate` below), but you have to reference it from that
+# listener's `certificateRefs` yourself, and add a ReferenceGrant when the Gateway is in another
+# namespace.
+#
+# `publicAddr` is the only hostname either of the two Gateway API routes publish. Zone
+# `proxy_hostname`s are associated with a different backend, usually behind a different ingress
+# or load balancer entirely, so this chart publishes no routing rules for them.
+#
+httpRoute:
+  # httpRoute.enabled -- Set to `true` to publish the Kasm proxy through a Gateway API HTTPRoute.
+  # Requires the Gateway API CRDs and a Gateway in the cluster.
+  #
+  enabled: false
+  # httpRoute.parentRefs -- Gateways to attach the route to, passed through verbatim, so any field of
+  # a Gateway API `ParentReference` is accepted - `name`, `namespace`, `sectionName`, `port`, `kind`.
+  # The route attaches to nothing, and the proxy stays unreachable, if this is left empty. The
+  # Gateway's listener must also admit routes from this namespace (its `allowedRoutes`).
+  # Example:
+  #   parentRefs:
+  #     - name: kasm-gateway
+  #       namespace: kube-system
+  #
+  parentRefs: []
+  # httpRoute.backendProtocol -- The protocol the Gateway uses to reach the Kasm proxy Service.
+  # Valid values: http or https
+  #
+  backendProtocol: http
+  annotations: {}
+  labels: {}
+
+# Configure a Gateway API TLSRoute for your Kasm deployment - SNI passthrough, where the Gateway
+# forwards the connection untouched and the Kasm proxy terminates TLS itself. The option to reach
+# for when TLS must not terminate on shared cluster infrastructure; the Gateway API equivalent of
+# the OpenShift Route's `passthrough` termination.
+#
+# The Gateway needs a listener with `protocol: TLS` and `tls.mode: Passthrough` whose `allowedRoutes`
+# admit this namespace. A terminating HTTPS listener will not serve a TLSRoute.
+#
+tlsRoute:
+  # tlsRoute.enabled -- Set to `true` to publish the Kasm proxy by SNI passthrough through a Gateway
+  # API TLSRoute. `ingress`, `route`, `httpRoute` and `tlsRoute` are alternatives - enable at most one.
+  #
+  enabled: false
+  # tlsRoute.apiVersion -- API version to render the TLSRoute at. TLSRoute has been standard-channel
+  # `v1` since Gateway API 1.5; set `gateway.networking.k8s.io/v1alpha2` for older, experimental-channel
+  # CRD bundles.
+  #
+  apiVersion: gateway.networking.k8s.io/v1
+  # tlsRoute.parentRefs -- Gateways to attach the route to, in the same shape as `httpRoute.parentRefs`.
+  #
+  parentRefs: []
+  annotations: {}
+  labels: {}
+
+# Configure a Gateway API TCPRoute for the Kasm RDP Gateway, as an alternative to publishing it
+# through `directRdpService`. Only applicable when `components.rdpGateway.enabled` is set.
+#
+# Requires Gateway API 1.6 or newer, where TCPRoute is standard-channel `v1`, and a Gateway with a
+# `protocol: TCP` listener. Note that shipping in the standard bundle is not the same as the data
+# plane implementing it - confirm your Gateway implementation supports TCPRoute before choosing this
+# over a LoadBalancer/NodePort Service.
+#
+# The backend is the same per-zone RDP Gateway Service that `rdp-gateway-service.yaml` renders;
+# leave `directRdpService.enabled` false so that Service stays ClusterIP while the Gateway fronts it.
+#
+tcpRoute:
+  # tcpRoute.enabled -- Set to `true` to publish the RDP Gateway through a Gateway API TCPRoute.
+  #
+  enabled: false
+  # tcpRoute.apiVersion -- API version to render the TCPRoute at. TCPRoute has been standard-channel
+  # `v1` since Gateway API 1.6; set `gateway.networking.k8s.io/v1alpha2` for older, experimental-channel
+  # CRD bundles, where it is deprecated as of 1.6.
+  #
+  apiVersion: gateway.networking.k8s.io/v1
+  # tcpRoute.parentRefs -- Gateways to attach the route to, in the same shape as `httpRoute.parentRefs`.
+  # Single-zone shorthand; with multiple primary-region zones use `tcpRoute.zones` instead, since
+  # each zone needs its own listener.
+  #
+  parentRefs: []
+  # tcpRoute.zones -- Per-zone Gateway attachment, required when `kasmZones` defines more than one
+  # zone in the primary region. A TCPRoute matches on neither hostname nor SNI, so zones cannot
+  # share a listener the way they share one for `httpRoute`: give each zone its own listener and
+  # select it with `sectionName`.
+  # Example:
+  #   zones:
+  #     - name: zonea
+  #       parentRefs:
+  #         - name: kasm-gateway
+  #           namespace: kube-system
+  #           sectionName: rdp-zonea
+  #     - name: zoneb
+  #       parentRefs:
+  #         - name: kasm-gateway
+  #           namespace: kube-system
+  #           sectionName: rdp-zoneb
+  #
+  zones: []
+  annotations: {}
+  labels: {}
+
+# Publish a separate, out-of-band URL for Kasm management traffic: the zone's "Upstream Auth
+# Address", used by external Kasm Agents and Windows services to reach the API and manager
+# (`/api/`, `/manager_api/`) without going through the user-facing front door. Typically a
+# private load balancer or an internal ingress class/Gateway, though nothing requires it to
+# be private.
+#
+# The backend is the same per-zone Kasm proxy Service the front door publishes; the proxy's
+# nginx is hostname-agnostic, so no extra workload is deployed. Exactly one of
+# `upstreamAuth.service`, `upstreamAuth.ingress`, `upstreamAuth.route`, `upstreamAuth.httpRoute`
+# or `upstreamAuth.tlsRoute` may be enabled; all of them are independent of the front-door choice,
+# so e.g. `ingress.enabled` for users plus an internal `upstreamAuth.service` LoadBalancer for
+# agents is a valid combination.
+#
+# Per-zone hostnames come from `kasmZones[].upstream_auth_address`; the primary (or implicit
+# default) zone falls back to `upstreamAuth.hostname`. Each zone's hostname routes to that zone's
+# own proxy Service. The resolved hostnames are NOT added to the cert-manager/self-signed
+# certificate SANs; upstream auth addresses typically live in a private DNS zone a public issuer
+# cannot validate, and Kasm agents do not validate the certificate.
+#
+upstreamAuth:
+  # upstreamAuth.hostname -- The upstream auth hostname for the primary (or implicit default)
+  # zone, e.g. kasm-mgmt.example.com. Zones with `kasmZones[].upstream_auth_address` set keep
+  # their own value. Required by the ingress/route/httpRoute/tlsRoute publishers below; the
+  # service publisher works without it (the preseed then keeps `$request_host$`, and you set
+  # the address in the admin UI once the load balancer has one).
+  #
+  hostname: ""
+  # upstreamAuth.service -- Publish the upstream auth endpoint with one Service per zone
+  # (`<release>-upstream-auth-<zone>`), port 443 to the proxy's HTTPS port. This is raw L4: it
+  # cannot route by hostname, so multi-zone deployments get one load balancer per zone.
+  #
+  service:
+    # upstreamAuth.service.enabled -- Set to `true` to publish the upstream auth endpoint
+    # through a Service of the type below.
+    #
+    enabled: false
+    # upstreamAuth.service.type -- Service type. Allowed values: LoadBalancer, NodePort.
+    #
+    type: LoadBalancer
+    # upstreamAuth.service.nodePort -- Pin the node port when `type` is NodePort. Leave empty
+    # to let Kubernetes assign one. Only valid with a single zone, since every zone's Service
+    # would otherwise claim the same port.
+    #
+    nodePort: ""
+    # upstreamAuth.service.annotations -- Annotations for the per-zone Services. This is where
+    # a private/internal load balancer scheme is selected, e.g.
+    #   service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+    #
+    annotations: {}
+    labels: {}
+  # upstreamAuth.ingress -- Publish the upstream auth endpoint through an Ingress, one host rule
+  # per zone. Point `ingressClassName` at an internal controller class to keep the endpoint
+  # private while the front-door Ingress stays public.
+  #
+  ingress:
+    enabled: false
+    # upstreamAuth.ingress.tls -- Set to `true` to add a TLS section covering every zone's
+    # upstream auth hostname, using the certificate Secret below.
+    #
+    tls: true
+    # upstreamAuth.ingress.secretName -- Certificate Secret for the upstream auth Ingress.
+    # Empty (the default) uses the front door's chain: `certificate.secretName`, else the
+    # chart-minted Secret. The chart-minted certificates do NOT cover the upstream auth
+    # hostnames, so set this to a Secret that does when the front end must present a
+    # matching certificate.
+    #
+    secretName: ""
+    # upstreamAuth.ingress.backendProtocol -- Protocol the Ingress uses to reach the Kasm
+    # proxy Service. Valid values: http or https
+    #
+    backendProtocol: http
+    ingressClassName: ""
+    annotations: {}
+    labels: {}
+  # upstreamAuth.route -- Publish the upstream auth endpoint through OpenShift Routes, one per
+  # zone. Same shape as `route`.
+  #
+  route:
+    enabled: false
+    backendProtocol: http
+    wildcardPolicy: None
+    tls: {}
+    annotations: {}
+    labels: {}
+  # upstreamAuth.httpRoute -- Publish the upstream auth endpoint through Gateway API HTTPRoutes,
+  # one per zone. Same shape as `httpRoute`, including per-zone `zones[].parentRefs` overrides
+  # for zones that need their own listener.
+  #
+  httpRoute:
+    enabled: false
+    parentRefs: []
+    zones: []
+    backendProtocol: http
+    annotations: {}
+    labels: {}
+  # upstreamAuth.tlsRoute -- Publish the upstream auth endpoint by SNI passthrough through
+  # Gateway API TLSRoutes, one per zone; the Kasm proxy terminates TLS itself. Same shape as
+  # `tlsRoute`, plus per-zone `zones[].parentRefs` overrides.
+  #
+  tlsRoute:
+    enabled: false
+    apiVersion: gateway.networking.k8s.io/v1
+    parentRefs: []
+    zones: []
+    annotations: {}
+    labels: {}
 
 # Configure certificate settings.
 # You can create your own certificate and upload it to the `secretName` supplied below, or if you have
@@ -129,18 +411,97 @@ certificate:
     annotations: {}
     labels: {}
 
+# Configure a trusted CA certificate bundle to be added to Kasm services.
+# You can either pre-create the configmap containing the CA bundle, or have the Helm chart create it for you.
+# To have the Helm chart create the configmap, provide the CA bundle data in PEM format in the `caBundle` field.
+#
+trustedCaBundle:
+  # trustedCaBundle.enabled -- Set to true to enable the trusted CA bundle configuration
+  #
+  enabled: false
+  # trustedCaBundle.configmapName -- The name of the Kubernetes configmap where the CA bundle is stored.
+  # If you are populating the trustedCaBundle.caCerts field, you can leave this blank, if you pre-created
+  # the configmap, you MUST provide the name here.
+  #
+  configMapName: ""
+  # trustedCaBundle.caCerts -- The CA certificates to be stored in the configmap. This is an object where you
+  # can paste your PEM-formatted CA certificates in a key-value format where the key is the file name and the value
+  # is the PEM-formatted certificate data. All keys MUST end with a `.crt` extension.
+  #
+  caCerts: {}
+  # Example CA Certs configuration
+  # ca-cert-1.crt: |-
+  #   -----BEGIN CERTIFICATE-----
+  #   [...]
+  #   -----END CERTIFICATE-----
+  # ca-cert-2.crt: |-
+  #   -----BEGIN CERTIFICATE-----
+  #   [...]
+  #   -----END CERTIFICATE-----
+
+# kasmSecrets -- Use this to create custom Kasm Password secret, or to reference an existing one. If this is left blank
+# then Helm will automatically generate random passwords and store them as `<Release-Name>-secrets` in your deployment
+# namespace.
+#
+# To reference a secret you already created yourself, set `create: false` and `name: "<existing secret name>"`,
+# leaving `passwords` at its defaults; the chart will not manage that secret and will read the credentials from it.
+#
+# To have the chart create the secret but pin one or more specific credential values (leaving the rest randomly
+# generated), keep `create: true`, optionally set `name`, and set the desired key(s) under `passwords`.
+#
+kasmSecrets:
+  # kasmSecrets.create -- Set to false to use an existing Kasm Password secret. Default = `true`.
+  #
+  create: true
+  # kasmSecrets.name -- The name of the Kasm Password secret to create. If a value is provided here and `create=true`,
+  # Helm will use that as the secret name. If `create=false` then you MUST provide the name of an existing Kasm Password
+  # secret in your deployment namespace.
+  #
+  name: ""
+  # kasmSecrets.passwords -- Set any of the five well-known keys below to a non-empty value to pin that credential to
+  # a specific value instead of letting the chart generate (or preserve, on upgrade) a random one. An explicitly set
+  # value here always wins, even if a Secret with that key already exists in the namespace.
+  #
+  # This object also accepts additional, arbitrary keys beyond the five below. Any extra key you add is written into
+  # the generated Secret's `data` as a literal base64-encoded value (no random generation, since the chart has no
+  # other source of truth for a custom key) - useful for seeding extra application secrets alongside the standard
+  # Kasm credentials.
+  #
+  # NOTE: Only used when `kasmSecrets.create` is `true`. Has no effect when referencing an existing secret.
+  #
+  passwords:
+    manager-token: ""
+    service-token: ""
+    db-password: ""
+    admin-password: ""
+    user-password: ""
+  # Example additional custom secret value:
+  #   my-custom-secret: "some-value"
+  # kasmSecrets.annotations -- Custom annotations to add to the Kasm Password secret
+  annotations: {}
+  # kasmSecrets.labels -- Custom labels to add to the Kasm Kasm Password secret
+  labels: {}
+
+# useImageTags -- Chart-wide image tag used when a component's `image.tag` is empty. Per-component tag wins if set.
+# To override the tag for a single component, see `components.<x>.image.tag` (or `database.image.tag`).
+# Examples:
+#   "1.19.0-rolling"             rolling tag, receives ongoing bug-fix updates within 1.19.x
+#   "1.19.0"                     frozen point-in-time tag
+#   "1.19.0-rolling-2026-06-02"  date-locked rolling tag, pins a specific rolling build
+#
+useImageTags: "1.19.0-rolling"
+
 # Kasm DB settings and configuration options
 #
 database:
   # database.standalone -- Setting standalone to true will prevent the deployment of the Kasm DB StatefulSet and requires
-  # the user to have a self-hosted PostgreSQL Database v14 server already setup and awaiting connections. Use the below
+  # the user to have a self-hosted PostgreSQL Database v16 server already setup and awaiting connections. Use the below
   # database configuration values to connect to your external DB.
-  #
+  # see, https://docs.kasm.com/docs/latest/how-to/remote_database#requirements for list of full db requirements.
   standalone: false
-  # database.hostname -- The hostname used to connect to the database server. If you use the Kasm DB StatefulSet this will be
-  # the name of the DB service, if you use an external DB, you need to replace this value with the hostname or IP or your DB server.
-  #
-  hostname: kasm-db
+  # database.hostname -- The hostname of the external PostgreSQL server.
+  # Only used when database.standalone is true.
+  hostname: ""
   # database.port -- The port Kasm will use to connect to the PostgreSQL DB server
   #
   port: 5432
@@ -150,7 +511,7 @@ database:
   # database.kasmDbUser -- The name of the Kasm database User with READ/WRITE permission to the Kasm database
   #
   kasmDbUser: kasmapp
-  # database.kasmDbSecretName -- The name of the Kasm database password secret to use for a user-created, custom Database password
+  # database.kasmDbSecret -- The name of the Kasm database password secret to use for a user-created, custom Database password
   # secret value.
   #
   # NOTE: Leave this empty to use the password created by this Helm chart. If you create a custom DB secret, define the `kasmDbSecret`
@@ -176,8 +537,10 @@ database:
   # container registry instead of our public DockerHub hosted one.
   #
   image:
+    registry: docker.io
     repository: kasmweb/postgres
-    tag: 1.18.0
+    # database.image.tag -- Tag for this component's image. Leave empty to fall back to the chart-wide `useImageTags`.
+    tag: ""
   # Configure the Storage for the Kasm DB StatefulSet
   #
   storage:
@@ -189,17 +552,73 @@ database:
     # size is 8Gi. Just supply the integer value of the PVC size in GB you wish to use.
     #
     pvcSize: 0
-    # database.storage.retentionPolicy -- Configure how the DB volume should be retained or deleted throughout the DB's lifecycle
+    # database.storage.retentionPolicy -- Configure how the DB volume should be retained or deleted throughout the DB's lifecycle.
+    # `whenDeleted: Retain` is the default on purpose: the bundled database's StatefulSet is named per
+    # Kasm version, so a version upgrade replaces it rather than updating it in place. With `Delete`
+    # the old volume goes with the old StatefulSet, and the pre-upgrade dump is then the only copy of
+    # the data. Retaining it leaves the previous version's volume in the namespace as a fallback, to
+    # be removed by hand once the upgrade is confirmed good.
+    # A retained volume keeps the credentials it was initialized with. A plain uninstall and
+    # reinstall is safe, because the chart's password Secret outlives `helm uninstall` and is
+    # reused. If you delete that Secret to rotate passwords, also delete the old DB volume, or
+    # set `kasmSecrets.passwords` to the original values; otherwise the database rejects the
+    # new credentials.
     #
     retentionPolicy:
-      whenDeleted: Delete
+      whenDeleted: Retain
       whenScaled: Retain
   # database.annotations -- Custom annotations to add to the Kasm DB StatefulSet
   annotations: {}
   # database.resources -- Manually configure the Kasm DB StatefulSet resources. This overrides the pre-defined `deploymentSize` values.
   resources: {}
+  # database.healthCheckTiming -- Override the pod's default healthcheck timing values for liveness and/or readiness probes.
+  #  Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only
+  #  the timeoutSeconds value of the livenessProbe.
+  #  Example:
+  #    healthCheckTiming:
+  #      livenessProbe:
+  #        timeoutSeconds: 10
+  #        initialDelaySeconds: 20
+  #        periodSeconds: 60
+  #        failureThreshold: 5
+  #      readinessProbe:
+  #        periodSeconds: 60
+  #        successThreshold: 3
+  healthCheckTiming:
+    livenessProbe: {}
+    readinessProbe: {}
   # database.labels -- Custom labels to add to the Kasm DB StatefulSet
   labels: {}
+  # database.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+  #  like custom SSL certificates, config files, or data volumes to the Kasm Database container
+  # Example:
+  #   extraVolumes:
+  #     - secret:
+  #         defaultMode: 420
+  #         secretName: kasm-custom-tls
+  #       name: pkichain
+  extraVolumes: []
+  # database.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+  #  like custom SSL certificates, config files, or data volumes Kasm Database container
+  # Example: 
+  #   extraVolumeMounts:
+  #     - mountPath: /etc/ssl/certs/ca-certificates.crt
+  #       name: pkichain
+  #       readOnly: true
+  #       subPath: ca.crt
+  extraVolumeMounts: []
+  # database.extraContainers -- Additional sidecar containers to run in the pod
+  # Example
+  #  - name: sidecar-example
+  #    image: busybox
+  #    command: [/bin/sh, -c, 'echo "Hello world"']
+  extraContainers: []
+  # database.extraInitContainers -- Additional sidecar containers to run in the pod
+  # Example
+  #  - name: init-example
+  #    image: busybox
+  #    command: [/bin/sh, -c, 'echo "Hello world"']
+  extraInitContainers: []
 
 # Configure the Kasm Database management functions
 #
@@ -207,6 +626,11 @@ dbManagement:
   # dbManagement.initialize -- Initialize the DB. This is required for an initial deployment of Kasm to configure the DB for Kasm usage
   #
   initialize: true
+  # dbManagement.initJobTTLSecondsAfterFinished -- The time in seconds the DB initialization job remains after successful completion.
+  #
+  initJobTTLSecondsAfterFinished: 300
+  # dbManagement.dbConnectionTimeout -- The time in seconds to wait for the DB to respond to initContainer connection attempts.
+  dbConnectionTimeout: 10
   # Use this to manage Kasm DB Schema and data upgrade operations
   #
   upgrade:
@@ -216,12 +640,39 @@ dbManagement:
     # DB for a new installation, or you can upgrade an existing DB to a new Kasm version, but you cannot do both.
     #
     enable: false
-    # dbManagement.upgrade.oldDbSecretsName -- The name of the Kubernetes secret where Kasm and DB passwords are stored.
+    # dbManagement.upgrade.oldDbHostname -- Hostname of the database from the previous Helm release.
+    # Only required if your old deployment used a non-default DB hostname (i.e. not kasm-db).
+    # Leave empty if using a standalone DB or to fall back to the default.
     #
-    oldDbSecretsName: kasm-secrets
-    # dbManagement.upgrade.oldDbBackupPvc -- The PVC to connect to the Upgrade job that contains the DB backup tarball.
+    oldDbHostname: ""
+    # dbManagement.upgrade.skipBackupAndRestore -- Skip the chart-included pre-upgrade DB backup AND
+    # restore steps. The chart will NOT render the backup PVC + Job, and the upgrade Job will NOT attempt
+    # to `pg_restore` from a dump file — it will only run the Kasm schema (alembic) migration against
+    # the DB it finds.
     #
-    oldDbBackupPvc: kasm-db-dump-pvc
+    # ONLY supported with `database.standalone=true`. Setting this to true with the bundled
+    # (in-chart) DB will cause the upgrade Job to fail-render with an explanatory error.
+    #
+    # When this is true, the operator is responsible for performing the data-plane upgrade manually,
+    # in this order, BEFORE running `helm upgrade`:
+    #   1. pg_dump the existing standalone DB (old Postgres major version).
+    #   2. Stand up the new Postgres major version server.
+    #   3. pg_restore the dump into the new Postgres server.
+    #   4. Run `helm upgrade` with this flag set to true — the chart's upgrade Job then runs only
+    #      the Kasm schema migration (alembic) against the already-restored DB.
+    #
+    # When this is true, `oldDbHostname` and `oldDbBackupFileName` are ignored.
+    #
+    skipBackupAndRestore: false
+    # dbManagement.upgrade.backupStorageClass -- The storageClass to use to create PV for the backup PVC.
+    #
+    backupStorageClass: ""
+    # dbManagement.upgrade.oldDbSecretsName -- The name of an existing Kubernetes secret to use as the source for
+    # credential lookup during upgrades. Leave empty to use the current release's '<release>-secrets' secret.
+    # Set to a different secret name only when upgrading from a deployment that stored credentials under a
+    # non-default name.
+    #
+    oldDbSecretsName: ""
     # dbManagement.upgrade.oldDbBackupFileName -- The file name of the database backup to restore and upgrade.
     #
     oldDbBackupFileName: kasm_dump.tar
@@ -262,14 +713,65 @@ components:
     # container registry instead of our public DockerHub hosted one.
     #
     image:
+      registry: docker.io
       repository: kasmweb/proxy
-      tag: 1.18.0
+      # components.proxy.image.tag -- Tag for this component's image. Leave empty to fall back to the chart-wide `useImageTags`.
+      tag: ""
+    # components.proxy.replicas -- Override the replica count set by deploymentSize. Set to 0 to use the deploymentSize preset (default).
+    replicas: 0
+    # components.proxy.healthCheckTiming -- Override the pod's default healthcheck timing values for liveness and/or readiness probes.
+    #  Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only
+    #  the timeoutSeconds value of the livenessProbe.
+    #  Example:
+    #    healthCheckTiming:
+    #      livenessProbe:
+    #        timeoutSeconds: 10
+    #        initialDelaySeconds: 20
+    #        periodSeconds: 60
+    #        failureThreshold: 5
+    #      readinessProbe:
+    #        periodSeconds: 60
+    #        successThreshold: 3
+    healthCheckTiming:
+      livenessProbe: {}
+      readinessProbe: {}
     # components.proxy.annotations -- Custom annotations to add to the Kasm Proxy Deployment
     annotations: {}
     # components.proxy.resources -- Manually configure the Kasm Proxy Deployment resources. This overrides the pre-defined `deploymentSize` values.
     resources: {}
     # components.proxy.labels -- Custom labels to add to the Kasm Proxy Deployment
     labels: {}
+    # components.proxy.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes to the Kasm Proxy container
+    # Example:
+    #   extraVolumes:
+    #     - secret:
+    #         defaultMode: 420
+    #         secretName: kasm-custom-tls
+    #       name: pkichain
+    extraVolumes: []
+    # components.proxy.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes Kasm Proxy container
+    # Example: 
+    #   extraVolumeMounts:
+    #     - mountPath: /etc/ssl/certs/ca-certificates.crt
+    #       name: pkichain
+    #       readOnly: true
+    #       subPath: ca.crt
+    extraVolumeMounts: []
+    # components.proxy.extraContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: sidecar-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraContainers: []
+    # components.proxy.extraInitContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: init-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraInitContainers: []
+
   # Configuration settings for the Kasm API service
   #
   api:
@@ -277,14 +779,74 @@ components:
     # container registry instead of our public DockerHub hosted one.
     #
     image:
+      registry: docker.io
       repository: kasmweb/api
-      tag: 1.18.0
+      # components.api.image.tag -- Tag for this component's image. Leave empty to fall back to the chart-wide `useImageTags`.
+      tag: ""
+    # components.api.replicas -- Override the replica count set by deploymentSize. Set to 0 to use the deploymentSize preset (default).
+    replicas: 0
+    # components.api.healthCheckTiming -- Override the pod's default healthcheck timing values for liveness and/or readiness probes.
+    #  Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only
+    #  the timeoutSeconds value of the livenessProbe.
+    #  Example:
+    #    healthCheckTiming:
+    #      livenessProbe:
+    #        timeoutSeconds: 10
+    #        initialDelaySeconds: 20
+    #        periodSeconds: 60
+    #        failureThreshold: 5
+    #      readinessProbe:
+    #        periodSeconds: 60
+    #        successThreshold: 3
+    healthCheckTiming:
+      livenessProbe: {}
+      readinessProbe: {}
     # components.api.annotations -- Custom annotations to add to the Kasm api Deployment
     annotations: {}
     # components.api.resources -- Manually configure the Kasm api Deployment resources. This overrides the pre-defined `deploymentSize` values.
     resources: {}
     # components.api.labels -- Custom labels to add to the Kasm api Deployment
     labels: {}
+    # components.api.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes to the Kasm API container
+    # Example:
+    #   extraVolumes:
+    #     - secret:
+    #         defaultMode: 420
+    #         secretName: kasm-custom-tls
+    #       name: pkichain
+    extraVolumes: []
+    # components.api.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes Kasm API container
+    # Example: 
+    #   extraVolumeMounts:
+    #     - mountPath: /etc/ssl/certs/ca-certificates.crt
+    #       name: pkichain
+    #       readOnly: true
+    #       subPath: ca.crt
+    extraVolumeMounts: []
+    # components.api.extraContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: sidecar-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraContainers: []
+    # components.api.extraInitContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: init-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraInitContainers: []
+    # components.api.threadPool -- Number of CherryPy worker threads for the API server.
+    #  Increase under high concurrency. Default is 20.
+    threadPool: 20
+    # components.api.threadPoolLogInterval -- Seconds between background logs of CherryPy thread-pool usage
+    #  (Threads/Active/Idle/Queue). Set to 0 to disable. Default is 0.
+    threadPoolLogInterval: 0
+    # components.api.serviceAccount -- Overrides the global `serviceAccount` block for this component.
+    #  All keys are optional and merged over the global defaults.
+    serviceAccount: {}
+
   # Configuration settings for the Kasm Manager service
   #
   manager:
@@ -292,14 +854,75 @@ components:
     # container registry instead of our public DockerHub hosted one.
     #
     image:
+      registry: docker.io
       repository: kasmweb/manager
-      tag: 1.18.0
+      # components.manager.image.tag -- Tag for this component's image. Leave empty to fall back to the chart-wide `useImageTags`.
+      tag: ""
+    # components.manager.replicas -- Override the replica count set by deploymentSize. Set to 0 to use the deploymentSize preset (default).
+    replicas: 0
+    # components.manager.healthCheckTiming -- Override the pod's default healthcheck timing values for liveness and/or readiness probes.
+    #  Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only
+    #  the timeoutSeconds value of the livenessProbe.
+    #  Example:
+    #    healthCheckTiming:
+    #      livenessProbe:
+    #        timeoutSeconds: 10
+    #        initialDelaySeconds: 20
+    #        periodSeconds: 60
+    #        failureThreshold: 5
+    #      readinessProbe:
+    #        periodSeconds: 60
+    #        successThreshold: 3
+    healthCheckTiming:
+      livenessProbe: {}
+      readinessProbe: {}
     # components.manager.annotations -- Custom annotations to add to the Kasm Manager Deployment
     annotations: {}
     # components.manager.resources -- Manually configure the Kasm Manager Deployment resources. This overrides the pre-defined `deploymentSize` values.
     resources: {}
     # components.manager.labels -- Custom labels to add to the Kasm Manager Deployment
     labels: {}
+    # components.manager.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes to the Kasm Manager container
+    # Example:
+    #   extraVolumes:
+    #     - secret:
+    #         defaultMode: 420
+    #         secretName: kasm-custom-tls
+    #       name: pkichain
+    extraVolumes: []
+    # components.manager.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes Kasm Manager container
+    # Example: 
+    #   extraVolumeMounts:
+    #     - mountPath: /etc/ssl/certs/ca-certificates.crt
+    #       name: pkichain
+    #       readOnly: true
+    #       subPath: ca.crt
+    extraVolumeMounts: []
+    # components.manager.extraContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: sidecar-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraContainers: []
+    # components.manager.extraInitContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: init-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraInitContainers: []
+    # components.manager.updateTimer -- Configures the delay (in seconds) between checking for updates, when automatic updates are enabled.
+    #  Default value is 86400, which equals 24 hours.
+    updateTimer: 86400
+    # components.manager.supportBundleTimer -- Configures the batching interval (in seconds) for generating support bundles. 
+    #  This value determines how often the system checks for support bundle completion and expiration.
+    #  Default value is 60s.
+    supportBundleTimer: 60
+    # components.manager.serviceAccount -- Overrides the global `serviceAccount` block for this component.
+    #  All keys are optional and merged over the global defaults.
+    serviceAccount: {}
+
   # Configuration settings for the Kasm Guac RDP service
   #
   guac:
@@ -307,18 +930,118 @@ components:
     # container registry instead of our public DockerHub hosted one.
     #
     image:
+      registry: docker.io
       repository: kasmweb/kasm-guac
-      tag: 1.18.0
+      # components.guac.image.tag -- Tag for this component's image. Leave empty to fall back to the chart-wide `useImageTags`.
+      tag: ""
     # components.guac.enabled -- Use this setting to enable/disable deployment of the Kasm Guacamole web RDP service - 
-    # [Kasm Guac Service](https://kasmweb.com/docs/latest/guide/connection_proxies.html#guacamole-guac).
+    # [Kasm Guac Service](https://docs.kasm.com/docs/latest/guide/connection_proxies#guacamole-guac).
     #
     enabled: true
+    # components.guac.guacClusterSize -- Override the Cluster Size count set by deploymentSize. Use this value to set the number of `guacd`
+    # processes running in the Guacamole pod. Set to 0 to use deploymentSize preset (default).
+    guacClusterSize: 0
+    # components.guac.replicas -- Override the replica count set by deploymentSize. Set to 0 to use the deploymentSize preset (default).
+    replicas: 0
+    # components.guac.healthCheckTiming -- Override the pod's default healthcheck timing values for liveness and/or readiness probes.
+    #  Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only
+    #  the timeoutSeconds value of the livenessProbe.
+    #  Example:
+    #    healthCheckTiming:
+    #      livenessProbe:
+    #        timeoutSeconds: 10
+    #        initialDelaySeconds: 20
+    #        periodSeconds: 60
+    #        failureThreshold: 5
+    #      readinessProbe:
+    #        periodSeconds: 60
+    #        successThreshold: 3
+    healthCheckTiming:
+      livenessProbe: {}
+      readinessProbe: {}
     # components.guac.annotations -- Custom annotations to add to the Kasm Guac Deployment
     annotations: {}
     # components.guac.resources -- Manually configure the Kasm Guac Deployment resources. This overrides the pre-defined `deploymentSize` values.
     resources: {}
+    # components.guac.nginxSidecar -- Configuration for the nginx sidecar container.
+    nginxSidecar:
+      # components.guac.nginxSidecar.resources -- Manually configure resources for the nginx sidecar container. Leave empty to use the chart default.
+      resources: {}
+      # components.guac.nginxSidecar.healthCheckTiming -- Override the pod's default healthcheck timing values for liveness and/or readiness probes.
+      #  Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only
+      #  the timeoutSeconds value of the livenessProbe.
+      #  Example:
+      #    healthCheckTiming:
+      #      livenessProbe:
+      #        timeoutSeconds: 10
+      #        initialDelaySeconds: 20
+      #        periodSeconds: 60
+      #        failureThreshold: 5
+      #      readinessProbe:
+      #        periodSeconds: 60
+      #        successThreshold: 3
+      healthCheckTiming:
+        livenessProbe: {}
+        readinessProbe: {}
+      # components.guac.nginxSidecar.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+      #  like custom SSL certificates, config files, or data volumes to the Kasm Guac nginx sidecar container
+      # Example:
+      #   extraVolumes:
+      #     - secret:
+      #         defaultMode: 420
+      #         secretName: kasm-custom-tls
+      #       name: pkichain
+      extraVolumes: []
+      # components.guac.nginxSidecar.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+      #  like custom SSL certificates, config files, or data volumes to the Kasm Guac nginx sidecar container
+      # Example:
+      #   extraVolumeMounts:
+      #     - mountPath: /etc/ssl/certs/ca-certificates.crt
+      #       name: pkichain
+      #       readOnly: true
+      #       subPath: ca.crt
+      extraVolumeMounts: []
+
     # components.guac.labels -- Custom labels to add to the Kasm Guac Deployment
     labels: {}
+    # components.guac.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes to the Kasm Guac container
+    # Example:
+    #   extraVolumes:
+    #     - secret:
+    #         defaultMode: 420
+    #         secretName: kasm-custom-tls
+    #       name: pkichain
+    extraVolumes: []
+    # components.guac.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes Kasm Guac container
+    # Example: 
+    #   extraVolumeMounts:
+    #     - mountPath: /etc/ssl/certs/ca-certificates.crt
+    #       name: pkichain
+    #       readOnly: true
+    #       subPath: ca.crt
+    extraVolumeMounts: []
+    # components.guac.extraContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: sidecar-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraContainers: []
+    # components.guac.extraInitContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: init-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraInitContainers: []
+    # components.guac.recordingData -- PVC backing guac /tmp for session recording segments.
+    # See [Session Recording](https://docs.kasm.com/docs/latest/guide/session_recording) for sizing guidance.
+    recordingData:
+      # components.guac.recordingData.pvcSize -- PVC size in GiB.
+      pvcSize: 10
+      # components.guac.recordingData.storageClassName -- StorageClass. Blank uses the cluster default.
+      storageClassName: ""
+
   # Configuration settings for the Kasm RDP Gateway service
   #
   rdpGateway:
@@ -326,18 +1049,116 @@ components:
     # container registry instead of our public DockerHub hosted one.
     #
     image:
+      registry: docker.io
       repository: kasmweb/rdp-gateway
-      tag: 1.18.0
+      # components.rdpGateway.image.tag -- Tag for this component's image. Leave empty to fall back to the chart-wide `useImageTags`.
+      tag: ""
     # components.rdpGateway.enabled -- Use this setting to enable/disable deployment of the Kasm RDP Gateway service - 
-    # [Kasm RDP Gateway](https://kasmweb.com/docs/latest/guide/connection_proxies.html#rdp-gateway).
+    # [Kasm RDP Gateway](https://docs.kasm.com/docs/latest/guide/connection_proxies#rdp-gateway).
     #
     enabled: true
+    # components.rdpGateway.replicas -- Override the replica count set by deploymentSize. Set to 0 to use the deploymentSize preset (default).
+    #
+    # NOTE: must be 0 (preset) or 1. Multi-replica rdp-gateway is not supported
+    # in this release.
+    replicas: 0
+    # components.rdpGateway.healthCheckTiming -- Override the pod's default healthcheck timing values for liveness and/or readiness probes.
+    #  Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only
+    #  the timeoutSeconds value of the livenessProbe.
+    #  Example:
+    #    healthCheckTiming:
+    #      livenessProbe:
+    #        timeoutSeconds: 10
+    #        initialDelaySeconds: 20
+    #        periodSeconds: 60
+    #        failureThreshold: 5
+    #      readinessProbe:
+    #        periodSeconds: 60
+    #        successThreshold: 3
+    healthCheckTiming:
+      livenessProbe: {}
+      readinessProbe: {}
     # components.rdpGateway.annotations -- Custom annotations to add to the Kasm RDP Gateway Deployment
     annotations: {}
     # components.rdpGateway.resources -- Manually configure the Kasm RDP Gateway Deployment resources. This overrides the pre-defined `deploymentSize` values.
     resources: {}
+    # components.rdpGateway.nginxSidecar -- Configuration for the nginx sidecar container.
+    nginxSidecar:
+      # components.rdpGateway.nginxSidecar.resources -- Manually configure resources for the nginx sidecar container. Leave empty to use the chart default.
+      resources: {}
+      # components.rdpGateway.nginxSidecar.healthCheckTiming -- Override the pod's default healthcheck timing values for liveness and/or readiness probes.
+      #  Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only
+      #  the timeoutSeconds value of the livenessProbe.
+      #  Example:
+      #    healthCheckTiming:
+      #      livenessProbe:
+      #        timeoutSeconds: 10
+      #        initialDelaySeconds: 20
+      #        periodSeconds: 60
+      #        failureThreshold: 5
+      #      readinessProbe:
+      #        periodSeconds: 60
+      #        successThreshold: 3
+      healthCheckTiming:
+        livenessProbe: {}
+        readinessProbe: {}
+      # components.rdpGateway.nginxSidecar.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+      #  like custom SSL certificates, config files, or data volumes to the Kasm RDP Gateway nginx sidecar container
+      # Example:
+      #   extraVolumes:
+      #     - secret:
+      #         defaultMode: 420
+      #         secretName: kasm-custom-tls
+      #       name: pkichain
+      extraVolumes: []
+      # components.rdpGateway.nginxSidecar.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+      #  like custom SSL certificates, config files, or data volumes to the Kasm RDP Gateway nginx sidecar container
+      # Example:
+      #   extraVolumeMounts:
+      #     - mountPath: /etc/ssl/certs/ca-certificates.crt
+      #       name: pkichain
+      #       readOnly: true
+      #       subPath: ca.crt
+      extraVolumeMounts: []
+
     # components.rdpGateway.labels -- Custom labels to add to the Kasm RDP Gateway Deployment
     labels: {}
+    # components.rdpGateway.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes to the Kasm RDP Gateway container
+    # Example:
+    #   extraVolumes:
+    #     - secret:
+    #         defaultMode: 420
+    #         secretName: kasm-custom-tls
+    #       name: pkichain
+    extraVolumes: []
+    # components.rdpGateway.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes Kasm RDP Gateway container
+    # Example: 
+    #   extraVolumeMounts:
+    #     - mountPath: /etc/ssl/certs/ca-certificates.crt
+    #       name: pkichain
+    #       readOnly: true
+    #       subPath: ca.crt
+    extraVolumeMounts: []
+    # database.extraContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: sidecar-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraContainers: []
+    # components.rdpGateway.extraInitContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: init-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraInitContainers: []
+    # components.rdpGateway.iniConfigMapName -- Name of a user-created ConfigMap
+    # providing a custom `rdpproxy.ini` for the rdp-gateway pod. See the Kasm
+    # documentation for details.
+    #
+    iniConfigMapName: ""
+
   # Configuration settings for the Kasm RDP HTTPS Gateway service
   #
   rdpHttpsGateway:
@@ -345,19 +1166,108 @@ components:
     # container registry instead of our public DockerHub hosted one.
     #
     image:
+      registry: docker.io
       repository: kasmweb/rdp-https-gateway
-      tag: 1.18.0
+      # components.rdpHttpsGateway.image.tag -- Tag for this component's image. Leave empty to fall back to the chart-wide `useImageTags`.
+      tag: ""
     # components.rdpHttpsGateway.enabled -- Use this setting to enable/disable deployment of the Kasm RDP HTTPS Gateway service.
     # This service allows users to use native RDP clients via HTTPS connections rather than exposing 3389 - 
-    # [Kasm RDP HTTPS Gateway](https://kasmweb.com/docs/latest/guide/connection_proxies.html#rdp-https-gateway).
+    # [Kasm RDP HTTPS Gateway](https://docs.kasm.com/docs/latest/guide/connection_proxies#rdp-https-gateway).
     #
     enabled: true
+    # components.rdpHttpsGateway.replicas -- Override the replica count set by deploymentSize. Set to 0 to use the deploymentSize preset (default).
+    replicas: 0
+    # components.rdpHttpsGateway.healthCheckTiming -- Override the pod's default healthcheck timing values for liveness and/or readiness probes.
+    #  Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only
+    #  the timeoutSeconds value of the livenessProbe.
+    #  Example:
+    #    healthCheckTiming:
+    #      livenessProbe:
+    #        timeoutSeconds: 10
+    #        initialDelaySeconds: 20
+    #        periodSeconds: 60
+    #        failureThreshold: 5
+    #      readinessProbe:
+    #        periodSeconds: 60
+    #        successThreshold: 3
+    healthCheckTiming:
+      livenessProbe: {}
+      readinessProbe: {}
     # components.rdpHttpsGateway.annotations -- Custom annotations to add to the Kasm RDP HTTPS Gateway Deployment
     annotations: {}
     # components.rdpHttpsGateway.resources -- Manually configure the Kasm RDP HTTPS Gateway Deployment resources. This overrides the pre-defined `deploymentSize` values.
     resources: {}
+    # components.rdpHttpsGateway.nginxSidecar -- Configuration for the nginx sidecar container.
+    nginxSidecar:
+      # components.rdpHttpsGateway.nginxSidecar.resources -- Manually configure resources for the nginx sidecar container. Leave empty to use the chart default.
+      resources: {}
+      # components.rdpHttpsGateway.nginxSidecar.healthCheckTiming -- Override the pod's default healthcheck timing values for liveness and/or readiness probes.
+      #  Values provided individually override their respective timing value, e.g. livenessProbe.timeoutSeconds: 10 will override only
+      #  the timeoutSeconds value of the livenessProbe.
+      #  Example:
+      #    healthCheckTiming:
+      #      livenessProbe:
+      #        timeoutSeconds: 10
+      #        initialDelaySeconds: 20
+      #        periodSeconds: 60
+      #        failureThreshold: 5
+      #      readinessProbe:
+      #        periodSeconds: 60
+      #        successThreshold: 3
+      healthCheckTiming:
+        livenessProbe: {}
+        readinessProbe: {}
+      # components.rdpHttpsGateway.nginxSidecar.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+      #  like custom SSL certificates, config files, or data volumes to the Kasm RDP HTTPS Gateway nginx sidecar container
+      # Example:
+      #   extraVolumes:
+      #     - secret:
+      #         defaultMode: 420
+      #         secretName: kasm-custom-tls
+      #       name: pkichain
+      extraVolumes: []
+      # components.rdpHttpsGateway.nginxSidecar.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+      #  like custom SSL certificates, config files, or data volumes to the Kasm RDP HTTPS Gateway nginx sidecar container
+      # Example:
+      #   extraVolumeMounts:
+      #     - mountPath: /etc/ssl/certs/ca-certificates.crt
+      #       name: pkichain
+      #       readOnly: true
+      #       subPath: ca.crt
+      extraVolumeMounts: []
+
     # components.rdpHttpsGateway.labels -- Custom labels to add to the Kasm RDP HTTPS Gateway Deployment
     labels: {}
+    # components.rdpHttpsGateway.extraVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes to the Kasm RDP HTTPS Gateway container
+    # Example:
+    #   extraVolumes:
+    #     - secret:
+    #         defaultMode: 420
+    #         secretName: kasm-custom-tls
+    #       name: pkichain
+    extraVolumes: []
+    # components.rdpHttpsGateway.extraVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+    #  like custom SSL certificates, config files, or data volumes Kasm RDP HTTPS Gateway container
+    # Example: 
+    #   extraVolumeMounts:
+    #     - mountPath: /etc/ssl/certs/ca-certificates.crt
+    #       name: pkichain
+    #       readOnly: true
+    #       subPath: ca.crt
+    extraVolumeMounts: []
+    # components.rdpHttpsGateway.extraInitContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: init-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraContainers: []
+    # components.rdpHttpsGateway.extraInitContainers -- Additional sidecar containers to run in the pod
+    # Example
+    #  - name: init-example
+    #    image: busybox
+    #    command: [/bin/sh, -c, 'echo "Hello world"']
+    extraInitContainers: []
 
 ####################################
 # Extra Kubernetes config settings #
@@ -365,39 +1275,59 @@ components:
 
 # imagePullPolicy -- Configure global image pull policy
 #
-imagePullPolicy: "IfNotPresent"
+imagePullPolicy: "Always"
 
 # Create an image pull credential. Useful for offline or self-hosted repos, or dev builds.
 #
 imagePullSecrets:
   # imagePullSecrets.enabled -- Enable/disable image pull secrets
   enabled: false
-
   # imagePullSecrets.name -- Secret name to use. If left blank, will be dynamically generated.
   # To use an existing Image pull secret, or one you manually created, set `imagePullSecrets.enabled`, and provide the
   # name of the Image Pull Secret you created, making sure to leave all other values below empty.
   #
   name: ""
-  # imagePullSecrets.type -- Type of image pull credential to create. Valid types are "dockerconfigjson", "dockercfg", or "basic"
-  type: ""
-  # imagePullSecrets.server -- The Registry server to use when pulling images (required for dockerconfigjson and dockercfg)
-  server: ""
-  # imagePullSecrets.username -- The username used to authenticate agaisnt your Registry server.
+  # imagePullSecrets.registry -- The Registry to use when pulling images (e.g. index.docker.io, myprivateregistry.com)
+  registry: ""
+  # imagePullSecrets.username -- The username used to authenticate agaisnt your Registry.
   username: ""
-  # imagePullSecrets.password -- The password used to authenticate agaisnt your Registry server.
+  # imagePullSecrets.password -- The password used to authenticate agaisnt your Registry.
   password: ""
-  # imagePullSecrets.email -- The email address used to authenticate (optional, used for dockerconfigjson and dockercfg)
+  # imagePullSecrets.email -- The email address used to authenticate (optional, used by some registries).
   email: ""
   # imagePullSecrets.labels -- Additional labels for this secret
   labels: {}
   # imagePullSecrets.annotations -- Additional annotations for this secret
   annotations: {}
 
+# Global default for the ServiceAccount used by components.api and components.manager pods.
+# Useful for EKS Pod Identity (reference an externally-associated SA by name) or IRSA
+# (chart-created SA annotated with a role ARN). Override per-component under
+# components.api.serviceAccount / components.manager.serviceAccount.
+#
+# The render fails if:
+#  - create is true (globally or for a component) but no name resolves for that component
+#    (set serviceAccount.name or components.<c>.serviceAccount.name).
+#  - api and manager resolve to the same ServiceAccount name but disagree on the value of an
+#    annotation key (global vs. per-component overrides are merged; a real conflict, not just
+#    one side inheriting the global default, is what triggers the fail).
+#
+serviceAccount:
+  # serviceAccount.create -- Create the ServiceAccount named below. Set false to only reference
+  # an existing ServiceAccount by name (e.g. for EKS Pod Identity associations).
+  create: false
+  # serviceAccount.name -- ServiceAccount name to set on the pod spec. Leave blank to use the
+  # default ServiceAccount.
+  name: ""
+  # serviceAccount.annotations -- Annotations to add to the created ServiceAccount (e.g. IRSA's
+  # eks.amazonaws.com/role-arn). Only applied when create is true.
+  annotations: {}
+
 # clusterDomain -- Cluster-wide Kubernetes DNS domain name
 #
 clusterDomain: "cluster.local"
 
-# nodeSelector -- Configure node selector settings for your Kasm pods - 
+# nodeSelector -- Configure node selector settings for your Kasm pods -
 # [Kubernetes Node Selector](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector).
 #
 nodeSelector: {}
@@ -418,6 +1348,99 @@ applySecurity: true
 #
 applyHealthChecks: true
 
+# Opt-in NetworkPolicies for the Kasm pods of this release. When enabled, pods are denied all ingress
+# and egress by default and then allowed the traffic Kasm needs: DNS, external egress, in-release
+# service-to-service traffic and database access. Allowed ingress ports for each component are the
+# containerPorts on its pod template (nginx sidecars included). Ingress rules select pods by the
+# instance and component labels, so one policy per component covers every zone.
+#
+networkPolicies:
+  # networkPolicies.enabled -- Render NetworkPolicy resources for the Kasm workloads
+  enabled: false
+  defaultDeny:
+    # networkPolicies.defaultDeny.enabled -- Deny all ingress and egress for the release's Kasm pods unless another policy allows it
+    enabled: true
+  dns:
+    # networkPolicies.dns.enabled -- Allow DNS (UDP/TCP 53) egress for all Kasm pods
+    enabled: true
+    # networkPolicies.dns.to -- DNS destination peers. Leave empty to use kube-system/kube-dns, or openshift-dns when isOpenshift is true.
+    to: []
+  externalEgress:
+    # networkPolicies.externalEgress.enabled -- Allow external egress for all Kasm pods. With the default peer this leaves egress effectively open; narrow `to` to restrict it.
+    enabled: true
+    # networkPolicies.externalEgress.to -- Destination peers for external egress. An empty list allows every destination.
+    to:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+  database:
+    # networkPolicies.database.standaloneTo -- Destination peers for database clients when database.standalone is true. Replace with pod/namespace selectors for an in-cluster external database.
+    standaloneTo:
+      - ipBlock:
+          cidr: 0.0.0.0/0
+  proxy:
+    # networkPolicies.proxy.from -- Source peers allowed to reach the proxy, whichever way it is exposed (LoadBalancer, NodePort, Ingress, Route, Gateway API, upstream auth). An empty list allows any source. For an in-cluster ingress controller select its namespace, e.g. `[{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: ingress-nginx}}}]`; for an external load balancer or ingress use its source range, e.g. `[{ipBlock: {cidr: 192.0.2.0/24}}]`.
+    from: []
+  rdpGateway:
+    # networkPolicies.rdpGateway.from -- Source peers allowed to reach the RDP Gateway's external RDP port (3389) when directRdpService.enabled or tcpRoute.enabled is true. An empty list allows any source.
+    from: []
+  components:
+    # networkPolicies.components.proxy -- Ingress policy settings for the Kasm proxy pods.
+    proxy:
+      # networkPolicies.components.proxy.enabled -- Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.
+      enabled: true
+      # networkPolicies.components.proxy.extraIngress -- Raw NetworkPolicy ingress rules appended to this component's ingress policy.
+      extraIngress: []
+      # networkPolicies.components.proxy.extraEgress -- Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.
+      extraEgress: []
+    # networkPolicies.components.api -- Ingress policy settings for the Kasm API pods.
+    api:
+      # networkPolicies.components.api.enabled -- Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.
+      enabled: true
+      # networkPolicies.components.api.extraIngress -- Raw NetworkPolicy ingress rules appended to this component's ingress policy.
+      extraIngress: []
+      # networkPolicies.components.api.extraEgress -- Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.
+      extraEgress: []
+    # networkPolicies.components.manager -- Ingress policy settings for the Kasm Manager pods.
+    manager:
+      # networkPolicies.components.manager.enabled -- Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.
+      enabled: true
+      # networkPolicies.components.manager.extraIngress -- Raw NetworkPolicy ingress rules appended to this component's ingress policy.
+      extraIngress: []
+      # networkPolicies.components.manager.extraEgress -- Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.
+      extraEgress: []
+    # networkPolicies.components.guac -- Ingress policy settings for the Kasm Guacamole pods.
+    guac:
+      # networkPolicies.components.guac.enabled -- Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.
+      enabled: true
+      # networkPolicies.components.guac.extraIngress -- Raw NetworkPolicy ingress rules appended to this component's ingress policy.
+      extraIngress: []
+      # networkPolicies.components.guac.extraEgress -- Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.
+      extraEgress: []
+    # networkPolicies.components.rdpGateway -- Ingress policy settings for the Kasm RDP Gateway pods.
+    rdpGateway:
+      # networkPolicies.components.rdpGateway.enabled -- Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.
+      enabled: true
+      # networkPolicies.components.rdpGateway.extraIngress -- Raw NetworkPolicy ingress rules appended to this component's ingress policy.
+      extraIngress: []
+      # networkPolicies.components.rdpGateway.extraEgress -- Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.
+      extraEgress: []
+    # networkPolicies.components.rdpHttpsGateway -- Ingress policy settings for the Kasm RDP HTTPS Gateway pods.
+    rdpHttpsGateway:
+      # networkPolicies.components.rdpHttpsGateway.enabled -- Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.
+      enabled: true
+      # networkPolicies.components.rdpHttpsGateway.extraIngress -- Raw NetworkPolicy ingress rules appended to this component's ingress policy.
+      extraIngress: []
+      # networkPolicies.components.rdpHttpsGateway.extraEgress -- Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.
+      extraEgress: []
+    # networkPolicies.components.db -- Ingress policy settings for the Kasm database (ignored when database.standalone is true) pods.
+    db:
+      # networkPolicies.components.db.enabled -- Render the restrictive ingress policy for this component. Set to `false` to allow all ingress to it instead (the rest of the release stays default-deny), e.g. to manage it yourself.
+      enabled: true
+      # networkPolicies.components.db.extraIngress -- Raw NetworkPolicy ingress rules appended to this component's ingress policy.
+      extraIngress: []
+      # networkPolicies.components.db.extraEgress -- Raw NetworkPolicy egress rules. When set, a separate egress policy selecting this component's pods is rendered.
+      extraEgress: []
+
 # restartPolicy -- Configure global Pod restart policy for Kasm resources
 #
 restartPolicy: "Always"
@@ -426,30 +1449,38 @@ restartPolicy: "Always"
 #
 labels: {}
 
+# annotations -- Custom annotations to apply to all deployed resources
+#
+annotations: {}
+
 # Additional resource annotations to apply to resources created by this chart.
 # See [Kubernetes Annotations](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 # for more information.
 #
-annotations:
-  # annotations.certSecret -- Additional certSecret annotations to apply to resources created by this chart
-  certSecret: {}
-  # annotations.configMap -- Additional configMap annotations to apply to resources created by this chart
+extraAnnotations:
+  # extraAnnotations.configMap -- Additional configMap annotations to apply to resources created by this chart
   configMap: {}
-  # annotations.cron -- Additional cron annotations to apply to resources created by this chart
-  cron: {}
-  # annotations.cron -- Additional cron pod cron labels to apply to resources created by this chart
+  # extraAnnotations.cronJob -- Additional cronJob annotations to apply to resources created by this chart
+  cronJob: {}
+  # extraAnnotations.cronPod -- Additional annotations to apply to the pod template inside CronJobs created by this chart
   cronPod: {}
-  # annotations.deployment -- Additional deployment annotations to apply to resources created by this chart
+  # extraAnnotations.deployment -- Additional deployment annotations to apply to resources created by this chart
   deployment: {}
-  # annotations.pod -- Additional pod annotations to apply to resources created by this chart
+  # extraAnnotations.job -- Additional job annotations to apply to resources created by this chart
+  job: {}
+  # extraAnnotations.networkPolicy -- Additional NetworkPolicy annotations to apply to resources created by this chart
+  networkPolicy: {}
+  # extraAnnotations.pod -- Additional pod annotations to apply to resources created by this chart
   pod: {}
-  # annotations.pvc -- Additional PersistentVolumeClaim annotations to apply to resources created by this chart
+  # extraAnnotations.pvc -- Additional PersistentVolumeClaim annotations to apply to resources created by this chart
   pvc: {}
-  # annotations.service -- Additional service annotations to apply to resources created by this chart
+  # extraAnnotations.service -- Additional service annotations to apply to resources created by this chart
   service: {}
-  # annotations.secret -- Additional secret annotations to apply to resources created by this chart
+  # extraAnnotations.secret -- Additional secret annotations to apply to resources created by this chart
   secret: {}
-  # annotations.statefulSet -- Additional statefulSet annotations to apply to resources created by this chart
+  # extraAnnotations.serviceAccount -- Additional serviceAccount annotations to apply to resources created by this chart
+  serviceAccount: {}
+  # extraAnnotations.statefulSet -- Additional statefulSet annotations to apply to resources created by this chart
   statefulSet: {}
 
 # Additional Kubernetes labels to apply to resources created by this chart.
@@ -457,12 +1488,12 @@ annotations:
 # for more information.
 #
 extraLabels:
-  # extraLabels.certSecret -- Additional statefulSet labels to apply to resources created by this chart
-  certSecret: {}
   # extraLabels.configMap -- Additional configMap labels to apply to resources created by this chart
   configMap: {}
   # extraLabels.deployment -- Additional deployment labels to apply to resources created by this chart
   deployment: {}
+  # extraLabels.networkPolicy -- Additional NetworkPolicy labels to apply to resources created by this chart
+  networkPolicy: {}
   # extraLabels.pod -- Additional pod labels to apply to resources created by this chart
   pod: {}
   # extraLabels.secret -- Additional secret labels to apply to resources created by this chart
@@ -471,18 +1502,109 @@ extraLabels:
   service: {}
   # extraLabels.job -- Additional job labels to apply to resources created by this chart
   job: {}
-  # extraLabels.jobPod -- Additional job Pod labels to apply to resources created by this chart
-  jobPod: {}
-  # extraLabels.cron -- Additional cron labels to apply to resources created by this chart
-  cron: {}
-  # extraLabels.cronPod -- Additional cron Pod labels to apply to resources created by this chart
+  # extraLabels.cronJob -- Additional cronJob labels to apply to resources created by this chart
+  cronJob: {}
+  # extraLabels.cronPod -- Additional labels to apply to the pod template inside CronJobs created by this chart
   cronPod: {}
   # extraLabels.pvc -- Additional PersistentVolumeClaim labels to apply to resources created by this chart
   pvc: {}
+  # extraLabels.serviceAccount -- Additional serviceAccount labels to apply to resources created by this chart
+  serviceAccount: {}
   # extraLabels.statefulSet -- Additional statefulSet labels to apply to resources created by this chart
   statefulSet: {}
+
+# extraContainerVolumes -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+#  like custom SSL certificates, config files, or data volumes to all Kasm containers
+# Example:
+#   extraContainerVolumes:
+#     - secret:
+#         defaultMode: 420
+#         secretName: kasm-custom-tls
+#       name: pkichain
+extraVolumes: []
+
+# extraContainerVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+#  like custom SSL certificates, config files, or data volumes to all Kasm containers
+# Example: 
+#   extraContainerVolumeMounts:
+#     - mountPath: /etc/ssl/certs/ca-certificates.crt
+#       name: pkichain
+#       readOnly: true
+#       subPath: ca.crt
+extraContainerVolumeMounts: []
+
+# extraInitVolumeMounts -- A list of objects for additional secrets, configmaps, or volume mounts. Useful for adding things
+#  like custom SSL certificates, config files, or data volumes to all Kasm Service Init containers
+# Example: 
+#   extraInitVolumeMounts:
+#     - mountPath: /etc/ssl/certs/ca-certificates.crt
+#       name: pkichain
+#       readOnly: true
+#       subPath: ca.crt
+extraInitVolumeMounts: []
+
+# extraContainers -- Additional sidecar containers to run in every pod
+# Example
+#  - name: sidecar-example
+#    image: busybox
+#    command: [/bin/sh, -c, 'echo "Hello world"']
+extraContainers: []
+
+# extraContainers -- Additional sidecar containers to run in every pod
+# Example
+#  - name: init-example
+#    image: busybox
+#    command: [/bin/sh, -c, 'echo "Hello world"']
+extraInitContainers: []
 
 # extraObjects -- Deploy additional Kubernetes manifests.
 # This field is expected to be either a multi-line string, a list of strings, or a list of objects.
 #
 extraObjects: []
+
+# kasmConfig -- Use fields in the `kasmConfig` section to apply customization to a Kasm deployment
+# during database initialization.
+#
+# NOTE: This data is only used during DB initialization and does not have any effect on live Kasm
+# configuration settings. 
+#
+kasmConfig:
+  # kasmConfig.generatePreseed -- Enable generation of a custom DB initialization configuration to
+  # pre-configure Kasm during installation.
+  #
+  generatePreseed: false
+  # kasmConfig.defaultUsers -- Creates a series of 4 users and 5 groups with a standard set of
+  # permissions accommodating most standard deployment scenarios. Refer to the [Default Users](./docs/default-users.md)
+  # for additional information about what this flag creates.
+  #
+  defaultUsers: false
+  # kasmConfig.defaultApiUsers -- Creates two predefined sets of API credentials with permissions
+  # accommodating most standard deployment scenarios. Refer to the [Default API Users](./docs/default-api-users.md)
+  # for additional information about what this flag creates.
+  #
+  defaultApiUsers: false
+  # kasmConfig.adminUsername -- Change the username seeded on the admin-group member. Default: `admin@kasm.local`,
+  # the only true built-in admin account. Setting this to any other value seeds that account with generated
+  # (non-built-in) credentials stored under a `<local-part>-password`/`<local-part>-salt` key pair in the
+  # passwords/salts Secrets (e.g. `system@kasm.local` -> `system-password`) instead of the built-in
+  # admin-password-Secret-backed credentials. The chart will not create an `admin-password` key at all in that
+  # case, and the db-init Job will not be given a DEFAULT_ADMIN_PASSWORD env var. See docs/default-users.md.
+  #
+  adminUsername: "admin@kasm.local"
+  # kasmConfig.existingDefaultPropertiesSecret -- Reference a customer-managed Secret containing a complete
+  # `default_properties.yaml` seed file, for infrastructure-as-code workflows that manage the seed file directly
+  # as a Kubernetes Secret rather than expressing it through kasmConfig.config values.
+  #
+  # When `name` is set, its contents (at `key`) replace the image's baked-in default_properties.yaml as the base
+  # seed file. This works independently of generatePreseed: set generatePreseed=true as well to additionally merge
+  # kasmConfig.config-generated values on top of the customer-provided file, or leave it false to use the
+  # customer-provided file as-is with no chart-side merge.
+  #
+  existingDefaultPropertiesSecret:
+    name: ""
+    key: "default_properties.yaml"
+  # kasmConfig.config -- Kasm DB pre-seed configuration settings in YAML format. Refer to the
+  # [Preseed Documentation](./docs/preseed.md) and to the [Kasm Slip-Stream Install](https://docs.kasm.com/docs/1.19.0/how-to/administration/import-export/slipstream-install)
+  # documentation for additional details.
+  #
+  config: {}

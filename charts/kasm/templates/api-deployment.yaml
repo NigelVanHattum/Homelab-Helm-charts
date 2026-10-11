@@ -2,24 +2,15 @@
 Kasm API server Deployment definition
 */}}
 {{- $constants := (include "kasm.constants" . | fromYaml) -}}
-{{- $apiReplicas := include "replicas.preset" (dict "node" ($constants.api.component) "size" .Values.deploymentSize) -}}
+{{- $apiReplicas := ternary .Values.components.api.replicas (include "replicas.preset" (dict "node" ($constants.api.component) "size" .Values.deploymentSize)) (gt (int .Values.components.api.replicas) 0) -}}
+{{- $merged := fromYaml (include "kasm.mergedValues" (dict "root" . "componentName" "api")) -}}
+{{- $sa := fromYaml (include "kasm.serviceAccount" (dict "context" . "component" "api")) -}}
+{{- range $idx, $zone := (include "kasm.zones" $ | fromYamlArray) }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ $constants.api.name }}-deployment
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: {{ $constants.api.name }}
-    app.kubernetes.io/component: {{ $constants.api.component }}
-    {{- include "kasm.defaultLabels" . | indent 4 }}
-    {{- with .Values.components.api.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.extraLabels.deployment }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-  {{- if or .Values.components.api.annotations .Values.annotations.deployment }}
-  annotations:
-    {{- with .Values.annotations.deployment }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.components.api.annotations }}{{- toYaml . | nindent 4 }}{{- end }}
-  {{- end }}
+  {{- include "kasm.metadata" (dict "context" $ "component" "api" "resource" "deployment" "zone" $zone.name "include" "all") | indent 2 }}
 spec:
   replicas: {{ $apiReplicas }}
   strategy:
@@ -29,108 +20,124 @@ spec:
       maxSurge: {{ add1 $apiReplicas }}
   selector:
     matchLabels:
-        app.kubernetes.io/name: {{ $constants.api.name }}
+      {{- include "kasm.metadata" (dict "context" $ "component" "api" "resource" "deployment" "zone" $zone.name "include" "match") | indent 6 }}
   template:
     metadata:
-      labels:
-        app.kubernetes.io/name: {{ $constants.api.name }}
-        app.kubernetes.io/component: {{ $constants.api.component }}
-        {{- include "kasm.defaultLabels" . | indent 8 }}
-        {{- with .Values.components.api.labels }}{{ toYaml . | nindent 8 }}{{- end }}
-        {{- with .Values.extraLabels.pod }}{{ toYaml . | nindent 8 }}{{- end }}
-        {{- with .Values.labels }}{{- toYaml . | nindent 8 }}{{- end }}
-      {{- if or .Values.components.api.annotations .Values.annotations.pod }}
-      annotations:
-        {{- with .Values.annotations.pod }}{{ toYaml . | nindent 8 }}{{- end }}
-        {{- with .Values.components.api.annotations }}{{ toYaml . | nindent 8 }}{{- end }}
-      {{- end }}
+      {{- include "kasm.metadata" (dict "context" $ "component" "api" "resource" "pod" "zone" $zone.name "include" "la") | indent 6 }}
     spec:
-      restartPolicy: {{ .Values.restartPolicy }}
-      {{- if .Values.imagePullSecrets.enabled }}
+      restartPolicy: {{ $.Values.restartPolicy }}
+      {{- with $sa.name }}
+      serviceAccountName: {{ . }}
+      {{- end }}
+      {{- if $.Values.imagePullSecrets.enabled }}
       imagePullSecrets:
-        - name: {{ .Values.imagePullSecrets.name | default (printf "%s-image-pull-secret" .Release.Name) }}
+        - name: {{ $.Values.imagePullSecrets.name | default (printf "%s-image-pull-secret" $.Release.Name) }}
       {{- end }}
-      {{- if .Values.applySecurity }}
-        {{- include "kasm.podSecurity" . | indent 6 }}
-      {{- end }}
-      {{- with .Values.nodeSelector }}
+      {{- include "kasm.securityContext" (list $ 1000 "pod") | nindent 6 }}
+      {{- with $.Values.nodeSelector }}
       nodeSelector: {{ toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- with $.Values.affinity }}
       affinity: {{ toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
-        - name: db-is-ready
-          image: {{ $constants.api.image }}
-          imagePullPolicy: {{ .Values.imagePullPolicy }}
-          env:
-            - name: POSTGRES_HOST
-              value: {{ $constants.db.svc }}
-            - name: POSTGRES_PORT
-              value: {{ $constants.db.port | quote }}
-            - name: POSTGRES_DB
-              value: {{ .Values.database.kasmDbName }}
-            - name: POSTGRES_USER
-              value: {{ .Values.database.kasmDbUser }}
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                {{- if .Values.database.kasmDbSecret -}}
-                {{ .Values.database.kasmDbSecret | toYaml | nindent 18 }}
-                {{- else }}
-                  name: {{ .Release.Name }}-secrets
-                  key: "db-password"
-                {{- end }}
-          command:
-            - /bin/bash
-            - -c
-          args:
-            - |
-              while [ ! $(PGPASSWORD=$POSTGRES_PASSWORD psql -U $POSTGRES_USER -d $POSTGRES_DB -p $POSTGRES_PORT -h $POSTGRES_HOST -t -c "select zone_id from zones" 2>/dev/null | wc -l) -ge 2 ]; do echo "Waiting for DB to initialize..."; sleep 5; done
-          {{- if .Values.applySecurity }}
-            {{- include "kasm.containerSecurity" . | indent 10 }}
-          {{- end }}
+        {{- include "kasm.trustedCaInit" (list $ "api") | nindent 8 }}
+        {{- include "kasm.dbIsReady" (dict "context" $ "function" "ready") | nindent 8 }}
+        {{- with $merged.extraInitContainers }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
       containers:
-        - name: {{ $constants.api.name }}-container
+        - name: {{ include "kasm.name" (list $ "api" "container" $zone.name) }}
           image: {{ $constants.api.image }}
-          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          imagePullPolicy: {{ $.Values.imagePullPolicy }}
           env:
-            - name: START_SERVICES
-              value: "true"
-            - name: KUBERNETES_SERVICE_HOST
-              value: "true"
+            - name: PYTHONWARNINGS
+              value: "ignore:datetime.datetime.utcnow:DeprecationWarning"
             - name: POSTGRES_HOST
-              value: {{ $constants.db.svc }}
+              value: {{ $constants.db.svc | quote }}
             - name: POSTGRES_PORT
               value: {{ $constants.db.port | quote }}
             - name: POSTGRES_DB
-              value: {{ .Values.database.kasmDbName }}
+              value: {{ $.Values.database.kasmDbName }}
             - name: POSTGRES_USER
-              value: {{ .Values.database.kasmDbUser }}
+              value: {{ $.Values.database.kasmDbUser }}
+            - name: POSTGRES_POOL_SIZE
+              value: "10"
+            - name: POSTGRES_MAX_OVERFLOW
+              value: "20"
+            - name: KASM_DB_SSL
+              value: "true"
+            {{- include "kasm.trustedCaEnv" $ | indent 12 }}
+            - name: "SERVER_ZONE_NAME"
+              value: {{ $zone.name | quote }}
+            - name: "KASM_EPHEMERAL"
+              value: "true"
+            - name: "SERVER_ID"
+              value: "auto"
+            - name: SERVER_HOSTNAME
+              value: {{ printf "%s-%s" $constants.api.svc (include "kasm.zoneName" $zone.name) | quote }}
+            {{/*
+              SERVER_INTERNAL_SCHEMA is used to define the protocol the API uses to communicate with connection proxies;
+              should be "http" when proxies are in the same cluster, and "https" if they are outside the cluster behind
+              another NGINX proxy
+            */}}
+            - name: SERVER_INTERNAL_SCHEMA
+              value: "https"
+            - name: KASM_THREAD_POOL
+              value: {{ $.Values.components.api.threadPool | quote }}
+            - name: KASM_THREAD_POOL_LOG_INTERVAL
+              value: {{ $.Values.components.api.threadPoolLogInterval | quote }}
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                {{- if .Values.database.kasmDbSecret -}}
-                {{ .Values.database.kasmDbSecret | toYaml | nindent 18 }}
+                {{- if $.Values.database.kasmDbSecret -}}
+                {{ $.Values.database.kasmDbSecret | toYaml | nindent 18 }}
                 {{- else }}
-                  name: {{ .Release.Name }}-secrets
+                  name: {{ $constants.secrets.name }}
                   key: "db-password"
                 {{- end }}
           ports:
             - name: {{ $constants.api.portName }}
               containerPort: {{ $constants.api.port }}
               protocol: TCP
-          {{- if .Values.applyHealthChecks }}
+          volumeMounts:
+            - name: tmp-data
+              mountPath: /tmp
+            {{- if eq $.Values.logFormat "json" }}
+            - name: kasm-api-app-config
+              mountPath: /opt/kasm/current/conf/app/api/api.app.config.yaml
+              subPath: api.app.config.yaml
+            {{- end }}
+            {{- with $merged.containerMounts }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- include "kasm.trustedCaVolumeMounts" $ | nindent 12 }}
+          {{- if $.Values.applyHealthChecks }}
           livenessProbe:
-            {{- include "health.tcp" (dict "portName" $constants.api.portName ) | indent 12 }}
+            {{- include "health.probe" (dict "root" $ "component" "api" "probeType" "livenessProbe" "type" "tcp" "portName" $constants.api.portName) | nindent 12 }}
           readinessProbe:
-            {{- include "health.http" (dict "path" "/api/__healthcheck" "portName" $constants.api.portName ) | indent 12 }}
+            {{- include "health.probe" (dict "root" $ "component" "api" "probeType" "readinessProbe" "type" "http" "path" "/api/__healthcheck" "portName" $constants.api.portName) | nindent 12 }}
           {{- end }}
-          {{- if .Values.components.api.resources }}
-          resources: {{- toYaml .Values.components.api.resources | nindent 12 }}
+          {{- if $.Values.components.api.resources }}
+          resources: {{- toYaml $.Values.components.api.resources | nindent 12 }}
           {{- else }}
-          resources: {{- include "resources.preset" (dict "node" $constants.api.component "size" .Values.deploymentSize) | nindent 12 }}
+          resources: {{- include "resources.preset" (dict "node" $constants.api.component "size" $.Values.deploymentSize) | nindent 12 }}
           {{- end }}
-          {{- if .Values.applyPodSecurity }}
-            {{- include "kasm.containerSecurity" . | indent 10 }}
-          {{- end }}
+          {{- include "kasm.securityContext" (list $ 1000 "container") | nindent 10 }}
+        {{- with $merged.extraContainers }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: tmp-data
+          emptyDir:
+            sizeLimit: 256Mi
+        {{- if eq $.Values.logFormat "json" }}
+        - name: kasm-api-app-config
+          configMap:
+            name: {{ include "kasm.name" (list $ "api-app-config") }}
+        {{- end}}
+      {{- with $merged.volumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "kasm.trustedCaVolumes" $ | nindent 8 }}
+{{- end }}

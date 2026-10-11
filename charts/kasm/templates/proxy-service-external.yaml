@@ -12,24 +12,11 @@ Deploy the Kasm Proxy service
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ $constants.proxy.svc }}-ext
-  namespace: {{ .Release.Namespace }}
-  labels:
-    app.kubernetes.io/name: {{ $constants.proxy.svc }}-ext-svc
-    app.kubernetes.io/component: {{ $constants.proxy.component }}
-    {{- include "kasm.defaultLabels" . | indent 4 }}
-    {{- with .Values.components.proxy.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.extraLabels.service }}{{- toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.labels }}{{- toYaml . | nindent 4 }}{{- end }}
-  {{- if or .Values.proxyService.annotations .Values.annotations.service }}
-  annotations:
-    {{- with .Values.proxyService.annotations }}{{ toYaml . | nindent 4 }}{{- end }}
-    {{- with .Values.annotations.service }}{{ toYaml . | nindent 4 }}{{- end }}
-  {{- end }}
+  {{- include "kasm.metadata" (dict "context" $ "component" "proxy-ext" "resource" "service" "zone" "default" "include" "all") | indent 2 }}
 spec:
   type: {{ .Values.proxyService.type }}
   selector:
-    app.kubernetes.io/name: {{ $constants.proxy.name }}-default
+    {{- include "kasm.metadata" (dict "context" $ "component" "proxy" "resource" "service" "zone" "default" "include" "match") | indent 4 }}
   ports:
     - name: {{ printf "%s-ext-svc-%s" $constants.proxy.svc ($constants.proxy.extHttps | toString) }}
       protocol: TCP
