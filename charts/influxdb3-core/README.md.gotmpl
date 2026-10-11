@@ -104,13 +104,13 @@ explorer:
 ### Extra manifests
 
 Deploy arbitrary additional manifests alongside the chart with `extraManifests`. Each entry may be a structured object or a raw YAML string; both are run through `tpl`, so templating against `.Release` and `.Values` works:
-
+{{/* helm-docs renders this file as a Go template and a code fence is not an escape: the quoted-literal wrapping in the example below is what keeps those actions printed instead of evaluated. */}}
 ```yaml
 extraManifests:
   - apiVersion: v1
     kind: ConfigMap
     metadata:
-      name: "{{ .Release.Name }}-extra"
+      name: "{{ "{{ .Release.Name }}" }}-extra"
     data:
       key: value
   - |
@@ -119,7 +119,7 @@ extraManifests:
     metadata:
       name: my-extra-secret
     stringData:
-      token: "{{ .Values.someValue }}"
+      token: "{{ "{{ .Values.someValue }}" }}"
 ```
 
 {{ template "chart.requirementsSection" . }}
