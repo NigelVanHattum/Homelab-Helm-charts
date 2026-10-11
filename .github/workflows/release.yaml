@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3.7.0
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           # Safe only while this repo is public: cr pushes with CR_TOKEN, but its
@@ -35,6 +35,9 @@ jobs:
 
       - name: Install Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          # Keep in step with helm-ci.yaml, or releases package with a Helm CI never tested.
+          version: v4.2.4
 
       - name: Add Helm repositories
         run: |
