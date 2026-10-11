@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "charts/**"
+      - ".github/scripts/check_helm_docs_render.sh"
       - ".github/workflows/helm-docs-pr.yaml"
 
 permissions:
@@ -21,6 +22,16 @@ jobs:
           # input, so it needs the checkout's credentials: persist-credentials: false
           # breaks the push.
           persist-credentials: true
+      - name: Install helm-docs
+        # Installer only: puts the pinned helm-docs on PATH; no Chart.yaml under .github/workflows, so nothing renders.
+        uses: losisin/helm-docs-github-action@9e0787c426fdec38be6288bb5c0559dcb388412c # v2.0.1
+        with:
+          chart-search-root: .github/workflows
+
+      - name: Verify every chart renders
+        # helm-docs exits 0 on a broken template but still commits a truncated README (HOMAAA-221).
+        run: .github/scripts/check_helm_docs_render.sh .
+
       - name: Run helm-docs
         uses: losisin/helm-docs-github-action@9e0787c426fdec38be6288bb5c0559dcb388412c # v2.0.1
         with:
