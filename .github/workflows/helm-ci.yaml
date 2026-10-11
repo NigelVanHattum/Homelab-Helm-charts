@@ -67,12 +67,12 @@ jobs:
           CHARTS: ${{ needs.discover.outputs.charts }}
         run: |
           missing=0
-          for chart in $(jq -r '.[]' <<<"$CHARTS"); do
+          while IFS= read -r chart; do
             if ! compgen -G "$chart/tests/*_test.yaml" > /dev/null; then
               echo "::error file=$chart/Chart.yaml::$chart has no tests/*_test.yaml"
               missing=1
             fi
-          done
+          done < <(jq -r '.[]' <<<"$CHARTS")
           exit $missing
 
   suite-keys:
@@ -143,9 +143,10 @@ jobs:
         env:
           CHARTS: ${{ needs.discover.outputs.charts }}
         run: |
+          mapfile -t charts < <(jq -r '.[]' <<<"$CHARTS")
           python .github/scripts/check_unittest_keys.py \
             --plugin-version "$HELM_UNITTEST_VERSION" \
-            $(jq -r '.[]' <<<"$CHARTS")
+            "${charts[@]}"
 
   lint:
     needs: discover
@@ -168,8 +169,10 @@ jobs:
         # ci/default-values.yaml carries the minimum a chart needs to render,
         # so both steps exercise a real template pass instead of a bare
         # skeleton.
+        env:
+          CHART: ${{ matrix.chart }}
         run: |
-          chart="${{ matrix.chart }}"
+          chart="$CHART"
           if [ -f "$chart/ci/default-values.yaml" ]; then
             helm lint "$chart" -f "$chart/ci/default-values.yaml"
             helm template ci "$chart" -f "$chart/ci/default-values.yaml" > /dev/null
@@ -209,4 +212,6 @@ jobs:
         # skipped setting. It stops at the assertion: keys inside one are
         # decoded with mapstructure and dropped without a word, which is what
         # the suite-keys job covers.
-        run: helm unittest --strict "${{ matrix.chart }}"
+        env:
+          CHART: ${{ matrix.chart }}
+        run: helm unittest --strict "$CHART"
