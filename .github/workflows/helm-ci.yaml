@@ -148,6 +148,31 @@ jobs:
             --plugin-version "$HELM_UNITTEST_VERSION" \
             "${charts[@]}"
 
+  docs-render-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install helm-docs
+        # Installer only, same pin as .github/workflows/helm-docs-pr.yaml so the
+        # guard is checked against the helm-docs that renders the published
+        # READMEs. .github/workflows holds no Chart.yaml, so the action's own
+        # render pass is a no-op.
+        uses: losisin/helm-docs-github-action@9e0787c426fdec38be6288bb5c0559dcb388412c # v2.0.1
+        with:
+          chart-search-root: .github/workflows
+
+      - name: Self-check the render guard against its fixtures
+        # check_helm_docs_render.sh is what keeps a chart whose README.md.gotmpl
+        # fails to render from being published as a truncated README, and
+        # helm-docs signals that failure with a warning and exit 0 - so a
+        # refactor that stops matching the warning would silently restore the
+        # original bug. The fixtures are real charts: one that renders, one with
+        # the unescaped `{{ .Release.Name }}` of HOMAAA-219.
+        run: .github/scripts/test_check_helm_docs_render.sh
+
   lint:
     needs: discover
     runs-on: ubuntu-latest
