@@ -5,6 +5,7 @@ on:
     paths:
       - "charts/**"
       - ".github/scripts/check_helm_docs_render.sh"
+      - ".github/scripts/install_helm_docs.sh"
       - ".github/workflows/helm-docs-pr.yaml"
 
 permissions:
@@ -18,21 +19,30 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          # helm-docs-github-action pushes with a bare `git push` and takes no token
-          # input, so it needs the checkout's credentials: persist-credentials: false
-          # breaks the push.
+          # The push step below has no token of its own: it relies on these credentials.
           persist-credentials: true
+
       - name: Install helm-docs
-        # Installer only: puts the pinned helm-docs on PATH; no Chart.yaml under .github/workflows, so nothing renders.
-        uses: losisin/helm-docs-github-action@9e0787c426fdec38be6288bb5c0559dcb388412c # v2.0.1
-        with:
-          chart-search-root: .github/workflows
+        run: .github/scripts/install_helm_docs.sh
 
       - name: Verify every chart renders
         # helm-docs exits 0 on a broken template but still commits a truncated README (HOMAAA-221).
         run: .github/scripts/check_helm_docs_render.sh .
 
       - name: Run helm-docs
-        uses: losisin/helm-docs-github-action@9e0787c426fdec38be6288bb5c0559dcb388412c # v2.0.1
-        with:
-          git-push: true
+        # Keep options equal to check_helm_docs_render.sh.
+        run: helm-docs --values-file values.yaml --output-file README.md --template-files README.md.gotmpl --chart-search-root .
+
+      - name: Push README changes
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git add -- '*README.md'
+          if git diff --cached --quiet; then
+            echo "README.md is up to date."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git commit -m 'update Helm documentation'
+          git push origin "HEAD:refs/heads/$HEAD_REF"

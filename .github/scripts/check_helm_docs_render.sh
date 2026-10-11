@@ -10,7 +10,7 @@ trap 'rm -f "$log"' EXIT
 
 # Keep options equal to the helm-docs-pr.yaml push step, or the two render different things.
 status=0
-helm-docs --dry-run --chart-search-root "$root" >/dev/null 2>"$log" || status=$?
+helm-docs --dry-run --values-file values.yaml --output-file README.md --template-files README.md.gotmpl --chart-search-root "$root" >/dev/null 2>"$log" || status=$?
 
 cat "$log" >&2
 
