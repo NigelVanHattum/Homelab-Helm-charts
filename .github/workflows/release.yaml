@@ -45,11 +45,31 @@ jobs:
           helm repo add maikumori https://maikumori.github.io/helm-charts
           helm repo update
 
+      # Released cr (<= v1.8.1) publishes before uploading, which immutable releases reject.
+      # Built from the helm/chart-releaser#587 merge until a release ships it: watch
+      # https://github.com/helm/chart-releaser/releases, then drop the Go and build steps and
+      # install_dir below, and set the action's `version:` to that release.
+      - name: Install Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # chart-releaser's go.mod at the pinned commit needs 1.26.
+          go-version: "1.26"
+          cache: false
+
+      - name: Build chart-releaser
+        env:
+          GOBIN: ${{ runner.tool_cache }}/cr/30b66b7/x86_64
+        run: |
+          go version
+          go install github.com/helm/chart-releaser/cr@30b66b7eb6f59dc22fea53436c20e1efa557cf29
+
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@a917fd15b20e8b64b94d9158ad54cd6345335584 # v1.6.0
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         with:
+          # An existing install_dir makes the action skip its own cr download.
+          install_dir: ${{ runner.tool_cache }}/cr/30b66b7/x86_64
           # chart-releaser reads this as an action input, not an environment
           # variable. Under env: it was silently ignored, so cr tried to create
           # a release for every changed chart even when that tag already
