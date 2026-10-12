@@ -1,0 +1,55 @@
+suite: volumeClaimTemplates carry no version label
+release:
+  name: influxdb3-core
+  namespace: influxdb
+tests:
+  # spec.volumeClaimTemplates is immutable (ValidateImmutableField), so any label that
+  # changes with a chart or app version makes every bump an unsyncable diff. These claim
+  # templates carry no labels at all today; adding one is what this suite forbids.
+  - it: never puts helm.sh/chart, app version or managed-by on a claim template
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["helm.sh/chart"]
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["app.kubernetes.io/version"]
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["app.kubernetes.io/managed-by"]
+
+  - it: keeps the full label set on the StatefulSet itself
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - exists:
+          path: metadata.labels["helm.sh/chart"]
+      - exists:
+          path: metadata.labels["app.kubernetes.io/version"]
+      - exists:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+
+  - it: never puts helm.sh/chart, app version or managed-by on a claim template (explorer)
+    templates:
+      - templates/explorer-statefulset.yaml
+    set:
+      explorer.enabled: true
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["helm.sh/chart"]
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["app.kubernetes.io/version"]
+      - notExists:
+          path: spec.volumeClaimTemplates[0].metadata.labels["app.kubernetes.io/managed-by"]
+
+  - it: keeps the full label set on the StatefulSet itself (explorer)
+    templates:
+      - templates/explorer-statefulset.yaml
+    set:
+      explorer.enabled: true
+    asserts:
+      - exists:
+          path: metadata.labels["helm.sh/chart"]
+      - exists:
+          path: metadata.labels["app.kubernetes.io/version"]
+      - exists:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
