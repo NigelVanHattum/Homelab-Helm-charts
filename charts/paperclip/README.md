@@ -1,6 +1,6 @@
 # paperclip
 
-![Version: 0.1.7](https://img.shields.io/badge/Version-0.1.7-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
+![Version: 0.2.0](https://img.shields.io/badge/Version-0.2.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
 
 Paperclip - run teams of AI agents as a company. Deploys the app with its own CloudNativePG cluster.
 
@@ -70,6 +70,47 @@ Backups use the barman-cloud CNPG-I plugin and need
 `plugin-barman-cloud` in the cluster. Unlike the upstream
 `cloudnative-pg/cluster` chart, the `ObjectStore` here is a plain resource rather
 than a Helm hook, so GitOps controllers reconcile it normally.
+
+## Restoring from backup
+
+`database.cnpg.mode: recovery` bootstraps the `Cluster` from an existing
+barman-cloud object store instead of an empty `initdb`, so a full restore is a
+values change rather than a `Cluster` applied by hand outside the chart. It
+renders `bootstrap.recovery.source: pluginRecoveryCluster` plus an
+`externalClusters` entry, and — unless `recovery.objectStoreName` names one — a
+second `ObjectStore`, `<clusterName>-recovery`, pointing at the source bucket.
+
+```yaml
+database:
+  cnpg:
+    mode: recovery
+    recovery:
+      # serverName of the cluster being recovered FROM, i.e. its bucket prefix
+      sourceClusterName: paperclip-db
+      endpointURL: http://rustfs.example.internal:9000
+      destinationPath: s3://paperclip-backups/
+      secretName: paperclip-backup-s3-credentials
+      # pitrTarget:
+      #   time: "2026-08-08T04:45:00Z"
+    backups:
+      enabled: true
+      destinationPath: s3://paperclip-backups/
+      secretName: paperclip-backup-s3-credentials
+      # required here: see below
+      serverName: paperclip-db-r2
+```
+
+`backups.serverName` sets the WAL-archive prefix, and is useful on its own: a
+recovered cluster has a new system ID, so archiving into the prefix it was
+recovered from fails with `Expected empty archive` and the cluster then runs
+with no WAL protection at all. The chart refuses to render that collision
+rather than let it reach the archiver. The old prefix stays as read-only
+history; the retention policy only manages the active one.
+
+`bootstrap` is read only when CloudNativePG creates the Cluster, so putting
+`mode` back to `standalone` once the recovered cluster is healthy changes
+nothing about it — but leave `backups.serverName` in place, since the recovered
+cluster owns that prefix now.
 
 ## First admin
 
@@ -152,6 +193,7 @@ boundary is the model you pick, not the role you bind.
 | database.cnpg.backups.retentionPolicy | string | `"21d"` | Barman retention policy. |
 | database.cnpg.backups.scheduledBackups | list | `[{"backupOwnerReference":"self","name":"daily","schedule":"0 45 4 * * *"}]` | ScheduledBackup objects. Schedules are six-field cron (with seconds). |
 | database.cnpg.backups.secretName | string | `""` | Secret with ACCESS_KEY_ID and ACCESS_SECRET_KEY. Not created by this chart: the credentials belong to whatever provisions the bucket. |
+| database.cnpg.backups.serverName | string | `""` | WAL-archive prefix inside the bucket. Empty lets CloudNativePG use the Cluster's own name. A recovered cluster needs a fresh prefix here: archiving into a non-empty prefix that belongs to another system ID fails with `Expected empty archive`, and the cluster then runs with no WAL protection at all. |
 | database.cnpg.backups.wal.compression | string | `"gzip"` |  |
 | database.cnpg.backups.wal.encryption | string | `""` |  |
 | database.cnpg.backups.wal.maxParallel | int | `2` |  |
@@ -163,6 +205,7 @@ boundary is the model you pick, not the role you bind.
 | database.cnpg.imageName | string | `""` | Explicit image, overriding `postgresqlVersion`. |
 | database.cnpg.instances | int | `1` | Number of PostgreSQL instances. |
 | database.cnpg.logLevel | string | `"info"` | Instance log level: error, warning, info, debug or trace. |
+| database.cnpg.mode | string | `"standalone"` | `standalone` bootstraps an empty database with initdb. `recovery` bootstraps the Cluster from an existing barman-cloud object store instead, so a restore is a values change rather than a hand-applied Cluster outside the chart. CloudNativePG reads `bootstrap` only when it creates the Cluster, so switching an existing one has no effect either way; put it back to `standalone` once the recovered cluster is healthy. |
 | database.cnpg.monitoring.enablePodMonitor | bool | `false` | Create a PodMonitor. Needs the Prometheus Operator CRDs. |
 | database.cnpg.owner | string | `"paperclip"` | Owner role of the application database. |
 | database.cnpg.parameters | object | `{}` | postgresql.conf parameters. |
@@ -170,6 +213,14 @@ boundary is the model you pick, not the role you bind.
 | database.cnpg.postgresqlVersion | string | `"18"` | Major PostgreSQL version, used to pick the operator's default image. |
 | database.cnpg.primaryUpdateMethod | string | `"switchover"` |  |
 | database.cnpg.primaryUpdateStrategy | string | `"unsupervised"` |  |
+| database.cnpg.recovery.destinationPath | string | `""` | Destination the source cluster archived to, e.g. `s3://paperclip-backups/`. |
+| database.cnpg.recovery.endpointURL | string | `""` | S3 endpoint of the source bucket. Same shape as `backups.endpointURL`. |
+| database.cnpg.recovery.instanceSidecarConfiguration | object | `{}` | Resources for the barman sidecar of the recovery object store. |
+| database.cnpg.recovery.method | string | `"plugin"` | Bootstrap source. Only `plugin` (barman-cloud through CNPG-I) is wired here; the upstream chart's `backup`, `object_store`, `pg_basebackup` and `import` methods are not. |
+| database.cnpg.recovery.objectStoreName | string | `""` | Existing ObjectStore holding the source cluster's backups. Set it to reference one instead of creating the `<clusterName>-recovery` ObjectStore from the three values below. |
+| database.cnpg.recovery.pitrTarget.time | string | `""` | Point-in-time recovery target, e.g. `2026-08-08T04:45:00Z`. Empty replays to the end of the archived WAL. |
+| database.cnpg.recovery.secretName | string | `""` | Secret with ACCESS_KEY_ID and ACCESS_SECRET_KEY for that bucket. Not created by this chart. |
+| database.cnpg.recovery.sourceClusterName | string | `""` | serverName of the cluster to recover FROM, which is its prefix inside the bucket. Usually the dead cluster's own name, and not the name of the Cluster this chart creates. |
 | database.cnpg.resources | object | `{}` | Compute resources for the PostgreSQL instances. |
 | database.cnpg.storage.size | string | `"10Gi"` |  |
 | database.cnpg.storage.storageClass | string | `""` |  |
