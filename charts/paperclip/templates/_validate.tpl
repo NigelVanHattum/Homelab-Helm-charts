@@ -167,6 +167,33 @@ so it runs on every render.
 {{- fail "database.cnpg.superuserSecret is required when enableSuperuserAccess is true" -}}
 {{- end -}}
 {{- end -}}
+{{- if not (has $c.mode (list "standalone" "recovery")) -}}
+{{- fail "database.cnpg.mode must be standalone or recovery" -}}
+{{- end -}}
+{{- if eq $c.mode "recovery" -}}
+{{- if not $c.create -}}
+{{- fail "database.cnpg.mode: recovery requires database.cnpg.create=true: bootstrap only exists on a Cluster this chart renders, and create=false deletes the live one under a pruning GitOps controller" -}}
+{{- end -}}
+{{- if ne $c.recovery.method "plugin" -}}
+{{- fail "database.cnpg.recovery.method must be plugin: this chart wires no other recovery source" -}}
+{{- end -}}
+{{- if not $c.recovery.sourceClusterName -}}
+{{- fail "database.cnpg.recovery.sourceClusterName is required when database.cnpg.mode is recovery: it is the serverName of the cluster to recover from, i.e. its prefix inside the bucket" -}}
+{{- end -}}
+{{- if not $c.recovery.objectStoreName -}}
+{{- if not $c.recovery.destinationPath -}}
+{{- fail "database.cnpg.recovery.destinationPath is required when recovery.objectStoreName is unset: the chart then creates the -recovery ObjectStore itself" -}}
+{{- end -}}
+{{- if not $c.recovery.secretName -}}
+{{- fail "database.cnpg.recovery.secretName is required when recovery.objectStoreName is unset: the chart does not create S3 credentials" -}}
+{{- end -}}
+{{- end -}}
+{{- if $c.backups.enabled -}}
+{{- if eq ($c.backups.serverName | default (include "paperclip.cnpg.clusterName" .)) $c.recovery.sourceClusterName -}}
+{{- fail (printf "database.cnpg.backups.serverName must differ from recovery.sourceClusterName (%q): the recovered cluster has a new system ID, so archiving into that already-populated prefix fails with \"Expected empty archive\" and leaves the cluster running with no WAL protection" $c.recovery.sourceClusterName) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- if $c.backups.enabled -}}
 {{- if $c.backups.create -}}
 {{- if not $c.backups.destinationPath -}}

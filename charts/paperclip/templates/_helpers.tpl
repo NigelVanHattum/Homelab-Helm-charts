@@ -138,6 +138,18 @@ dbname/host/port plus a ready-made connection string under `uri`.
 {{- end -}}
 {{- end }}
 
+{{/*
+Object store the recovery bootstrap reads from. A second object, separate from
+the backup one, so the recovered cluster can archive to a different prefix.
+*/}}
+{{- define "paperclip.cnpg.recoveryObjectStoreName" -}}
+{{- if .Values.database.cnpg.recovery.objectStoreName -}}
+{{ .Values.database.cnpg.recovery.objectStoreName }}
+{{- else -}}
+{{ include "paperclip.cnpg.clusterName" . }}-recovery
+{{- end -}}
+{{- end }}
+
 {{- define "paperclip.cnpg.enabled" -}}
 {{- if eq .Values.database.mode "cnpg" -}}true{{- end -}}
 {{- end }}

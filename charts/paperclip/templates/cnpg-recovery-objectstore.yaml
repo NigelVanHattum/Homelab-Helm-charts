@@ -1,0 +1,38 @@
+{{- if and (include "paperclip.cnpg.enabled" .) .Values.database.cnpg.create (eq .Values.database.cnpg.mode "recovery") (not .Values.database.cnpg.recovery.objectStoreName) }}
+{{- $r := .Values.database.cnpg.recovery }}
+{{- /*
+Read-only side of a recovery: it names the source bucket, and the serverName
+that selects the prefix inside it lives on the externalClusters entry instead.
+Same reason as cnpg-objectstore.yaml for not being a helm hook.
+*/ -}}
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: {{ include "paperclip.cnpg.recoveryObjectStoreName" . }}
+  namespace: {{ .Release.Namespace }}
+  {{- if .Values.argocd.syncWaves.enabled }}
+  annotations:
+    argocd.argoproj.io/sync-wave: {{ .Values.argocd.syncWaves.objectStore | quote }}
+  {{- end }}
+  labels:
+    cnpg.io/cluster: {{ include "paperclip.cnpg.clusterName" . }}
+    {{- include "paperclip.labels" . | nindent 4 }}
+    app.kubernetes.io/component: database-recovery
+spec:
+  configuration:
+    destinationPath: {{ $r.destinationPath | quote }}
+    {{- with $r.endpointURL }}
+    endpointURL: {{ . | quote }}
+    {{- end }}
+    s3Credentials:
+      accessKeyId:
+        name: {{ $r.secretName }}
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: {{ $r.secretName }}
+        key: ACCESS_SECRET_KEY
+  {{- with $r.instanceSidecarConfiguration }}
+  instanceSidecarConfiguration:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

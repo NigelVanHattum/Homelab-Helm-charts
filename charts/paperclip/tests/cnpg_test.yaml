@@ -89,6 +89,164 @@ tests:
             parameters:
               barmanObjectName: paperclip-db-backups
 
+  - it: bootstraps with initdb in standalone mode
+    templates:
+      - templates/cnpg-cluster.yaml
+    asserts:
+      - equal:
+          path: spec.bootstrap.initdb.database
+          value: paperclip
+      - isNull:
+          path: spec.bootstrap.recovery
+      - isNull:
+          path: spec.externalClusters
+
+  - it: bootstraps from the object store in recovery mode
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.sourceClusterName: paperclip-db-dead
+      database.cnpg.recovery.endpointURL: http://rustfs.storage.svc:9000
+      database.cnpg.recovery.destinationPath: s3://paperclip-backups/
+      database.cnpg.recovery.secretName: paperclip-backup-s3-credentials
+    asserts:
+      - equal:
+          path: spec.bootstrap.recovery.source
+          value: pluginRecoveryCluster
+      - isNull:
+          path: spec.bootstrap.initdb
+      - isNull:
+          path: spec.bootstrap.recovery.recoveryTarget
+      # CloudNativePG creates the <clusterName>-app Secret on a recovery
+      # bootstrap only when both of these are set
+      # (ShouldRecoveryCreateApplicationSecret ->
+      # ShouldRecoveryCreateApplicationDatabase). Without them the recovered
+      # cluster comes up healthy while every Paperclip pod sits in
+      # CreateContainerConfigError: DATABASE_URL is a secretKeyRef on that
+      # Secret, and the dead cluster's copy went with its owner reference.
+      - equal:
+          path: spec.bootstrap.recovery.database
+          value: paperclip
+      - equal:
+          path: spec.bootstrap.recovery.owner
+          value: paperclip
+      - equal:
+          path: spec.externalClusters
+          value:
+            - name: pluginRecoveryCluster
+              plugin:
+                name: barman-cloud.cloudnative-pg.io
+                parameters:
+                  barmanObjectName: paperclip-db-recovery
+                  serverName: paperclip-db-dead
+
+  - it: passes a point-in-time target through to the recovery target
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.sourceClusterName: paperclip-db-dead
+      database.cnpg.recovery.destinationPath: s3://paperclip-backups/
+      database.cnpg.recovery.secretName: paperclip-backup-s3-credentials
+      database.cnpg.recovery.pitrTarget.time: "2026-08-08T04:45:00Z"
+    asserts:
+      - equal:
+          path: spec.bootstrap.recovery.recoveryTarget.targetTime
+          value: "2026-08-08T04:45:00Z"
+
+  - it: points the recovery source at an existing object store when named
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.sourceClusterName: paperclip-db-dead
+      database.cnpg.recovery.objectStoreName: shared-pg-backups
+    asserts:
+      - equal:
+          path: spec.externalClusters[0].plugin.parameters.barmanObjectName
+          value: shared-pg-backups
+
+  - it: creates the recovery object store from the source bucket
+    templates:
+      - templates/cnpg-recovery-objectstore.yaml
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.sourceClusterName: paperclip-db-dead
+      database.cnpg.recovery.endpointURL: http://rustfs.storage.svc:9000
+      database.cnpg.recovery.destinationPath: s3://paperclip-backups/
+      database.cnpg.recovery.secretName: paperclip-backup-s3-credentials
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isAPIVersion:
+          of: barmancloud.cnpg.io/v1
+      - equal:
+          path: metadata.name
+          value: paperclip-db-recovery
+      - equal:
+          path: spec.configuration.destinationPath
+          value: s3://paperclip-backups/
+      - equal:
+          path: spec.configuration.endpointURL
+          value: http://rustfs.storage.svc:9000
+      - equal:
+          path: spec.configuration.s3Credentials.accessKeyId.name
+          value: paperclip-backup-s3-credentials
+      - equal:
+          path: metadata.annotations["argocd.argoproj.io/sync-wave"]
+          value: "-2"
+      - isNull:
+          path: metadata.annotations["helm.sh/hook"]
+
+  - it: creates no recovery object store in standalone mode
+    templates:
+      - templates/cnpg-recovery-objectstore.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: creates no recovery object store when one is referenced by name
+    templates:
+      - templates/cnpg-recovery-objectstore.yaml
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.sourceClusterName: paperclip-db-dead
+      database.cnpg.recovery.objectStoreName: shared-pg-backups
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: leaves the archiver prefix to CloudNativePG by default
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      database.cnpg.backups.enabled: true
+      database.cnpg.backups.destinationPath: s3://paperclip-backups/
+      database.cnpg.backups.secretName: paperclip-backup-s3-credentials
+    asserts:
+      - isNull:
+          path: spec.plugins[0].parameters.serverName
+
+  - it: overrides the archiver prefix when backups.serverName is set
+    templates:
+      - templates/cnpg-cluster.yaml
+    set:
+      database.cnpg.backups.enabled: true
+      database.cnpg.backups.destinationPath: s3://paperclip-backups/
+      database.cnpg.backups.secretName: paperclip-backup-s3-credentials
+      database.cnpg.backups.serverName: paperclip-db-r2
+    asserts:
+      - contains:
+          path: spec.plugins
+          content:
+            name: barman-cloud.cloudnative-pg.io
+            enabled: true
+            isWALArchiver: true
+            parameters:
+              barmanObjectName: paperclip-db-backups
+              serverName: paperclip-db-r2
+
   - it: creates no ObjectStore when backups are disabled
     templates:
       - templates/cnpg-objectstore.yaml
