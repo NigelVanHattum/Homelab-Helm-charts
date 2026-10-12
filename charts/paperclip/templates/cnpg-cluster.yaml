@@ -57,9 +57,18 @@ spec:
   monitoring:
     enablePodMonitor: {{ $c.monitoring.enablePodMonitor }}
   bootstrap:
+    {{- if eq $c.mode "recovery" }}
+    recovery:
+      source: pluginRecoveryCluster
+      {{- with $c.recovery.pitrTarget.time }}
+      recoveryTarget:
+        targetTime: {{ . | quote }}
+      {{- end }}
+    {{- else }}
     initdb:
       database: {{ $c.database }}
       owner: {{ $c.owner }}
+    {{- end }}
   {{- if or $c.plugins $c.backups.enabled }}
   plugins:
     {{- with $c.plugins }}
@@ -71,6 +80,18 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: {{ include "paperclip.cnpg.objectStoreName" . }}
+        {{- with $c.backups.serverName }}
+        serverName: {{ . | quote }}
+        {{- end }}
     {{- end }}
+  {{- end }}
+  {{- if eq $c.mode "recovery" }}
+  externalClusters:
+    - name: pluginRecoveryCluster
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: {{ include "paperclip.cnpg.recoveryObjectStoreName" . }}
+          serverName: {{ $c.recovery.sourceClusterName | quote }}
   {{- end }}
 {{- end }}

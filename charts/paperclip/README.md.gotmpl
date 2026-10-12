@@ -72,6 +72,47 @@ Backups use the barman-cloud CNPG-I plugin and need
 `cloudnative-pg/cluster` chart, the `ObjectStore` here is a plain resource rather
 than a Helm hook, so GitOps controllers reconcile it normally.
 
+## Restoring from backup
+
+`database.cnpg.mode: recovery` bootstraps the `Cluster` from an existing
+barman-cloud object store instead of an empty `initdb`, so a full restore is a
+values change rather than a `Cluster` applied by hand outside the chart. It
+renders `bootstrap.recovery.source: pluginRecoveryCluster` plus an
+`externalClusters` entry, and — unless `recovery.objectStoreName` names one — a
+second `ObjectStore`, `<clusterName>-recovery`, pointing at the source bucket.
+
+```yaml
+database:
+  cnpg:
+    mode: recovery
+    recovery:
+      # serverName of the cluster being recovered FROM, i.e. its bucket prefix
+      sourceClusterName: paperclip-db
+      endpointURL: http://rustfs.example.internal:9000
+      destinationPath: s3://paperclip-backups/
+      secretName: paperclip-backup-s3-credentials
+      # pitrTarget:
+      #   time: "2026-08-08T04:45:00Z"
+    backups:
+      enabled: true
+      destinationPath: s3://paperclip-backups/
+      secretName: paperclip-backup-s3-credentials
+      # required here: see below
+      serverName: paperclip-db-r2
+```
+
+`backups.serverName` sets the WAL-archive prefix, and is useful on its own: a
+recovered cluster has a new system ID, so archiving into the prefix it was
+recovered from fails with `Expected empty archive` and the cluster then runs
+with no WAL protection at all. The chart refuses to render that collision
+rather than let it reach the archiver. The old prefix stays as read-only
+history; the retention policy only manages the active one.
+
+`bootstrap` is read only when CloudNativePG creates the Cluster, so putting
+`mode` back to `standalone` once the recovered cluster is healthy changes
+nothing about it — but leave `backups.serverName` in place, since the recovered
+cluster owns that prefix now.
+
 ## First admin
 
 At `deployment.exposure: public` the app disables the browser-based claim on

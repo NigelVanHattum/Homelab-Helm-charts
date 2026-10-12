@@ -157,6 +157,87 @@ tests:
       - failedTemplate:
           errorPattern: "secretName is required"
 
+  # ---- cnpg recovery ----
+  - it: fails on an unknown cnpg mode
+    set:
+      database.cnpg.mode: restore
+    asserts:
+      - failedTemplate:
+          errorPattern: "database.cnpg.mode must be standalone or recovery"
+
+  - it: fails on recovery mode without a source cluster name
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.objectStoreName: shared-pg-backups
+    asserts:
+      - failedTemplate:
+          errorPattern: "recovery.sourceClusterName is required"
+
+  - it: fails on recovery mode with an unsupported method
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.method: object_store
+      database.cnpg.recovery.sourceClusterName: paperclip-db-dead
+      database.cnpg.recovery.objectStoreName: shared-pg-backups
+    asserts:
+      - failedTemplate:
+          errorPattern: "recovery.method must be plugin"
+
+  - it: fails on recovery mode without an object store reference
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.sourceClusterName: paperclip-db-dead
+    asserts:
+      - failedTemplate:
+          errorPattern: "recovery.destinationPath is required when recovery.objectStoreName is unset"
+
+  - it: fails on recovery mode without credentials for the source bucket
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.sourceClusterName: paperclip-db-dead
+      database.cnpg.recovery.destinationPath: s3://paperclip-backups/
+    asserts:
+      - failedTemplate:
+          errorPattern: "recovery.secretName is required when recovery.objectStoreName is unset"
+
+  - it: fails on recovery mode without a Cluster to bootstrap
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.create: false
+      database.cnpg.clusterName: paperclip-db
+      database.cnpg.recovery.sourceClusterName: paperclip-db-dead
+      database.cnpg.recovery.objectStoreName: shared-pg-backups
+    asserts:
+      - failedTemplate:
+          errorPattern: "recovery requires database.cnpg.create=true"
+
+  # Archiving into the source cluster's prefix fails with `Expected empty
+  # archive` and the cluster then runs with no WAL protection, so the chart
+  # refuses the collision instead of rendering it.
+  - it: fails when the recovered cluster would archive into the source prefix
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.sourceClusterName: paperclip-db
+      database.cnpg.recovery.objectStoreName: shared-pg-backups
+      database.cnpg.backups.enabled: true
+      database.cnpg.backups.destinationPath: s3://paperclip-backups/
+      database.cnpg.backups.secretName: s3-creds
+    asserts:
+      - failedTemplate:
+          errorPattern: "backups.serverName must differ from recovery.sourceClusterName"
+
+  - it: accepts a recovered cluster that archives under a fresh prefix
+    set:
+      database.cnpg.mode: recovery
+      database.cnpg.recovery.sourceClusterName: paperclip-db
+      database.cnpg.recovery.objectStoreName: shared-pg-backups
+      database.cnpg.backups.enabled: true
+      database.cnpg.backups.destinationPath: s3://paperclip-backups/
+      database.cnpg.backups.secretName: s3-creds
+      database.cnpg.backups.serverName: paperclip-db-r2
+    asserts:
+      - notFailedTemplate: {}
+
   - it: fails when an external component is missing
     set:
       database.mode: external
