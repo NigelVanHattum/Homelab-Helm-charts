@@ -60,6 +60,9 @@ spec:
     {{- if eq $c.mode "recovery" }}
     recovery:
       source: pluginRecoveryCluster
+      {{- /* Both, or CloudNativePG creates no <clusterName>-app Secret and DATABASE_URL resolves to nothing. */}}
+      database: {{ $c.database }}
+      owner: {{ $c.owner }}
       {{- with $c.recovery.pitrTarget.time }}
       recoveryTarget:
         targetTime: {{ . | quote }}

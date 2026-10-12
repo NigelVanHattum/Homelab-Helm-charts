@@ -118,6 +118,19 @@ tests:
           path: spec.bootstrap.initdb
       - isNull:
           path: spec.bootstrap.recovery.recoveryTarget
+      # CloudNativePG creates the <clusterName>-app Secret on a recovery
+      # bootstrap only when both of these are set
+      # (ShouldRecoveryCreateApplicationSecret ->
+      # ShouldRecoveryCreateApplicationDatabase). Without them the recovered
+      # cluster comes up healthy while every Paperclip pod sits in
+      # CreateContainerConfigError: DATABASE_URL is a secretKeyRef on that
+      # Secret, and the dead cluster's copy went with its owner reference.
+      - equal:
+          path: spec.bootstrap.recovery.database
+          value: paperclip
+      - equal:
+          path: spec.bootstrap.recovery.owner
+          value: paperclip
       - equal:
           path: spec.externalClusters
           value:

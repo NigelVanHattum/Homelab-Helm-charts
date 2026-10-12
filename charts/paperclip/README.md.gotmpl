@@ -101,6 +101,14 @@ database:
       serverName: paperclip-db-r2
 ```
 
+The recovery bootstrap also carries `database.cnpg.database` and
+`database.cnpg.owner`, because CloudNativePG only creates the
+`<clusterName>-app` Secret when both are set on a recovery. That Secret is
+where `DATABASE_URL` comes from, and the dead cluster's copy is deleted with
+it, so without them the recovered cluster is healthy while every pod sits in
+`CreateContainerConfigError`. The recovered Secret gets a freshly generated
+password, which CloudNativePG also applies to the restored role.
+
 `backups.serverName` sets the WAL-archive prefix, and is useful on its own: a
 recovered cluster has a new system ID, so archiving into the prefix it was
 recovered from fails with `Expected empty archive` and the cluster then runs
