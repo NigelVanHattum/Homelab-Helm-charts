@@ -216,8 +216,9 @@ spec:
   volumeClaimTemplates:
     - metadata:
         name: data
+        {{- /* selectorLabels only: volumeClaimTemplates is immutable, a version label breaks every bump. */}}
         labels:
-          {{- include "paperclip.labels" . | nindent 10 }}
+          {{- include "paperclip.selectorLabels" . | nindent 10 }}
       spec:
         accessModes:
           {{- toYaml .Values.persistence.accessModes | nindent 10 }}
