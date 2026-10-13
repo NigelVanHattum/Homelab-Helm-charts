@@ -12,8 +12,9 @@ spec:
 {{- if and .Values.paperless.persistence.data.enabled (not .Values.paperless.persistence.data.useExistingPvc) }}
   - metadata:
       name: data
+      {{- /* selectorLabels only: volumeClaimTemplates is immutable, a version label breaks every bump. */}}
       labels:
-        {{- include "paperless-ngx.labels" . | nindent 8 }}
+        {{- include "paperless-ngx.selectorLabels" . | nindent 8 }}
     spec:
       accessModes:
         - ReadWriteOnce
@@ -42,7 +43,7 @@ spec:
   - metadata:
       name: media
       labels:
-        {{- include "paperless-ngx.labels" . | nindent 8 }}
+        {{- include "paperless-ngx.selectorLabels" . | nindent 8 }}
     spec:
       accessModes:
         - ReadWriteOnce
@@ -71,7 +72,7 @@ spec:
   - metadata:
       name: consume
       labels:
-        {{- include "paperless-ngx.labels" . | nindent 8 }}
+        {{- include "paperless-ngx.selectorLabels" . | nindent 8 }}
     spec:
       accessModes:
         - ReadWriteOnce
