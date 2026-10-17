@@ -1,0 +1,279 @@
+suite: persistence subPaths
+release:
+  name: paperclip
+  namespace: paperclip
+set:
+  auth.betterAuthSecret.value: auth-secret
+  secrets.masterKey.value: master-key
+tests:
+  # ---- default: the whole volume at mountPath ----
+  - it: mounts the whole data volume at mountPath by default
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value:
+            - name: data
+              mountPath: /paperclip
+      - equal:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          value:
+            - name: data
+              mountPath: /paperclip
+      - isNull:
+          path: spec.template.spec.volumes
+
+  # ---- subPaths: emptyDir home, only the listed paths persist ----
+  - it: puts an emptyDir at mountPath and mounts each subPath from the data volume
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances
+        - tools
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value:
+            - name: home
+              mountPath: /paperclip
+            - name: data
+              mountPath: /paperclip/instances
+              subPath: instances
+            - name: data
+              mountPath: /paperclip/tools
+              subPath: tools
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - name: home
+              emptyDir: {}
+
+  - it: gives the onboard init container the same mounts, so it finds the persisted config
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances
+    asserts:
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: onboard
+      - equal:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          value:
+            - name: home
+              mountPath: /paperclip
+            - name: data
+              mountPath: /paperclip/instances
+              subPath: instances
+
+  - it: keeps the volumeClaimTemplate unchanged, so existing StatefulSets update in place
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances
+    asserts:
+      - lengthEqual:
+          path: spec.volumeClaimTemplates
+          count: 1
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+
+  - it: keeps PAPERCLIP_HOME at mountPath
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PAPERCLIP_HOME
+            value: /paperclip
+
+  - it: joins a custom mountPath without a double slash
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.mountPath: /data/
+      persistence.subPaths:
+        - instances/default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data/instances/default
+            subPath: instances/default
+
+  - it: applies homeSizeLimit to the home emptyDir
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances
+      persistence.homeSizeLimit: 8Gi
+    asserts:
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - name: home
+              emptyDir:
+                sizeLimit: 8Gi
+
+  - it: appends extraVolumeMounts after the data mounts, so an emptyDir can nest inside a subPath
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances
+      extraVolumes:
+        - name: projects
+          emptyDir: {}
+      extraVolumeMounts:
+        - name: projects
+          mountPath: /paperclip/instances/default/projects
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[2]
+          value:
+            name: projects
+            mountPath: /paperclip/instances/default/projects
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - name: home
+              emptyDir: {}
+            - name: projects
+              emptyDir: {}
+
+  # ---- validation ----
+  - it: accepts instances/default as the config-holding path
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances/default
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: fails without a path that holds the instance config
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - tools
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.subPaths must include instances or instances/default"
+
+  - it: fails on a prefix that only looks like instances
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instancesx
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.subPaths must include instances or instances/default"
+
+  - it: fails on an absolute path
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - /instances
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.subPaths entry \"/instances\" must be a relative path"
+
+  - it: fails on a path that climbs out of the volume
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances
+        - instances/../etc
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.subPaths entry \"instances/../etc\" must be a relative path"
+
+  - it: fails on a trailing slash
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances/
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.subPaths entry \"instances/\" must be a relative path"
+
+  - it: fails on a repeated path
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances
+        - instances
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.subPaths must not repeat a path"
+
+  - it: fails on a non-string entry
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - 1
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.subPaths entries must be strings"
+
+  - it: fails when subPaths is not a list
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths: instances
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.subPaths must be a list"
+
+  - it: fails without persistence
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.enabled: false
+      bootstrap.enabled: false
+      persistence.subPaths:
+        - instances
+    asserts:
+      - failedTemplate:
+          errorPattern: "persistence.subPaths requires persistence.enabled"
+
+  - it: fails when an extra volume takes the home name
+    templates:
+      - templates/statefulset.yaml
+    set:
+      persistence.subPaths:
+        - instances
+      extraVolumes:
+        - name: home
+          emptyDir: {}
+    asserts:
+      - failedTemplate:
+          errorPattern: "extraVolumes must not use the name home"
+
+  - it: leaves an extra volume named home alone without subPaths
+    templates:
+      - templates/statefulset.yaml
+    set:
+      extraVolumes:
+        - name: home
+          emptyDir: {}
+    asserts:
+      - notFailedTemplate: {}

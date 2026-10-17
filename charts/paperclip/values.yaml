@@ -287,6 +287,16 @@ persistence:
   enabled: true
   # -- Data directory. Also becomes PAPERCLIP_HOME.
   mountPath: /paperclip
+  # -- Paths relative to `mountPath` that live on the data volume. Empty mounts
+  # the whole volume at `mountPath`. Set, `mountPath` becomes an emptyDir and
+  # only these paths persist, each mounted with `subPath` at the same place, so
+  # agent homes, CLI caches and checkouts stay on node-local disk. Must include
+  # `instances` (or `instances/default`), which holds the instance config.
+  # Example: `[instances, tools]`
+  subPaths: []
+  # -- sizeLimit of the emptyDir at `mountPath` when `subPaths` is set. Empty
+  # leaves it unbounded.
+  homeSizeLimit: ""
   size: 20Gi
   storageClass: ""
   accessModes:

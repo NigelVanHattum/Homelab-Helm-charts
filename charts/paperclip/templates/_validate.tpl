@@ -66,6 +66,37 @@ so it runs on every render.
 {{- if and .Values.persistence.enabled (not .Values.persistence.size) -}}
 {{- fail "persistence.size is required when persistence.enabled is true" -}}
 {{- end -}}
+{{- with .Values.persistence.subPaths -}}
+{{- if not $.Values.persistence.enabled -}}
+{{- fail "persistence.subPaths requires persistence.enabled: without the data volume there is nothing to mount them from" -}}
+{{- end -}}
+{{- if not (kindIs "slice" .) -}}
+{{- fail "persistence.subPaths must be a list of paths relative to persistence.mountPath" -}}
+{{- end -}}
+{{- $keepsConfig := false -}}
+{{- range . -}}
+{{- if not (kindIs "string" .) -}}
+{{- fail (printf "persistence.subPaths entries must be strings, got %v" .) -}}
+{{- end -}}
+{{- if or (not .) (hasPrefix "/" .) (hasSuffix "/" .) (has ".." (splitList "/" .)) (has "." (splitList "/" .)) (has "" (splitList "/" .)) -}}
+{{- fail (printf "persistence.subPaths entry %q must be a relative path without empty, . or .. segments or a trailing slash" .) -}}
+{{- end -}}
+{{- if hasPrefix (printf "%s/" .) "instances/default/" -}}
+{{- $keepsConfig = true -}}
+{{- end -}}
+{{- end -}}
+{{- if ne (len .) (len (uniq .)) -}}
+{{- fail "persistence.subPaths must not repeat a path" -}}
+{{- end -}}
+{{- range $.Values.extraVolumes -}}
+{{- if eq (toString .name) "home" -}}
+{{- fail "extraVolumes must not use the name home while persistence.subPaths is set: the chart's emptyDir at persistence.mountPath already has it" -}}
+{{- end -}}
+{{- end -}}
+{{- if not $keepsConfig -}}
+{{- fail "persistence.subPaths must include instances or instances/default: onboarding writes instances/default/config.json, and losing it re-onboards on every restart" -}}
+{{- end -}}
+{{- end -}}
 
 {{- /* RBAC */ -}}
 {{- if .Values.rbac.create -}}
