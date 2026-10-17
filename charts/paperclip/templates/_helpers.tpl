@@ -364,3 +364,24 @@ loopback
 lan
 {{- end -}}
 {{- end }}
+
+{{/*
+Mounts of the data directory, shared by the app container and the onboard init
+container. With persistence.subPaths set, mountPath is an emptyDir and only the
+listed paths come from the data volume; parents are listed before the
+subPaths nested in them.
+*/}}
+{{- define "paperclip.dataVolumeMounts" -}}
+{{- if .Values.persistence.subPaths }}
+- name: home
+  mountPath: {{ .Values.persistence.mountPath }}
+{{- range .Values.persistence.subPaths }}
+- name: data
+  mountPath: {{ printf "%s/%s" (trimSuffix "/" $.Values.persistence.mountPath) . }}
+  subPath: {{ . }}
+{{- end }}
+{{- else }}
+- name: data
+  mountPath: {{ .Values.persistence.mountPath }}
+{{- end }}
+{{- end }}
