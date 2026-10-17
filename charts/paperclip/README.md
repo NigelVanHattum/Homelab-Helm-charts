@@ -1,6 +1,6 @@
 # paperclip
 
-![Version: 0.2.1](https://img.shields.io/badge/Version-0.2.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
+![Version: 0.3.0](https://img.shields.io/badge/Version-0.3.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v2026.824.1](https://img.shields.io/badge/AppVersion-v2026.824.1-informational?style=flat-square)
 
 Paperclip - run teams of AI agents as a company. Deploys the app with its own CloudNativePG cluster.
 
@@ -38,6 +38,18 @@ entrypoint wrapper enables the scheduler on pod-0 only. There is no failover.
 Above one replica the chart refuses to render until
 `heartbeat.acknowledgeMultiReplica` is set, because all replicas also share one
 ReadWriteOnce data volume.
+
+## Storage
+
+By default the data volume is mounted over all of `persistence.mountPath`, which
+is also the agents' home: Claude Code state, CLI caches and git checkouts all
+land on it. On NFS that churn (renames, delegation recalls) is expensive.
+`persistence.subPaths` flips it: `mountPath` becomes an emptyDir and only the
+listed paths come from the volume, mounted at the same place with `subPath`, so
+no path moves and existing data needs no migration. `instances` (or
+`instances/default`) is required because it holds the instance config. Anything
+not listed is lost on every restart; nest an `extraVolumes` emptyDir inside a
+persisted path to drop part of it, e.g. `instances/default/projects`.
 
 ## Secrets
 
@@ -296,9 +308,11 @@ boundary is the model you pick, not the role you bind.
 | onboard.timeoutSeconds | int | `120` | Seconds to wait for the config file to appear before failing. |
 | persistence.accessModes[0] | string | `"ReadWriteOnce"` |  |
 | persistence.enabled | bool | `true` | Persist the Paperclip data directory. Disabled means emptyDir and losing agent workspaces on restart. |
+| persistence.homeSizeLimit | string | `""` | sizeLimit of the emptyDir at `mountPath` when `subPaths` is set. Empty leaves it unbounded. |
 | persistence.mountPath | string | `"/paperclip"` | Data directory. Also becomes PAPERCLIP_HOME. |
 | persistence.size | string | `"20Gi"` |  |
 | persistence.storageClass | string | `""` |  |
+| persistence.subPaths | list | `[]` | Paths relative to `mountPath` that live on the data volume. Empty mounts the whole volume at `mountPath`. Set, `mountPath` becomes an emptyDir and only these paths persist, each mounted with `subPath` at the same place, so agent homes, CLI caches and checkouts stay on node-local disk. Must include `instances` (or `instances/default`), which holds the instance config. Example: `[instances, tools]` |
 | podAnnotations | object | `{}` |  |
 | podLabels | object | `{}` |  |
 | podSecurityContext.fsGroup | int | `1000` |  |
