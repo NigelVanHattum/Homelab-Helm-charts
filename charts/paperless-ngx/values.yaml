@@ -126,6 +126,21 @@ paperless:
     # Gotenberg service URL for Paperless-ngx integration
     url: ""
 
+  # Redis configuration. This chart always deploys the Redis broker Paperless needs and
+  # points `PAPERLESS_REDIS` at the Service it creates.
+  redis:
+    image:
+      # -- Redis image repository for the broker this chart deploys.
+      repository: redis
+      # -- Redis image tag. A pinned patch release, not a moving `7-alpine`.
+      tag: "7.4.12-alpine3.21"
+      # -- Digest `paperless.redis.image.tag` resolved to when it was pinned. Rendered as
+      # `<tag>@<digest>`, so the tag documents the version and the digest is what gets pulled.
+      # Change both together. Set to `""` to pull by tag instead.
+      digest: "sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f"
+      # -- Pull policy for the Redis image.
+      pullPolicy: IfNotPresent
+
   # Authentik SSO configuration
   authentik:
     enabled: false

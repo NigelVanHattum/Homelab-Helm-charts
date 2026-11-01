@@ -1,0 +1,45 @@
+suite: redis image pinning
+release:
+  name: paperless-ngx
+  namespace: paperless-ngx
+templates:
+  - templates/redis-deployment.yaml
+tests:
+  # The image used to be the literal `redis:7-alpine` in this template, which no values file
+  # and no 03_applications change could pin. Keep it a value, and keep the default pinned.
+  - it: pins the bundled redis by digest by default
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: redis:7.4.12-alpine3.21@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+
+  - it: never ships a moving tag as the default
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^redis:\d+\.\d+\.\d+-alpine[\d.]*@sha256:[0-9a-f]{64}$
+
+  - it: renders tag only when the digest is cleared
+    set:
+      paperless.redis.image.digest: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: redis:7.4.12-alpine3.21
+
+  - it: takes repository, tag and pull policy from values
+    set:
+      paperless.redis.image.repository: ghcr.io/mirror/redis
+      paperless.redis.image.tag: "8.4.8-alpine3.22"
+      paperless.redis.image.digest: ""
+      paperless.redis.image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/mirror/redis:8.4.8-alpine3.22
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
