@@ -18,7 +18,8 @@ spec:
     spec:
       containers:
         - name: redis
-          image: redis:7-alpine
+          image: {{ .Values.paperless.redis.image.repository }}:{{ .Values.paperless.redis.image.tag }}{{ with .Values.paperless.redis.image.digest }}@{{ . }}{{ end }}
+          imagePullPolicy: {{ .Values.paperless.redis.image.pullPolicy }}
           ports:
             - containerPort: 6379
               name: redis
