@@ -1,6 +1,6 @@
 # paperless-ngx
 
-![Version: 1.2.1](https://img.shields.io/badge/Version-1.2.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.10](https://img.shields.io/badge/AppVersion-2.20.10-informational?style=flat-square)
+![Version: 1.3.0](https://img.shields.io/badge/Version-1.3.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.10](https://img.shields.io/badge/AppVersion-2.20.10-informational?style=flat-square)
 
 A Helm chart for Paperless-ngx - A community-supported open-source document management system
 
@@ -154,6 +154,10 @@ at them.
 | paperless.persistence.media.size | string | `"50Gi"` |  |
 | paperless.persistence.media.storageClass | string | `""` |  |
 | paperless.persistence.media.useExistingPvc | string | `""` |  |
+| paperless.redis.image.digest | string | `"sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f"` | Digest `paperless.redis.image.tag` resolved to when it was pinned. Rendered as `<tag>@<digest>`, so the tag documents the version and the digest is what gets pulled. Change both together. Set to `""` to pull by tag instead. |
+| paperless.redis.image.pullPolicy | string | `"IfNotPresent"` | Pull policy for the Redis image. |
+| paperless.redis.image.repository | string | `"redis"` | Redis image repository for the broker this chart deploys. |
+| paperless.redis.image.tag | string | `"7.4.12-alpine3.21"` | Redis image tag. A pinned patch release, not a moving `7-alpine`. |
 | paperless.tika.enabled | bool | `true` |  |
 | paperless.tika.url | string | `""` |  |
 | podAnnotations | object | `{}` |  |
