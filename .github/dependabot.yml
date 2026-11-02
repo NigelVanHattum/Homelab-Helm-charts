@@ -1,0 +1,13 @@
+# Dependabot configuration. All options:
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Workflows pin every `uses:` to a commit SHA, so a moved or vulnerable action
+  # version can only reach CI through a PR here. Without this block the pins
+  # never move and a published action CVE sits in the workflows unnoticed.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
