@@ -4,13 +4,14 @@
   "description": [
     "Self-hosted in .github/workflows/renovate.yaml, PR mode. Merging a chart PR publishes that chart's release, so a PR here is never automerged and never carries more than one chart.",
     "Renovate cannot bump a chart's own version:, and chart-releaser publishes nothing without it. Whoever takes a Renovate PR adds that commit by hand; the push is also what runs Helm CI, which GitHub does not start for a PR opened with GITHUB_TOKEN.",
-    "Only the custom regex manager runs. github-actions pins stay with Dependabot (.github/dependabot.yml) so the two bots cannot open the same PR, and the native helm managers would reach the charts' subchart dependencies and the 10 charts tracking tag: latest, neither of which this covers."
+    "Only the custom regex manager runs. github-actions pins stay with Dependabot (.github/dependabot.yml) so the two bots cannot open the same PR, and the native helm managers would reach the charts' subchart dependencies and the 10 charts tracking tag: latest, neither of which this covers.",
+    "Both limits are 2: at most two open Renovate PRs, and one weekly run opens at most two. Anything further waits on the dependency dashboard until a PR is merged or closed, because every one of these PRs costs a hand-written version: commit."
   ],
   "enabledManagers": ["custom.regex"],
   "dependencyDashboard": true,
   "automerge": false,
   "prConcurrentLimit": 2,
-  "prHourlyLimit": 1,
+  "prHourlyLimit": 2,
   "rebaseWhen": "never",
   "ignorePaths": ["charts/paperclip/**"],
   "customManagers": [

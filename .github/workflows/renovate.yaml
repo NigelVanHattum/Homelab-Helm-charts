@@ -6,9 +6,9 @@ on:
     - cron: "17 4 * * 1"
   workflow_dispatch:
 
-# PR mode. contents: write reaches only Renovate's own branches - master has no
-# ruleset, so this is the narrowest scope that still lets it push one; issues:
-# write is the dependency dashboard. Nothing wider.
+# The three scopes PR mode needs, nothing wider: a branch to push, a PR to open,
+# the dependency dashboard issue. contents: write is repo-wide - it is Renovate's
+# own behaviour, not this token, that keeps it on renovate/* branches.
 permissions:
   contents: write
   pull-requests: write
@@ -22,6 +22,8 @@ concurrency:
 jobs:
   renovate:
     runs-on: ubuntu-latest
+    # A hung run would otherwise sit on the 6 h default once a week.
+    timeout-minutes: 20
     env:
       # Same release as the k8s-homelab half; bump both together.
       RENOVATE_VERSION: "44.204.0"
