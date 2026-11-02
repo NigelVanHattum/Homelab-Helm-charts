@@ -22,6 +22,8 @@ version: 1.3.0
 # incremented each time you make changes to the application. Versions are not expected to
 # follow Semantic Versioning. They should reflect the version the application is using.
 # It is recommended to use it with quotes.
+# image.tag defaults to this, so this one line pins the Paperless image.
+# renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
 appVersion: "2.20.10"
 
 dependencies:

@@ -408,6 +408,7 @@ explorer:
   image:
     registry: docker.io
     repository: influxdata/influxdb3-ui
+    # renovate: datasource=docker depName=influxdata/influxdb3-ui
     # -- Explorer image tag. Pin a version; see https://hub.docker.com/r/influxdata/influxdb3-ui/tags
     tag: "1.8.0"
     pullPolicy: IfNotPresent

@@ -1,5 +1,7 @@
 image:
   repository: hashicorp/terraform-mcp-server
+  # Same dependency as Chart.yaml appVersion, so one PR moves both lines.
+  # renovate: datasource=docker depName=hashicorp/terraform-mcp-server
   tag: "0.3.3"
   pullPolicy: IfNotPresent
 
