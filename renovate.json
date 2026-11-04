@@ -18,12 +18,9 @@
     {
       "customType": "regex",
       "description": "An appVersion or image tag under a `# renovate:` annotation. The pins live in Chart.yaml appVersion and in values.yaml tag:, which no native manager reads. Further comment lines may sit between the annotation and the key: in values.yaml the annotation has to go above the `# --` line, or helm-docs renders it into the value's description.",
-      "managerFilePatterns": [
-        "/^charts/[^/]+/Chart\\.yaml$/",
-        "/^charts/[^/]+/values\\.yaml$/"
-      ],
+      "managerFilePatterns": ["charts/*/Chart.yaml", "charts/*/values.yaml"],
       "matchStrings": [
-        "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+depName=(?<depName>\\S+)[^\\n]*\\n(?:\\s*#[^\\n]*\\n)*\\s*(?:appVersion|tag):\\s*\"(?<currentValue>[^\"]+)\""
+        "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+depName=(?<depName>\\S+)( extractVersion=(?<extractVersion>\\S+))?[^\\n]*\\n(?:\\s*#[^\\n]*\\n)*\\s*(?:appVersion|tag):\\s*\"(?<currentValue>[^\"]+)\""
       ]
     }
   ],
@@ -42,12 +39,6 @@
       "description": "terraform-mcp-server pins the same image in Chart.yaml appVersion and values.yaml tag; both move in one PR.",
       "matchFileNames": ["charts/terraform-mcp-server/**"],
       "groupName": "terraform-mcp-server images"
-    },
-    {
-      "description": "docker.io/influxdb publishes 3.x only as <version>-core and <version>-enterprise, and still carries 1.x and 2.x tags. Reading the version out of the -core tags is what keeps this chart on InfluxDB 3 Core.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["influxdb"],
-      "extractVersion": "^(?<version>\\d+\\.\\d+\\.\\d+)-core$"
     }
   ]
 }
