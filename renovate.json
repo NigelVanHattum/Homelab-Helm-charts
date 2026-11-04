@@ -1,0 +1,44 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "description": [
+    "Self-hosted in .github/workflows/renovate.yaml, PR mode. Merging a chart PR publishes that chart's release, so a PR here is never automerged and never carries more than one chart.",
+    "Renovate cannot bump a chart's own version:, and chart-releaser publishes nothing without it. Whoever takes a Renovate PR adds that commit by hand; the push is also what runs Helm CI, which GitHub does not start for a PR opened with GITHUB_TOKEN.",
+    "Only the custom regex manager runs. github-actions pins stay with Dependabot (.github/dependabot.yml) so the two bots cannot open the same PR, and the native helm managers would reach the charts' subchart dependencies and the 10 charts tracking tag: latest, neither of which this covers.",
+    "Both limits are 2: at most two open Renovate PRs, and one weekly run opens at most two. Anything further waits on the dependency dashboard until a PR is merged or closed, because every one of these PRs costs a hand-written version: commit."
+  ],
+  "enabledManagers": ["custom.regex"],
+  "dependencyDashboard": true,
+  "automerge": false,
+  "prConcurrentLimit": 2,
+  "prHourlyLimit": 2,
+  "rebaseWhen": "never",
+  "ignorePaths": ["charts/paperclip/**"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "An appVersion or image tag under a `# renovate:` annotation. The pins live in Chart.yaml appVersion and in values.yaml tag:, which no native manager reads. Further comment lines may sit between the annotation and the key: in values.yaml the annotation has to go above the `# --` line, or helm-docs renders it into the value's description.",
+      "managerFilePatterns": ["charts/*/Chart.yaml", "charts/*/values.yaml"],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)\\s+depName=(?<depName>\\S+)( extractVersion=(?<extractVersion>\\S+))?[^\\n]*\\n(?:\\s*#[^\\n]*\\n)*\\s*(?:appVersion|tag):\\s*\"(?<currentValue>[^\"]+)\""
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "One PR per chart, so a merge releases one chart. influxdb3-core pins two images (server, Explorer); without this they would be two PRs, two releases and two manual version bumps for the same chart.",
+      "matchFileNames": ["charts/influxdb3-core/**"],
+      "groupName": "influxdb3-core images"
+    },
+    {
+      "description": "Grouped per chart for the same reason, and the group name is what the PR title says.",
+      "matchFileNames": ["charts/paperless-ngx/**"],
+      "groupName": "paperless-ngx images"
+    },
+    {
+      "description": "terraform-mcp-server pins the same image in Chart.yaml appVersion and values.yaml tag; both move in one PR.",
+      "matchFileNames": ["charts/terraform-mcp-server/**"],
+      "groupName": "terraform-mcp-server images"
+    }
+  ]
+}

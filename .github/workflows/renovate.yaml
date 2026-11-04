@@ -1,0 +1,68 @@
+name: renovate
+
+on:
+  schedule:
+    # Monday early, so the dashboard and any PRs are there for the weekly chart cycle.
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+# The three scopes PR mode needs, nothing wider: a branch to push, a PR to open,
+# the dependency dashboard issue. contents: write is repo-wide - it is Renovate's
+# own behaviour, not this token, that keeps it on renovate/* branches.
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: renovate
+  # Two runs would fight over the same branches; let the first finish.
+  cancel-in-progress: false
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    # A hung run would otherwise sit on the 6 h default once a week.
+    timeout-minutes: 20
+    env:
+      # Same release as the k8s-homelab half; bump both together.
+      RENOVATE_VERSION: "44.204.0"
+      RENOVATE_SHA256: "88f7d30c3f3a5c2d0f6fdec7d370a17e00a6b06c739ca66964f248ef03fa5d77"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Renovate 44 declares engines.node ^24.11.0.
+          node-version: "24"
+
+      - name: Install Renovate
+        # The npm tarball checked against a pinned sha256, the shape
+        # gitleaks.yml uses. Deliberately not renovatebot/github-action: a
+        # third-party action would be a second trust root on the one job in this
+        # repo that may open a PR.
+        run: |
+          tarball="renovate-${RENOVATE_VERSION}.tgz"
+          curl -sSfL -o "$tarball" "https://registry.npmjs.org/renovate/-/renovate-${RENOVATE_VERSION}.tgz"
+          echo "${RENOVATE_SHA256}  ${tarball}" | sha256sum -c -
+          npm install -g "./$tarball"
+
+      - name: Renovate
+        # Renovate opens the PR; Helm CI does not run on it, because GitHub
+        # fires no workflow on a PR created with GITHUB_TOKEN. Whoever takes the
+        # PR pushes to its branch (the manual Chart.yaml version: bump), and
+        # that push is what runs the checks.
+        env:
+          RENOVATE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RENOVATE_PLATFORM: github
+          RENOVATE_AUTODISCOVER: "false"
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          # renovate.json is committed, so never onboard and never run without it.
+          RENOVATE_ONBOARDING: "false"
+          RENOVATE_REQUIRE_CONFIG: "required"
+          # checkout ran with persist-credentials: false, so there is no git
+          # credential to push with; commits go through the API instead.
+          RENOVATE_PLATFORM_COMMIT: "enabled"
+        run: renovate

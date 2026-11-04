@@ -3,4 +3,5 @@ name: terraform-mcp-server
 description: A Helm chart for Terraform MCP Server
 type: application
 version: 0.1.1
+# renovate: datasource=docker depName=hashicorp/terraform-mcp-server
 appVersion: "0.3.3"
