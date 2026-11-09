@@ -23,14 +23,16 @@ keys the release uses:
 |---|---|---|
 | `api-key-pepper` | `homebox.auth.apiKeyPepper` | always |
 | `database-password` | `homebox.database.password` | `homebox.database.driver` is `postgres` and the password is set |
+| `s3-access-key-id` | `homebox.storage.s3.accessKeyId` | the value is set |
+| `s3-secret-access-key` | `homebox.storage.s3.secretAccessKey` | the value is set |
 | `oidc-client-secret` | `homebox.oidc.clientSecret` | the value is set |
 | `mailer-password` | `homebox.mailer.password` | the value is set |
 
 **External.** Set `homebox.existingSecret` to a Secret you manage yourself (1Password Connect
 operator item, ExternalSecret, …). The chart then renders no Secret at all and reads each value
 through `secretKeyRef`, with the key names above overridable per value under
-`homebox.existingSecretKeys`. Only `apiKeyPepper` has to be present; the OIDC and mailer refs are
-`optional: true`, and the database password ref is only rendered on the `postgres` driver.
+`homebox.existingSecretKeys`. Only `apiKeyPepper` has to be present; the S3, OIDC and mailer refs
+are `optional: true`, and the database password ref is only rendered on the `postgres` driver.
 
 ## Configuration
 
@@ -39,7 +41,8 @@ quoted environment variable. Remove a key to fall back to the application's own 
 `homebox.extraEnv` for the settings that have no default (mailer host, OIDC issuer and client id,
 barcode tokens, …) or that need a `valueFrom`. The exceptions, which have their own values
 because the chart derives more than one thing from them, are the API key pepper, the database
-block and the two other secrets.
+block, the S3 credentials and the two other secrets. A secret-bearing key put in `homebox.config`
+fails to render: a plain value there would land in the workload spec, which `view` can read.
 
 Two defaults deliberately differ from upstream, both hardening:
 
@@ -59,6 +62,39 @@ Homebox writes to its data volume and to `/tmp`, which the chart mounts as an `e
 
 `sqlite3` on the data volume by default. `postgres` needs `homebox.database.host`, and the chart
 fails to render without it. Nothing in the chart deploys PostgreSQL.
+
+## Workload kind and storage
+
+`type` picks `StatefulSet` (the default, which claims the data volume through a
+`volumeClaimTemplate`) or `Deployment` (`strategy: Recreate`, no claim of its own: either
+`homebox.persistence.data.useExistingPvc` or `homebox.persistence.data.enabled: false`, else the
+chart fails to render). Both run exactly one replica: `HBOX_DATABASE_PUB_SUB_CONN_STRING` is
+`mem://`, so replicas would not see each other's events.
+
+Stateless needs both stores outside the pod:
+
+```yaml
+type: Deployment
+homebox:
+  database:
+    driver: postgres
+    host: homebox-rw.cnpg.svc.cluster.local
+    password: ...
+  storage:
+    s3:
+      accessKeyId: ...
+      secretAccessKey: ...
+  config:
+    HBOX_STORAGE_CONN_STRING: s3://homebox?endpoint=http://10.0.0.1:9000&disable_https=true&use_path_style=true
+  persistence:
+    data:
+      enabled: false
+```
+
+The credentials render as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` through `secretKeyRef`;
+an `s3://` connection string without them (and without `homebox.existingSecret`) fails to render.
+`use_path_style=true` and `disable_https=true` are what a plain-HTTP IP endpoint such as RustFS
+needs. `AWS_SESSION_TOKEN`, `gcs://` and `azblob://` are `homebox.extraEnv` territory.
 
 {{ template "chart.requirementsSection" . }}
 

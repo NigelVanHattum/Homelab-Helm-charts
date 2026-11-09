@@ -2,7 +2,10 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
+# -- Workload kind: `Deployment` or `StatefulSet`. A Deployment gets `strategy: Recreate` and
+# claims no volume, so it needs either `homebox.persistence.data.useExistingPvc` or
+# `homebox.persistence.data.enabled: false` (postgres plus S3 storage). Both run one replica.
+type: StatefulSet
 
 image:
   repository: ghcr.io/sysadminsmedia/homebox
@@ -76,10 +79,10 @@ readinessProbe:
     path: /api/v1/status
     port: http
 
-# Additional volumes on the output StatefulSet definition.
+# Additional volumes on the output workload definition.
 volumes: []
 
-# Additional volumeMounts on the output StatefulSet definition.
+# Additional volumeMounts on the output workload definition.
 volumeMounts: []
 
 nodeSelector: {}
@@ -101,6 +104,8 @@ homebox:
     databasePassword: database-password
     oidcClientSecret: oidc-client-secret
     mailerPassword: mailer-password
+    s3AccessKeyId: s3-access-key-id
+    s3SecretAccessKey: s3-secret-access-key
 
   auth:
     # -- `HBOX_AUTH_API_KEY_PEPPER`. Required: Homebox refuses to start on anything shorter than
@@ -122,6 +127,16 @@ homebox:
     # -- `HBOX_DATABASE_SSL_MODE`: `disable`, `require`, `verify-ca` or `verify-full`.
     sslMode: require
 
+  storage:
+    # -- Credentials for an S3-compatible `HBOX_STORAGE_CONN_STRING`
+    # (`s3://<bucket>?endpoint=http://10.0.0.1:9000&disable_https=true&use_path_style=true` for
+    # RustFS on the NAS). Rendered as `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` through
+    # `secretKeyRef`; the chart fails to render on an `s3://` connection string without them.
+    # `AWS_SESSION_TOKEN` and the other backends (gcs, azblob) go in `homebox.extraEnv`.
+    s3:
+      accessKeyId: ""
+      secretAccessKey: ""
+
   oidc:
     # -- `HBOX_OIDC_CLIENT_SECRET`. The rest of the OIDC settings are plain
     # `homebox.config` entries.
@@ -135,8 +150,9 @@ homebox:
   # -- Every Homebox setting that has a documented default, as a plain env map: the key is the
   # variable name, the value is rendered quoted. Removing a key leaves the application default
   # in place; a variable not listed here (no documented default) goes in the same map or in
-  # `homebox.extraEnv`. Database, pepper and the two other secrets are not here — they have
-  # their own values above.
+  # `homebox.extraEnv`. Database, pepper, the S3 credentials and the two other secrets are not
+  # here — they have their own values above, and a secret-bearing key placed here fails to
+  # render.
   config:
     HBOX_MODE: production
     HBOX_WEB_PORT: 7745
@@ -223,6 +239,9 @@ homebox:
 
   persistence:
     data:
+      # -- The sqlite database, and attachments while `HBOX_STORAGE_CONN_STRING` is `file://`.
+      # Both on an external service (postgres plus `s3://`): set this `false` and the pod keeps
+      # no state.
       enabled: true
       size: 5Gi
       storageClass: ""

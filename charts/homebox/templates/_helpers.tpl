@@ -77,7 +77,9 @@ default names; homebox.existingSecretKeys only overrides them for an external Se
   "apiKeyPepper" "api-key-pepper"
   "databasePassword" "database-password"
   "oidcClientSecret" "oidc-client-secret"
-  "mailerPassword" "mailer-password" -}}
+  "mailerPassword" "mailer-password"
+  "s3AccessKeyId" "s3-access-key-id"
+  "s3SecretAccessKey" "s3-secret-access-key" -}}
 {{- $default := get $defaults .key -}}
 {{- if .root.Values.homebox.existingSecret -}}
 {{- get (.root.Values.homebox.existingSecretKeys | default dict) .key | default $default -}}
@@ -93,6 +95,22 @@ refuses to render those instead of shipping a CrashLoopBackOff.
 */}}
 {{- define "homebox.validate" -}}
 {{- $db := .Values.homebox.database -}}
+{{- $data := .Values.homebox.persistence.data -}}
+{{- if not (has .Values.type (list "Deployment" "StatefulSet")) -}}
+{{- fail (printf "type must be Deployment or StatefulSet, got %q" .Values.type) -}}
+{{- end -}}
+{{- if and (eq .Values.type "Deployment") $data.enabled (not $data.useExistingPvc) -}}
+{{- fail "type=Deployment cannot claim a volume: set homebox.persistence.data.useExistingPvc, or disable homebox.persistence.data.enabled (postgres plus S3 storage)" -}}
+{{- end -}}
+{{- $reserved := list "HBOX_AUTH_API_KEY_PEPPER" "HBOX_DATABASE_PASSWORD" "HBOX_OIDC_CLIENT_SECRET" "HBOX_MAILER_PASSWORD" "AWS_ACCESS_KEY_ID" "AWS_SECRET_ACCESS_KEY" -}}
+{{- range $key := keys (.Values.homebox.config | default dict) -}}
+{{- if has $key $reserved -}}
+{{- fail (printf "homebox.config.%s is a secret the chart reads through secretKeyRef: a plain value there lands in the workload spec; use the homebox.* value or homebox.existingSecret" $key) -}}
+{{- end -}}
+{{- end -}}
+{{- if and (hasPrefix "s3://" (toString (index .Values.homebox.config "HBOX_STORAGE_CONN_STRING" | default ""))) (not .Values.homebox.existingSecret) (not .Values.homebox.storage.s3.accessKeyId) -}}
+{{- fail "an s3:// HBOX_STORAGE_CONN_STRING needs homebox.storage.s3.accessKeyId and secretAccessKey, or homebox.existingSecret carrying them" -}}
+{{- end -}}
 {{- if not (has $db.driver (list "sqlite3" "postgres")) -}}
 {{- fail (printf "homebox.database.driver must be sqlite3 or postgres, got %q" $db.driver) -}}
 {{- end -}}

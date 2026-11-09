@@ -1,4 +1,4 @@
-Homebox {{ .Chart.AppVersion }} deployed as {{ include "homebox.fullname" . }}.
+Homebox {{ .Chart.AppVersion }} deployed as {{ .Values.type }} {{ include "homebox.fullname" . }}.
 
 1. Reach it:
 {{- if .Values.ingress.enabled }}
@@ -12,7 +12,7 @@ Homebox {{ .Chart.AppVersion }} deployed as {{ include "homebox.fullname" . }}.
   echo "Visit http://127.0.0.1:8080"
 {{- end }}
 
-2. Database: {{ .Values.homebox.database.driver }}{{ if eq .Values.homebox.database.driver "postgres" }} at {{ .Values.homebox.database.host }}:{{ .Values.homebox.database.port }}{{ else }} on the data volume{{ end }}.
+2. Database: {{ .Values.homebox.database.driver }}{{ if eq .Values.homebox.database.driver "postgres" }} at {{ .Values.homebox.database.host }}:{{ .Values.homebox.database.port }}{{ else }} on the data volume{{ end }}. Attachments: {{ index .Values.homebox.config "HBOX_STORAGE_CONN_STRING" | default "file:///?no_tmp_dir=true" }}
 
 3. HBOX_AUTH_API_KEY_PEPPER comes from Secret {{ include "homebox.secretName" . }}. Rotating it
    invalidates every API key Homebox has issued.

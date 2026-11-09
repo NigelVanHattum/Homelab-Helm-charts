@@ -1,0 +1,229 @@
+suite: workload kind and stateless storage
+release:
+  name: homebox
+  namespace: homebox
+set:
+  homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+tests:
+  - it: renders a StatefulSet by default
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: renders no Deployment in StatefulSet mode
+    templates:
+      - templates/deployment.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: switches to a Deployment that recreates and keeps no volume
+    templates:
+      - templates/deployment.yaml
+    set:
+      type: Deployment
+      homebox.persistence.data.enabled: false
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - name: tmp
+              emptyDir: {}
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+
+  - it: renders no StatefulSet in Deployment mode
+    templates:
+      - templates/statefulset.yaml
+    set:
+      type: Deployment
+      homebox.persistence.data.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: lets a Deployment mount an existing PVC
+    templates:
+      - templates/deployment.yaml
+    set:
+      type: Deployment
+      homebox.persistence.data.useExistingPvc: pvc-homebox-data
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: pvc-homebox-data
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+
+  - it: keeps the Deployment pod spec identical to the StatefulSet one
+    templates:
+      - templates/deployment.yaml
+    set:
+      type: Deployment
+      homebox.persistence.data.enabled: false
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 65532
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_AUTH_API_KEY_PEPPER
+            valueFrom:
+              secretKeyRef:
+                name: homebox
+                key: api-key-pepper
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_MODE
+            value: "production"
+
+  - it: reads the S3 credentials from the chart secret
+    templates:
+      - templates/statefulset.yaml
+    set:
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?endpoint=http://10.0.0.1:9000&disable_https=true&use_path_style=true
+      homebox.storage.s3.accessKeyId: rustfs-key
+      homebox.storage.s3.secretAccessKey: rustfs-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: homebox
+                key: s3-access-key-id
+                optional: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: homebox
+                key: s3-secret-access-key
+                optional: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_STORAGE_CONN_STRING
+            value: "s3://homebox?endpoint=http://10.0.0.1:9000&disable_https=true&use_path_style=true"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+            value: rustfs-key
+
+  - it: writes the S3 credentials into the chart secret
+    templates:
+      - templates/secret.yaml
+    set:
+      homebox.storage.s3.accessKeyId: rustfs-key
+      homebox.storage.s3.secretAccessKey: rustfs-secret
+    asserts:
+      - equal:
+          path: stringData
+          value:
+            api-key-pepper: placeholder-pepper-for-unit-tests-0000
+            s3-access-key-id: rustfs-key
+            s3-secret-access-key: rustfs-secret
+
+  - it: reads the S3 credentials from an external secret, under its own key names
+    templates:
+      - templates/statefulset.yaml
+    set:
+      homebox.existingSecret: homebox-credentials
+      homebox.existingSecretKeys:
+        s3AccessKeyId: s3-key
+        s3SecretAccessKey: s3-secret
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?use_path_style=true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: homebox-credentials
+                key: s3-key
+                optional: true
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: homebox-credentials
+                key: s3-secret
+                optional: true
+
+  - it: sets no AWS variable on the default file:// storage
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: homebox
+                key: s3-access-key-id
+                optional: true
+
+  - it: wires postgres plus S3 with no persistent volume at all
+    templates:
+      - templates/deployment.yaml
+    set:
+      type: Deployment
+      homebox.persistence.data.enabled: false
+      homebox.database.driver: postgres
+      homebox.database.host: homebox-rw.cnpg.svc.cluster.local
+      homebox.database.password: pg-password
+      homebox.storage.s3.accessKeyId: rustfs-key
+      homebox.storage.s3.secretAccessKey: rustfs-secret
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?endpoint=http://10.0.0.1:9000&disable_https=true&use_path_style=true
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.volumes
+          count: 1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_DATABASE_HOST
+            value: "homebox-rw.cnpg.svc.cluster.local"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: homebox
+                key: database-password
