@@ -1,0 +1,23 @@
+Homebox {{ .Chart.AppVersion }} deployed as {{ include "homebox.fullname" . }}.
+
+1. Reach it:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "homebox.fullname" . }} 8080:{{ .Values.service.port }}
+  echo "Visit http://127.0.0.1:8080"
+{{- end }}
+
+2. Database: {{ .Values.homebox.database.driver }}{{ if eq .Values.homebox.database.driver "postgres" }} at {{ .Values.homebox.database.host }}:{{ .Values.homebox.database.port }}{{ else }} on the data volume{{ end }}.
+
+3. HBOX_AUTH_API_KEY_PEPPER comes from Secret {{ include "homebox.secretName" . }}. Rotating it
+   invalidates every API key Homebox has issued.
+{{- if eq (toString (index .Values.homebox.config "HBOX_OPTIONS_ALLOW_REGISTRATION")) "true" }}
+
+4. Registration is open (HBOX_OPTIONS_ALLOW_REGISTRATION=true): anyone who reaches the ingress
+   can create an account.
+{{- end }}

@@ -1,0 +1,43 @@
+suite: guardrails that refuse to render a broken release
+release:
+  name: homebox
+  namespace: homebox
+templates:
+  - templates/statefulset.yaml
+tests:
+  # Homebox exits on a pepper shorter than 32 bytes, so the chart stops at render time
+  # instead of shipping a CrashLoopBackOff.
+  - it: fails without a pepper and without an existing secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.auth.apiKeyPepper is required: set it (at least 32 bytes, `openssl rand -base64 48`) or point homebox.existingSecret at a Secret holding it"
+
+  - it: fails on a pepper shorter than 32 bytes
+    set:
+      homebox.auth.apiKeyPepper: too-short
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.auth.apiKeyPepper must be at least 32 bytes, got 9: Homebox refuses to start on a shorter one"
+
+  - it: accepts an existing secret in place of an inline pepper
+    set:
+      homebox.existingSecret: homebox-credentials
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: fails on postgres without a host
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.database.driver: postgres
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.database.driver=postgres needs homebox.database.host"
+
+  - it: fails on an unsupported driver
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.database.driver: mysql
+    asserts:
+      - failedTemplate:
+          errorMessage: 'homebox.database.driver must be sqlite3 or postgres, got "mysql"'

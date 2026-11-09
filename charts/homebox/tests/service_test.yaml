@@ -1,0 +1,52 @@
+suite: service and ingress
+release:
+  name: homebox
+  namespace: homebox
+set:
+  homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+tests:
+  - it: targets the named container port, so a changed HBOX_WEB_PORT needs no service change
+    templates:
+      - templates/service.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 7745
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+      - equal:
+          path: spec.type
+          value: ClusterIP
+
+  - it: renders no ingress by default
+    templates:
+      - templates/ingress.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: points the ingress at the service port
+    templates:
+      - templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.className: traefik
+      ingress.hosts:
+        - host: homebox.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+      - equal:
+          path: spec.rules[0].host
+          value: homebox.example.com
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.port.number
+          value: 7745
+      - equal:
+          path: spec.rules[0].http.paths[0].backend.service.name
+          value: homebox

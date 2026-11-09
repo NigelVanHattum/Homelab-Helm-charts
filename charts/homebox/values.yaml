@@ -1,0 +1,234 @@
+# Default values for homebox.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/sysadminsmedia/homebox
+  # -- Image flavour appended to the tag: `""` (regular, runs as root), `-rootless` or
+  # `-hardened` (both run as uid 65532). Moves together with `podSecurityContext`.
+  variant: "-rootless"
+  # -- Overrides the image tag, whose default is `<appVersion><image.variant>`. Set it and
+  # `image.variant` is unused.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+podLabels: {}
+
+# -- Matches the uid/gid of the `-rootless` and `-hardened` images. The regular image runs as
+# root and needs this emptied.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+
+# -- Homebox writes only to its data volume and to `/tmp`, which the chart mounts as an
+# emptyDir, so the root filesystem can stay read-only.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 7745
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+    # - secretName: chart-example-tls
+    #   hosts:
+    #     - chart-example.local
+
+resources: {}
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+  # requests:
+  #   cpu: 50m
+  #   memory: 128Mi
+
+livenessProbe:
+  httpGet:
+    path: /api/v1/status
+    port: http
+readinessProbe:
+  httpGet:
+    path: /api/v1/status
+    port: http
+
+# Additional volumes on the output StatefulSet definition.
+volumes: []
+
+# Additional volumeMounts on the output StatefulSet definition.
+volumeMounts: []
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+homebox:
+  # -- Name of a Secret this chart does not own, holding every sensitive value. When set, the
+  # chart renders no Secret of its own and reads the API key pepper, the database password, the
+  # OIDC client secret and the mailer password from it through `secretKeyRef`. Leave empty for
+  # the inline path, where the chart writes a Secret from the values below.
+  existingSecret: ""
+  # -- Keys to read from `homebox.existingSecret`. Only used when that is set; the Secret the
+  # chart renders itself always uses these same names.
+  existingSecretKeys:
+    apiKeyPepper: api-key-pepper
+    databasePassword: database-password
+    oidcClientSecret: oidc-client-secret
+    mailerPassword: mailer-password
+
+  auth:
+    # -- `HBOX_AUTH_API_KEY_PEPPER`. Required: Homebox refuses to start on anything shorter than
+    # 32 bytes, and rotating it invalidates every issued API key. Generate with
+    # `openssl rand -base64 48`. Unset and without `homebox.existingSecret`, the chart fails to
+    # render.
+    apiKeyPepper: ""
+
+  database:
+    # -- `HBOX_DATABASE_DRIVER`: `sqlite3` (on the data volume) or `postgres`.
+    driver: sqlite3
+    # -- `HBOX_DATABASE_HOST`. Required when `homebox.database.driver` is `postgres`.
+    host: ""
+    port: 5432
+    username: homebox
+    database: homebox
+    # -- `HBOX_DATABASE_PASSWORD`, written to the chart's Secret on the inline path.
+    password: ""
+    # -- `HBOX_DATABASE_SSL_MODE`: `disable`, `require`, `verify-ca` or `verify-full`.
+    sslMode: require
+
+  oidc:
+    # -- `HBOX_OIDC_CLIENT_SECRET`. The rest of the OIDC settings are plain
+    # `homebox.config` entries.
+    clientSecret: ""
+
+  mailer:
+    # -- `HBOX_MAILER_PASSWORD`. The rest of the mailer settings have no upstream default and go
+    # in `homebox.config` or `homebox.extraEnv`.
+    password: ""
+
+  # -- Every Homebox setting that has a documented default, as a plain env map: the key is the
+  # variable name, the value is rendered quoted. Removing a key leaves the application default
+  # in place; a variable not listed here (no documented default) goes in the same map or in
+  # `homebox.extraEnv`. Database, pepper and the two other secrets are not here — they have
+  # their own values above.
+  config:
+    HBOX_MODE: production
+    HBOX_WEB_PORT: 7745
+    HBOX_WEB_MAX_UPLOAD_SIZE: 10
+    HBOX_WEB_READ_TIMEOUT: 10s
+    HBOX_WEB_WRITE_TIMEOUT: 10s
+    HBOX_WEB_IDLE_TIMEOUT: 30s
+    HBOX_STORAGE_CONN_STRING: file:///?no_tmp_dir=true
+    HBOX_STORAGE_PREFIX_PATH: data
+    HBOX_DATABASE_SQLITE_PATH: /data/homebox.db?_pragma=busy_timeout=2000&_pragma=journal_mode=WAL&_fk=1&_time_format=sqlite
+    HBOX_DATABASE_PUB_SUB_CONN_STRING: mem://{{ .Topic }}
+    HBOX_LOG_LEVEL: info
+    HBOX_LOG_FORMAT: text
+    # -- Upstream defaults this to `true`; a homelab instance behind an ingress does not want
+    # open registration.
+    HBOX_OPTIONS_ALLOW_REGISTRATION: false
+    HBOX_OPTIONS_ALLOW_LOCAL_LOGIN: true
+    HBOX_OPTIONS_AUTO_INCREMENT_ASSET_ID: true
+    HBOX_OPTIONS_ALLOW_ANALYTICS: false
+    HBOX_OPTIONS_GITHUB_RELEASE_CHECK: true
+    HBOX_OPTIONS_TRUST_PROXY: false
+    HBOX_SEARCH_DRIVER: database
+    HBOX_SEARCH_MEILISEARCH_HOST: http://localhost:7700
+    HBOX_SEARCH_MEILISEARCH_INDEX: homebox_entities
+    HBOX_SEARCH_MEILISEARCH_MAX_HITS: 1000
+    HBOX_AUTH_RATE_LIMIT_ENABLED: true
+    HBOX_AUTH_RATE_LIMIT_MAX_ATTEMPTS: 5
+    HBOX_AUTH_RATE_LIMIT_WINDOW: 1m
+    HBOX_AUTH_RATE_LIMIT_BASE_BACKOFF: 10s
+    HBOX_AUTH_RATE_LIMIT_MAX_BACKOFF: 5m
+    HBOX_DEBUG_ENABLED: false
+    HBOX_DEBUG_PORT: 4000
+    HBOX_DEMO: false
+    HBOX_OIDC_ENABLED: false
+    HBOX_OIDC_SCOPE: openid profile email
+    HBOX_OIDC_AUTO_REDIRECT: false
+    HBOX_OIDC_VERIFY_EMAIL: false
+    HBOX_OIDC_GROUP_CLAIM: groups
+    HBOX_OIDC_EMAIL_CLAIM: email
+    HBOX_OIDC_NAME_CLAIM: name
+    HBOX_OIDC_EMAIL_VERIFIED_CLAIM: email_verified
+    HBOX_OIDC_BUTTON_TEXT: Sign in with OIDC
+    HBOX_OIDC_STATE_EXPIRY: 10m
+    HBOX_OIDC_REQUEST_TIMEOUT: 30s
+    HBOX_LABEL_MAKER_WIDTH: 526
+    HBOX_LABEL_MAKER_HEIGHT: 200
+    HBOX_LABEL_MAKER_MARGIN: 32
+    HBOX_LABEL_MAKER_PADDING: 32
+    HBOX_LABEL_MAKER_FONT_SIZE: 32.0
+    HBOX_LABEL_MAKER_DYNAMIC_LENGTH: true
+    HBOX_THUMBNAIL_ENABLED: true
+    HBOX_THUMBNAIL_WIDTH: 500
+    HBOX_THUMBNAIL_HEIGHT: 500
+    HBOX_NOTIFIER_BLOCK_LOCALHOST: true
+    # -- Upstream defaults this to `false`. Notifiers reaching RFC1918 addresses from inside the
+    # cluster is SSRF reach; set it back to `false` to notify something on the LAN.
+    HBOX_NOTIFIER_BLOCK_LOCAL_NETS: true
+    HBOX_NOTIFIER_BLOCK_BOGON_NETS: true
+    HBOX_NOTIFIER_BLOCK_CLOUD_METADATA: true
+    HBOX_NOTIFIER_DNS64_NETS: 64:ff9b::/96;64:ff9b:1::/48
+    HBOX_OTEL_ENABLED: false
+    HBOX_OTEL_SERVICE_NAME: homebox
+    HBOX_OTEL_EXPORTER: otlp
+    HBOX_OTEL_PROTOCOL: grpc
+    HBOX_OTEL_INSECURE: false
+    HBOX_OTEL_SAMPLE_RATE: 1.0
+    HBOX_OTEL_ENABLE_METRICS: true
+    HBOX_OTEL_METRICS_INTERVAL: 15s
+    HBOX_OTEL_ENABLE_LOGGING: true
+    HBOX_OTEL_ENABLE_DATABASE_TRACING: true
+    HBOX_OTEL_ENABLE_HTTP_TRACING: true
+    HBOX_OTEL_PROXY_ENABLED: true
+
+  # -- Extra environment variables, appended verbatim: anything `homebox.config` cannot express,
+  # a `valueFrom` in particular.
+  extraEnv: []
+  # - name: HBOX_MAILER_HOST
+  #   value: smtp.example.com
+  # - name: HBOX_BARCODE_TOKEN_BARCODESPIDER
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: homebox-barcode
+  #       key: token
+
+  persistence:
+    data:
+      enabled: true
+      size: 5Gi
+      storageClass: ""
+      # -- Mount an existing PVC instead of letting the StatefulSet claim one.
+      useExistingPvc: ""
+      # -- Bind the claim to an existing volume.
+      existingVolume: ""
+      matchLabels: {}
+      matchExpressions: {}
