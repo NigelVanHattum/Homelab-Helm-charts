@@ -99,6 +99,30 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/heimdall-0.1.1/heimdall-0.1.1.tgz
     version: 0.1.1
+  homebox:
+  - apiVersion: v2
+    appVersion: 0.27.1
+    created: "2026-11-09T18:59:14.195611904Z"
+    description: A Helm chart for Homebox - a self-hosted home inventory management
+      system
+    digest: 7f81f2896e62981aa53621139e3270f0bad7a1fc4323a1d7732f4960037ea6d1
+    home: https://homebox.software/en/
+    icon: https://homebox.software/favicon.svg
+    keywords:
+    - homebox
+    - inventory
+    - home-inventory
+    - self-hosted
+    maintainers:
+    - name: NigelVanHattum
+    name: homebox
+    sources:
+    - https://github.com/sysadminsmedia/homebox
+    - https://homebox.software/en/quick-start/configure/
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/homebox-0.1.0/homebox-0.1.0.tgz
+    version: 0.1.0
   influxdb3-core:
   - apiVersion: v2
     appVersion: 3.9.3
@@ -1811,4 +1835,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2026-11-01T10:52:04.355840511Z"
+generated: "2026-11-09T18:59:14.908721956Z"
