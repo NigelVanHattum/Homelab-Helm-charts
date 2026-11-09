@@ -67,6 +67,48 @@ tests:
       - failedTemplate:
           errorMessage: "an s3:// HBOX_STORAGE_CONN_STRING needs homebox.storage.s3.accessKeyId and secretAccessKey, or homebox.existingSecret carrying them"
 
+  - it: fails on half an S3 credential pair
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?use_path_style=true
+      homebox.storage.s3.accessKeyId: rustfs-key
+    asserts:
+      - failedTemplate:
+          errorMessage: "an s3:// HBOX_STORAGE_CONN_STRING needs homebox.storage.s3.accessKeyId and secretAccessKey, or homebox.existingSecret carrying them"
+
+  # Both stores default to /data, so dropping the volume without moving them both off the pod
+  # is a CrashLoopBackOff on a read-only root filesystem.
+  - it: fails on no persistence with the sqlite driver
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.persistence.data.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.persistence.data.enabled=false needs homebox.database.driver=postgres: the sqlite database lives under /data, which nothing mounts then, on a read-only root filesystem"
+
+  - it: fails on no persistence with file:// storage
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.persistence.data.enabled: false
+      homebox.database.driver: postgres
+      homebox.database.host: homebox-rw
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.persistence.data.enabled=false needs an s3://, gcs:// or azblob:// HBOX_STORAGE_CONN_STRING: file:// storage writes under /data, which nothing mounts then, on a read-only root filesystem"
+
+  - it: accepts no persistence with postgres plus s3
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.persistence.data.enabled: false
+      homebox.database.driver: postgres
+      homebox.database.host: homebox-rw
+      homebox.storage.s3.accessKeyId: rustfs-key
+      homebox.storage.s3.secretAccessKey: rustfs-secret
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?use_path_style=true
+    asserts:
+      - isKind:
+          of: StatefulSet
+
   # A plain value in homebox.config lands in the workload spec, which ClusterRole view reads.
   - it: refuses a secret-bearing key in the plain config map
     set:

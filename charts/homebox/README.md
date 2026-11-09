@@ -91,7 +91,9 @@ homebox:
 ```
 
 The credentials render as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` through `secretKeyRef`;
-an `s3://` connection string without them (and without `homebox.existingSecret`) fails to render.
+an `s3://` connection string without both of them (and without `homebox.existingSecret`) fails to
+render, and so does `persistence.data.enabled: false` while the sqlite database or `file://`
+storage still points at `/data`.
 `use_path_style=true` and `disable_https=true` are what a plain-HTTP IP endpoint such as RustFS
 needs. `AWS_SESSION_TOKEN`, `gcs://` and `azblob://` are `homebox.extraEnv` territory.
 

@@ -108,8 +108,24 @@ refuses to render those instead of shipping a CrashLoopBackOff.
 {{- fail (printf "homebox.config.%s is a secret the chart reads through secretKeyRef: a plain value there lands in the workload spec; use the homebox.* value or homebox.existingSecret" $key) -}}
 {{- end -}}
 {{- end -}}
-{{- if and (hasPrefix "s3://" (toString (index .Values.homebox.config "HBOX_STORAGE_CONN_STRING" | default ""))) (not .Values.homebox.existingSecret) (not .Values.homebox.storage.s3.accessKeyId) -}}
+{{- $conn := toString (index .Values.homebox.config "HBOX_STORAGE_CONN_STRING" | default "") -}}
+{{- $s3 := .Values.homebox.storage.s3 -}}
+{{- if and (hasPrefix "s3://" $conn) (not .Values.homebox.existingSecret) (or (not $s3.accessKeyId) (not $s3.secretAccessKey)) -}}
 {{- fail "an s3:// HBOX_STORAGE_CONN_STRING needs homebox.storage.s3.accessKeyId and secretAccessKey, or homebox.existingSecret carrying them" -}}
+{{- end -}}
+{{- $remoteStorage := false -}}
+{{- range $scheme := list "s3://" "gcs://" "azblob://" -}}
+{{- if hasPrefix $scheme $conn -}}
+{{- $remoteStorage = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $data.enabled -}}
+{{- if eq $db.driver "sqlite3" -}}
+{{- fail "homebox.persistence.data.enabled=false needs homebox.database.driver=postgres: the sqlite database lives under /data, which nothing mounts then, on a read-only root filesystem" -}}
+{{- end -}}
+{{- if not $remoteStorage -}}
+{{- fail "homebox.persistence.data.enabled=false needs an s3://, gcs:// or azblob:// HBOX_STORAGE_CONN_STRING: file:// storage writes under /data, which nothing mounts then, on a read-only root filesystem" -}}
+{{- end -}}
 {{- end -}}
 {{- if not (has $db.driver (list "sqlite3" "postgres")) -}}
 {{- fail (printf "homebox.database.driver must be sqlite3 or postgres, got %q" $db.driver) -}}

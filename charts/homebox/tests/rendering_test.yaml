@@ -47,6 +47,11 @@ tests:
       - templates/statefulset.yaml
     set:
       homebox.persistence.data.enabled: false
+      homebox.database.driver: postgres
+      homebox.database.host: homebox-rw
+      homebox.storage.s3.accessKeyId: rustfs-key
+      homebox.storage.s3.secretAccessKey: rustfs-secret
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?use_path_style=true
     asserts:
       - isKind:
           of: StatefulSet

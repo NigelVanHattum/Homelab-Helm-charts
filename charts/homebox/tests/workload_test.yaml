@@ -22,12 +22,20 @@ tests:
       - hasDocuments:
           count: 0
 
+  # Persistence off is only valid with both stores off the pod, so every test that drops the
+  # volume reuses this whole set.
   - it: switches to a Deployment that recreates and keeps no volume
     templates:
       - templates/deployment.yaml
-    set:
+    set: &stateless
       type: Deployment
       homebox.persistence.data.enabled: false
+      homebox.database.driver: postgres
+      homebox.database.host: homebox-rw.cnpg.svc.cluster.local
+      homebox.database.password: pg-password
+      homebox.storage.s3.accessKeyId: rustfs-key
+      homebox.storage.s3.secretAccessKey: rustfs-secret
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?endpoint=http://10.0.0.1:9000&disable_https=true&use_path_style=true
     asserts:
       - isKind:
           of: Deployment
@@ -51,9 +59,7 @@ tests:
   - it: renders no StatefulSet in Deployment mode
     templates:
       - templates/statefulset.yaml
-    set:
-      type: Deployment
-      homebox.persistence.data.enabled: false
+    set: *stateless
     asserts:
       - hasDocuments:
           count: 0
@@ -80,9 +86,7 @@ tests:
   - it: keeps the Deployment pod spec identical to the StatefulSet one
     templates:
       - templates/deployment.yaml
-    set:
-      type: Deployment
-      homebox.persistence.data.enabled: false
+    set: *stateless
     asserts:
       - equal:
           path: spec.template.spec.securityContext.runAsUser
