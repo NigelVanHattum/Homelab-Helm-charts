@@ -1,0 +1,25 @@
+apiVersion: v2
+name: homebox
+description: A Helm chart for Homebox - a self-hosted home inventory management system
+type: application
+
+# This is the chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+version: 0.1.0
+
+# image.tag defaults to this plus image.variant, so this one line pins the Homebox image.
+# renovate: datasource=docker depName=ghcr.io/sysadminsmedia/homebox
+appVersion: "0.27.1"
+
+keywords:
+  - homebox
+  - inventory
+  - home-inventory
+  - self-hosted
+home: https://homebox.software/en/
+sources:
+  - https://github.com/sysadminsmedia/homebox
+  - https://homebox.software/en/quick-start/configure/
+maintainers:
+  - name: NigelVanHattum
+icon: https://homebox.software/favicon.svg

@@ -1,0 +1,19 @@
+{{- include "homebox.validate" . }}
+{{- if eq .Values.type "Deployment" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "homebox.fullname" . }}
+  labels:
+    {{- include "homebox.labels" . | nindent 4 }}
+spec:
+  {{- /* Hardcoded: pub/sub is mem://, and a ReadWriteOnce data PVC admits one pod. */}}
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "homebox.selectorLabels" . | nindent 6 }}
+  template:
+    {{- include "homebox.podTemplate" . | nindent 4 }}
+{{- end }}

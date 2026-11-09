@@ -1,0 +1,119 @@
+suite: guardrails that refuse to render a broken release
+release:
+  name: homebox
+  namespace: homebox
+templates:
+  - templates/statefulset.yaml
+tests:
+  # Homebox exits on a pepper shorter than 32 bytes, so the chart stops at render time
+  # instead of shipping a CrashLoopBackOff.
+  - it: fails without a pepper and without an existing secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.auth.apiKeyPepper is required: set it (at least 32 bytes, `openssl rand -base64 48`) or point homebox.existingSecret at a Secret holding it"
+
+  - it: fails on a pepper shorter than 32 bytes
+    set:
+      homebox.auth.apiKeyPepper: too-short
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.auth.apiKeyPepper must be at least 32 bytes, got 9: Homebox refuses to start on a shorter one"
+
+  - it: accepts an existing secret in place of an inline pepper
+    set:
+      homebox.existingSecret: homebox-credentials
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  - it: fails on postgres without a host
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.database.driver: postgres
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.database.driver=postgres needs homebox.database.host"
+
+  - it: fails on an unsupported driver
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.database.driver: mysql
+    asserts:
+      - failedTemplate:
+          errorMessage: 'homebox.database.driver must be sqlite3 or postgres, got "mysql"'
+
+  - it: fails on an unknown workload kind
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      type: DaemonSet
+    asserts:
+      - failedTemplate:
+          errorMessage: 'type must be Deployment or StatefulSet, got "DaemonSet"'
+
+  # A Deployment has no volumeClaimTemplates, so persistence there is an existing PVC or nothing.
+  - it: fails on a Deployment that would need a claim of its own
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      type: Deployment
+    asserts:
+      - failedTemplate:
+          errorMessage: "type=Deployment cannot claim a volume: set homebox.persistence.data.useExistingPvc, or disable homebox.persistence.data.enabled (postgres plus S3 storage)"
+
+  - it: fails on an s3 connection string without credentials
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?use_path_style=true
+    asserts:
+      - failedTemplate:
+          errorMessage: "an s3:// HBOX_STORAGE_CONN_STRING needs homebox.storage.s3.accessKeyId and secretAccessKey, or homebox.existingSecret carrying them"
+
+  - it: fails on half an S3 credential pair
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?use_path_style=true
+      homebox.storage.s3.accessKeyId: rustfs-key
+    asserts:
+      - failedTemplate:
+          errorMessage: "an s3:// HBOX_STORAGE_CONN_STRING needs homebox.storage.s3.accessKeyId and secretAccessKey, or homebox.existingSecret carrying them"
+
+  # Both stores default to /data, so dropping the volume without moving them both off the pod
+  # is a CrashLoopBackOff on a read-only root filesystem.
+  - it: fails on no persistence with the sqlite driver
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.persistence.data.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.persistence.data.enabled=false needs homebox.database.driver=postgres: the sqlite database lives under /data, which nothing mounts then, on a read-only root filesystem"
+
+  - it: fails on no persistence with file:// storage
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.persistence.data.enabled: false
+      homebox.database.driver: postgres
+      homebox.database.host: homebox-rw
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.persistence.data.enabled=false needs an s3://, gcs:// or azblob:// HBOX_STORAGE_CONN_STRING: file:// storage writes under /data, which nothing mounts then, on a read-only root filesystem"
+
+  - it: accepts no persistence with postgres plus s3
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.persistence.data.enabled: false
+      homebox.database.driver: postgres
+      homebox.database.host: homebox-rw
+      homebox.storage.s3.accessKeyId: rustfs-key
+      homebox.storage.s3.secretAccessKey: rustfs-secret
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?use_path_style=true
+    asserts:
+      - isKind:
+          of: StatefulSet
+
+  # A plain value in homebox.config lands in the workload spec, which ClusterRole view reads.
+  - it: refuses a secret-bearing key in the plain config map
+    set:
+      homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+      homebox.config.AWS_SECRET_ACCESS_KEY: leaked-into-the-pod-spec
+    asserts:
+      - failedTemplate:
+          errorMessage: "homebox.config.AWS_SECRET_ACCESS_KEY is a secret the chart reads through secretKeyRef: a plain value there lands in the workload spec; use the homebox.* value or homebox.existingSecret"

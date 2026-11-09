@@ -1,0 +1,50 @@
+{{- include "homebox.validate" . }}
+{{- if eq .Values.type "StatefulSet" }}
+{{- $data := .Values.homebox.persistence.data }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "homebox.fullname" . }}
+  labels:
+    {{- include "homebox.labels" . | nindent 4 }}
+spec:
+  {{- /* Hardcoded: pub/sub is mem://, so a second replica is a second empty PVC and a split cache. */}}
+  replicas: 1
+  serviceName: {{ include "homebox.fullname" . }}
+{{- if and $data.enabled (not $data.useExistingPvc) }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        {{- /* selectorLabels only: volumeClaimTemplates is immutable, a version label breaks every bump. */}}
+        labels:
+          {{- include "homebox.selectorLabels" . | nindent 10 }}
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ $data.size }}
+        {{- with $data.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        {{- with $data.existingVolume }}
+        volumeName: {{ . }}
+        {{- end }}
+        {{- if or $data.matchLabels $data.matchExpressions }}
+        selector:
+          {{- with $data.matchLabels }}
+          matchLabels:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $data.matchExpressions }}
+          matchExpressions:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+{{- end }}
+  selector:
+    matchLabels:
+      {{- include "homebox.selectorLabels" . | nindent 6 }}
+  template:
+    {{- include "homebox.podTemplate" . | nindent 4 }}
+{{- end }}

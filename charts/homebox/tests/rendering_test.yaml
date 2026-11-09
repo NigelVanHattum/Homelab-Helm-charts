@@ -1,0 +1,296 @@
+suite: rendering behaviour
+release:
+  name: homebox
+  namespace: homebox
+set:
+  homebox.auth.apiKeyPepper: placeholder-pepper-for-unit-tests-0000
+tests:
+  # Asserted as a pattern, not a literal: an appVersion bump must not fail this suite.
+  - it: pins the image to appVersion plus the variant suffix
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: '^ghcr\.io/sysadminsmedia/homebox:[0-9]+\.[0-9]+\.[0-9]+-rootless$'
+
+  - it: lets image.tag win over appVersion and variant
+    templates:
+      - templates/statefulset.yaml
+    set:
+      image.tag: 1.2.3-hardened
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/sysadminsmedia/homebox:1.2.3-hardened
+
+  - it: renders one claim template for the data volume, mounted at /data
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - lengthEqual:
+          path: spec.volumeClaimTemplates
+          count: 1
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+
+  - it: still parses with persistence disabled
+    templates:
+      - templates/statefulset.yaml
+    set:
+      homebox.persistence.data.enabled: false
+      homebox.database.driver: postgres
+      homebox.database.host: homebox-rw
+      homebox.storage.s3.accessKeyId: rustfs-key
+      homebox.storage.s3.secretAccessKey: rustfs-secret
+      homebox.config.HBOX_STORAGE_CONN_STRING: s3://homebox?use_path_style=true
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+
+  - it: still parses with a selector, a storage class and an existing volume set
+    templates:
+      - templates/statefulset.yaml
+    set:
+      homebox.persistence.data.storageClass: nfs-csi-applications
+      homebox.persistence.data.existingVolume: pv-homebox-data
+      homebox.persistence.data.matchLabels:
+        app: homebox
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: nfs-csi-applications
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.volumeName
+          value: pv-homebox-data
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.selector.matchLabels.app
+          value: homebox
+
+  - it: mounts an existing PVC instead of claiming one
+    templates:
+      - templates/statefulset.yaml
+    set:
+      homebox.persistence.data.useExistingPvc: pvc-homebox-data
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            persistentVolumeClaim:
+              claimName: pvc-homebox-data
+
+  - it: gives the read-only root filesystem a writable /tmp
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: tmp
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            mountPath: /tmp
+
+  - it: runs as the uid the rootless image ships
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 65532
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 65532
+
+  - it: reads the API key pepper from the chart secret, never as a plain value
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_AUTH_API_KEY_PEPPER
+            valueFrom:
+              secretKeyRef:
+                name: homebox
+                key: api-key-pepper
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_AUTH_API_KEY_PEPPER
+            value: placeholder-pepper-for-unit-tests-0000
+
+  - it: renders every config entry as a quoted env value
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_MODE
+            value: "production"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_WEB_MAX_UPLOAD_SIZE
+            value: "10"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_THUMBNAIL_ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_DATABASE_PUB_SUB_CONN_STRING
+            value: "mem://{{ .Topic }}"
+
+  - it: keeps registration closed and local networks blocked by default
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_OPTIONS_ALLOW_REGISTRATION
+            value: "false"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_NOTIFIER_BLOCK_LOCAL_NETS
+            value: "true"
+
+  - it: drops a config entry set to null, and falls back for the port
+    templates:
+      - templates/statefulset.yaml
+    set:
+      homebox.config.HBOX_LOG_LEVEL: null
+      homebox.config.HBOX_WEB_PORT: null
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_LOG_LEVEL
+            value: "info"
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 7745
+
+  - it: takes the container port from the config map
+    templates:
+      - templates/statefulset.yaml
+    set:
+      homebox.config.HBOX_WEB_PORT: 8080
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8080
+
+  - it: appends extraEnv verbatim, secret references included
+    templates:
+      - templates/statefulset.yaml
+    set:
+      homebox.extraEnv:
+        - name: HBOX_MAILER_HOST
+          value: smtp.example.com
+        - name: HBOX_BARCODE_TOKEN_BARCODESPIDER
+          valueFrom:
+            secretKeyRef:
+              name: homebox-barcode
+              key: token
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_MAILER_HOST
+            value: smtp.example.com
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_BARCODE_TOKEN_BARCODESPIDER
+            valueFrom:
+              secretKeyRef:
+                name: homebox-barcode
+                key: token
+
+  - it: defaults to sqlite3 and sets no postgres variable
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_DATABASE_DRIVER
+            value: "sqlite3"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_DATABASE_HOST
+            value: ""
+
+  - it: wires postgres up and reads its password from the secret
+    templates:
+      - templates/statefulset.yaml
+    set:
+      homebox.database.driver: postgres
+      homebox.database.host: postgres-rw.cnpg.svc.cluster.local
+      homebox.database.password: pg-password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_DATABASE_HOST
+            value: "postgres-rw.cnpg.svc.cluster.local"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_DATABASE_PORT
+            value: "5432"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_DATABASE_SSL_MODE
+            value: "require"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: HBOX_DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: homebox
+                key: database-password
+
+  - it: probes the status endpoint on the named port
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/v1/status
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http

@@ -1,0 +1,8 @@
+# CI values: the pepper the chart refuses to render without, and a small PVC so the chart
+# installs on minimal test clusters. Not a credential - it never leaves CI.
+homebox:
+  auth:
+    apiKeyPepper: "ci-placeholder-pepper-not-a-real-secret-0000"
+  persistence:
+    data:
+      size: 1Gi
