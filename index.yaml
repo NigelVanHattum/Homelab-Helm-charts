@@ -3,6 +3,17 @@ entries:
   floatplane-downloader:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-11-11T23:11:12.690178409Z"
+    description: A Helm chart for deploying the Inrixia/Floatplan-downloader on a
+      kubernetes cluster
+    digest: 550bd8785dd440495ad05aedee37c85d35f5f7438f0627ad8005985394bd032f
+    name: floatplane-downloader
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/floatplane-downloader-0.4.1/floatplane-downloader-0.4.1.tgz
+    version: 0.4.1
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2026-09-28T21:30:39.074956288Z"
     description: A Helm chart for deploying the Inrixia/Floatplan-downloader on a
       kubernetes cluster
@@ -81,6 +92,16 @@ entries:
   heimdall:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-11-11T23:11:12.858246367Z"
+    description: A Helm chart for Kubernetes
+    digest: 9c67aaa3e28dabc6f2f6be295755e00fde468e8090d0ee93007f859bd6204114
+    name: heimdall
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/heimdall-0.1.3/heimdall-0.1.3.tgz
+    version: 0.1.3
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-07-14T14:43:58.885885893Z"
     description: A Helm chart for Kubernetes
     digest: 3d1683dbc4c6ddb07574de4764744fce1b32eb5a0280d68630175504c6338e37
@@ -100,6 +121,29 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/heimdall-0.1.1/heimdall-0.1.1.tgz
     version: 0.1.1
   homebox:
+  - apiVersion: v2
+    appVersion: 0.27.1
+    created: "2026-11-11T23:11:13.055902831Z"
+    description: A Helm chart for Homebox - a self-hosted home inventory management
+      system
+    digest: 84a7119684337b9d686de9487d3c1a2b529b8b4b2772b622a6438471975ca937
+    home: https://homebox.software/en/
+    icon: https://homebox.software/favicon.svg
+    keywords:
+    - homebox
+    - inventory
+    - home-inventory
+    - self-hosted
+    maintainers:
+    - name: NigelVanHattum
+    name: homebox
+    sources:
+    - https://github.com/sysadminsmedia/homebox
+    - https://homebox.software/en/quick-start/configure/
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/homebox-0.1.1/homebox-0.1.1.tgz
+    version: 0.1.1
   - apiVersion: v2
     appVersion: 0.27.1
     created: "2026-11-09T18:59:14.195611904Z"
@@ -124,6 +168,30 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/homebox-0.1.0/homebox-0.1.0.tgz
     version: 0.1.0
   influxdb3-core:
+  - apiVersion: v2
+    appVersion: 3.9.3
+    created: "2026-11-11T23:11:13.939379635Z"
+    description: A Helm chart for deploying InfluxDB 3 Core on Kubernetes
+    digest: 718a38eea92a0b42f27a455b9366e393cfcf56ce47bee7d9e1628c2d2a76944c
+    home: https://www.influxdata.com/products/influxdb/
+    icon: https://www.influxdata.com/wp-content/uploads/influxdata-logo.svg
+    keywords:
+    - influxdb
+    - time-series
+    - database
+    - metrics
+    - iot
+    - open-source
+    maintainers:
+    - name: NigelVanHattum
+    name: influxdb3-core
+    sources:
+    - https://github.com/influxdata/influxdb
+    - https://docs.influxdata.com/influxdb3/core/
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/influxdb3-core-0.4.3/influxdb3-core-0.4.3.tgz
+    version: 0.4.3
   - apiVersion: v2
     appVersion: 3.9.3
     created: "2026-10-11T11:53:32.609495011Z"
@@ -317,6 +385,16 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/influxdb3-core-0.1.0/influxdb3-core-0.1.0.tgz
     version: 0.1.0
   jackett:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2026-11-11T23:11:14.11849484Z"
+    description: A Helm chart for Kubernetes
+    digest: 36cc74ac87375554ae7ce35369e8362413cac73b1961045d0ba8410fbb6e2487
+    name: jackett
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/jackett-0.1.8/jackett-0.1.8.tgz
+    version: 0.1.8
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2024-07-14T14:43:59.028162008Z"
@@ -523,6 +601,16 @@ entries:
   mealie:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-11-11T23:11:14.306895189Z"
+    description: A Helm chart for Kubernetes
+    digest: 754059c441a194da342b7e094b9e79605174443c1fdfbc6d147e0280ff4caddc
+    name: mealie
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/mealie-0.2.4/mealie-0.2.4.tgz
+    version: 0.2.4
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2026-04-14T22:47:52.049766412Z"
     description: A Helm chart for Kubernetes
     digest: 2f3210fd7f7613d1bdd912ca0ede533de0cc9f278a31f416a085e17370014e95
@@ -562,6 +650,16 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/mealie-0.1.0/mealie-0.1.0.tgz
     version: 0.1.0
   ombi:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2026-11-11T23:11:14.47578567Z"
+    description: A Helm chart for Kubernetes
+    digest: 9995ca7575ce96994480d103612d0d8f7eea9622e3f94757b3cd511ef8234c5a
+    name: ombi
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/ombi-0.1.3/ombi-0.1.3.tgz
+    version: 0.1.3
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2024-07-14T14:43:59.265688152Z"
@@ -804,6 +902,26 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/paperclip-0.1.0/paperclip-0.1.0.tgz
     version: 0.1.0
   paperless-ngx:
+  - apiVersion: v2
+    appVersion: 2.20.10
+    created: "2026-11-11T23:11:14.654377937Z"
+    dependencies:
+    - condition: paperless.tika.enabled
+      name: tika
+      repository: https://apache.jfrog.io/artifactory/tika
+      version: 3.2.2
+    - condition: paperless.gotenberg.enabled
+      name: gotenberg
+      repository: https://maikumori.github.io/helm-charts
+      version: 1.18.0
+    description: A Helm chart for Paperless-ngx - A community-supported open-source
+      document management system
+    digest: 7d5cf4b45588fed5c65f9063453c9851c69b8a3bca18e78c6411e787f1d8122a
+    name: paperless-ngx
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/paperless-ngx-1.3.1/paperless-ngx-1.3.1.tgz
+    version: 1.3.1
   - apiVersion: v2
     appVersion: 2.20.10
     created: "2026-11-01T10:52:04.355640086Z"
@@ -1523,6 +1641,16 @@ entries:
   prowlarr:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-11-11T23:11:14.831140671Z"
+    description: A Helm chart for Kubernetes
+    digest: 91ea314041095034d7940d979837248cbec049383451cc009801c883eb8b525d
+    name: prowlarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/prowlarr-0.1.4/prowlarr-0.1.4.tgz
+    version: 0.1.4
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2024-07-20T16:17:23.298118597Z"
     description: A Helm chart for Kubernetes
     digest: 7abfb7df84d3dffac11d863f76e0babd08b037f981b5661c6743b1e07267e7bb
@@ -1552,6 +1680,16 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/prowlarr-0.1.0/prowlarr-0.1.0.tgz
     version: 0.1.0
   radarr:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2026-11-11T23:11:15.016554702Z"
+    description: A Helm chart for Kubernetes
+    digest: d1536626a0cc755f0dfaa30f5bfb5e6ff32b0eb7c24e5a6f2588b0d27c161505
+    name: radarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/radarr-0.1.11/radarr-0.1.11.tgz
+    version: 0.1.11
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2026-06-06T21:07:02.85343581Z"
@@ -1655,6 +1793,16 @@ entries:
   sonarr:
   - apiVersion: v2
     appVersion: 1.16.0
+    created: "2026-11-11T23:11:15.195839963Z"
+    description: A Helm chart for Kubernetes
+    digest: 9ef18ed0b099413df58478d031a9190d5500ef196b1e6e4aaf6ead86cd08822b
+    name: sonarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.7/sonarr-0.1.7.tgz
+    version: 0.1.7
+  - apiVersion: v2
+    appVersion: 1.16.0
     created: "2026-06-06T21:07:03.007722136Z"
     description: A Helm chart for Kubernetes
     digest: 5f292bc82fecd46c06bda3bca53f471845cfc4752898e4afd2c0fb3881503a4c
@@ -1724,6 +1872,16 @@ entries:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/sonarr-0.1.0/sonarr-0.1.0.tgz
     version: 0.1.0
   tdarr:
+  - apiVersion: v2
+    appVersion: 1.16.0
+    created: "2026-11-11T23:11:15.485136367Z"
+    description: A Helm chart for Kubernetes
+    digest: 2fd22637fbd008c5b6824e6d36116d21808fd709985b112dc364a7e5df134fe2
+    name: tdarr
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/tdarr-0.1.10/tdarr-0.1.10.tgz
+    version: 0.1.10
   - apiVersion: v2
     appVersion: 1.16.0
     created: "2026-06-06T21:07:03.133674661Z"
@@ -1817,6 +1975,16 @@ entries:
   terraform-mcp-server:
   - apiVersion: v2
     appVersion: 0.3.3
+    created: "2026-11-11T23:11:15.723246846Z"
+    description: A Helm chart for Terraform MCP Server
+    digest: b9a0645c7a5bffb46c8366ccb532525386fbbd33eff5af28785d412938bda4fc
+    name: terraform-mcp-server
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.2/terraform-mcp-server-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: 0.3.3
     created: "2025-12-15T21:25:06.436929676Z"
     description: A Helm chart for Terraform MCP Server
     digest: c1b464fb0f9b1e176859561c320821b3f8814b6592da8b1c28607c923c37ddf3
@@ -1835,4 +2003,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2026-11-09T18:59:14.908721956Z"
+generated: "2026-11-11T23:11:15.72354162Z"
