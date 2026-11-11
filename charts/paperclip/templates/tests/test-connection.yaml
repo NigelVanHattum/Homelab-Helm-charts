@@ -9,6 +9,8 @@ metadata:
     "helm.sh/hook": test
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
+  # The test hook only needs the Service; the chart's ServiceAccount carries `view`.
+  automountServiceAccountToken: false
   restartPolicy: Never
   containers:
     - name: wget

@@ -1,0 +1,42 @@
+suite: pod hardening
+release:
+  name: paperclip
+  namespace: paperclip
+set:
+  auth.betterAuthSecret.value: auth-secret
+  secrets.masterKey.value: master-key
+tests:
+  - it: test hook pins busybox and mounts no ServiceAccount token
+    templates:
+      - templates/tests/test-connection.yaml
+    asserts:
+      - equal:
+          path: spec.containers[0].image
+          value: busybox:1.37.0
+      - equal:
+          path: spec.automountServiceAccountToken
+          value: false
+
+  - it: bootstrap Job pod mounts no ServiceAccount token
+    templates:
+      - templates/bootstrap-job.yaml
+    set:
+      bootstrap.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  # The app pods keep the token on purpose: `rbac.create` binds `view` so agents
+  # can read the cluster.
+  - it: StatefulSet pod keeps the token when rbac.create is set
+    templates:
+      - templates/statefulset.yaml
+    set:
+      rbac.create: true
+      serviceAccount.create: true
+      serviceAccount.automountServiceAccountToken: true
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true

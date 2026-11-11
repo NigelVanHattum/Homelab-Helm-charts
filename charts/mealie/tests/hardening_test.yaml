@@ -21,12 +21,15 @@ tests:
           path: spec.template.spec.automountServiceAccountToken
           value: false
 
-  - it: pre-sync hook Job pod mounts no ServiceAccount token
+  - it: pre-sync hook Job pins curl and mounts no ServiceAccount token
     templates:
       - templates/hooks/pre-sync-notification.yaml
     set:
       argocdHooks.preSyncNotification.enabled: true
     asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: curlimages/curl:8.23.0
       - equal:
           path: spec.template.spec.automountServiceAccountToken
           value: false

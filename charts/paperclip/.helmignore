@@ -4,6 +4,8 @@
 .idea/
 *.tmproj
 .vscode/
-tests/
-ci/
+# Anchored: unanchored `tests/` also matched `templates/tests/`, which kept the
+# chart's helm test hook out of the package.
+/tests/
+/ci/
 README.md.gotmpl
