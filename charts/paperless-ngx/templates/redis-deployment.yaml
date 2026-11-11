@@ -16,6 +16,7 @@ spec:
         {{- include "paperless-ngx.labels" . | nindent 8 }}
         app.kubernetes.io/component: redis
     spec:
+      automountServiceAccountToken: false
       containers:
         - name: redis
           image: {{ .Values.paperless.redis.image.repository }}:{{ .Values.paperless.redis.image.tag }}{{ with .Values.paperless.redis.image.digest }}@{{ . }}{{ end }}
