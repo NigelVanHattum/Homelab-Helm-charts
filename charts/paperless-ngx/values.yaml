@@ -285,3 +285,11 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+# Values forwarded to the gotenberg subchart (rendered only when
+# `paperless.gotenberg.enabled` is true).
+gotenberg:
+  testImage:
+    # -- Tag for the gotenberg subchart's helm test pod image. Pinned to the same busybox
+    # release this chart's own test hook uses; the subchart defaults to `latest`.
+    tag: "1.37.0"
