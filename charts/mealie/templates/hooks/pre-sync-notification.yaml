@@ -21,7 +21,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: signal-notification
-          image: curlimages/curl:latest
+          image: curlimages/curl:8.23.0
           command:
             - sh
             - -c
