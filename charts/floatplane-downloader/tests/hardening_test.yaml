@@ -1,0 +1,12 @@
+suite: pod hardening
+release:
+  name: floatplane
+  namespace: floatplane
+tests:
+  - it: StatefulSet pod mounts no ServiceAccount token
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
