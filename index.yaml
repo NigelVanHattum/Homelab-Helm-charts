@@ -934,6 +934,26 @@ entries:
     version: 0.1.0
   paperless-ngx:
   - apiVersion: v2
+    appVersion: 2.20.15
+    created: "2026-11-11T23:25:10.251588188Z"
+    dependencies:
+    - condition: paperless.tika.enabled
+      name: tika
+      repository: https://apache.jfrog.io/artifactory/tika
+      version: 3.2.2
+    - condition: paperless.gotenberg.enabled
+      name: gotenberg
+      repository: https://maikumori.github.io/helm-charts
+      version: 1.18.0
+    description: A Helm chart for Paperless-ngx - A community-supported open-source
+      document management system
+    digest: 559bb67afb5eb10661dfe8323182096c33a859061e46824bccd162a1da264461
+    name: paperless-ngx
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/paperless-ngx-1.3.2/paperless-ngx-1.3.2.tgz
+    version: 1.3.2
+  - apiVersion: v2
     appVersion: 2.20.10
     created: "2026-11-11T23:11:14.654377937Z"
     dependencies:
@@ -2005,6 +2025,16 @@ entries:
     version: 0.1.1
   terraform-mcp-server:
   - apiVersion: v2
+    appVersion: 0.5.2
+    created: "2026-11-11T23:25:10.451505565Z"
+    description: A Helm chart for Terraform MCP Server
+    digest: 10ffa4b7faa7d335fb79d22566e7f3d157491540701e58621805745cf153bb1b
+    name: terraform-mcp-server
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.2.0/terraform-mcp-server-0.2.0.tgz
+    version: 0.2.0
+  - apiVersion: v2
     appVersion: 0.3.3
     created: "2026-11-11T23:11:15.723246846Z"
     description: A Helm chart for Terraform MCP Server
@@ -2034,4 +2064,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2026-11-11T23:24:50.119830978Z"
+generated: "2026-11-11T23:25:10.451847627Z"
