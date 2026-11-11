@@ -1,6 +1,6 @@
 # paperless-ngx
 
-![Version: 1.3.0](https://img.shields.io/badge/Version-1.3.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.10](https://img.shields.io/badge/AppVersion-2.20.10-informational?style=flat-square)
+![Version: 1.3.1](https://img.shields.io/badge/Version-1.3.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.10](https://img.shields.io/badge/AppVersion-2.20.10-informational?style=flat-square)
 
 A Helm chart for Paperless-ngx - A community-supported open-source document management system
 
@@ -87,6 +87,7 @@ at them.
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
 | fullnameOverride | string | `""` |  |
+| gotenberg.testImage.tag | string | `"1.37.0"` | Tag for the gotenberg subchart's helm test pod image. Pinned to the same busybox release this chart's own test hook uses; the subchart defaults to `latest`. |
 | httpRoute | object | `{"annotations":{},"enabled":false,"hostnames":["chart-example.local"],"parentRefs":[{"name":"gateway","sectionName":"http"}],"rules":[{"matches":[{"path":{"type":"PathPrefix","value":"/headers"}}]}]}` | Expose the service via gateway-api HTTPRoute Requires Gateway API resources and suitable controller installed within the cluster (see: https://gateway-api.sigs.k8s.io/guides/) |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
 | image.repository | string | `"ghcr.io/paperless-ngx/paperless-ngx"` |  |

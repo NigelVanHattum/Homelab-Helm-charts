@@ -17,6 +17,7 @@ spec:
       labels:
         {{- include "mealie.selectorLabels" . | nindent 8 }}
     spec:
+      automountServiceAccountToken: false
       restartPolicy: Never
       containers:
         - name: signal-notification

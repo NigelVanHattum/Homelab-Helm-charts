@@ -1,0 +1,12 @@
+suite: pod hardening
+release:
+  name: terraform-mcp-server
+  namespace: mcp
+tests:
+  - it: Deployment pod mounts no ServiceAccount token
+    templates:
+      - templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false

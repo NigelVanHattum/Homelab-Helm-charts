@@ -1,0 +1,22 @@
+suite: pod hardening
+release:
+  name: influxdb3-core
+  namespace: influxdb
+tests:
+  - it: StatefulSet pod mounts no ServiceAccount token
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: explorer StatefulSet pod mounts no ServiceAccount token
+    templates:
+      - templates/explorer-statefulset.yaml
+    set:
+      explorer.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false

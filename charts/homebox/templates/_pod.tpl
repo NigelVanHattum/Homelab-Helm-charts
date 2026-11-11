@@ -18,6 +18,7 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
+  automountServiceAccountToken: false
   {{- with .Values.imagePullSecrets }}
   imagePullSecrets:
     {{- toYaml . | nindent 4 }}

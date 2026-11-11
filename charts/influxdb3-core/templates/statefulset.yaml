@@ -45,6 +45,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      automountServiceAccountToken: false
       {{- if and .Values.processingEngine.enabled .Values.processingEngine.initPlugins (gt (len .Values.processingEngine.initPlugins) 0) }}
       initContainers:
         {{- range .Values.processingEngine.initPlugins }}

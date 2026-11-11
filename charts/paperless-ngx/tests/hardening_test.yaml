@@ -1,0 +1,41 @@
+suite: pod hardening
+release:
+  name: paperless-ngx
+  namespace: paperless-ngx
+tests:
+  - it: StatefulSet pod mounts no ServiceAccount token
+    templates:
+      - templates/statefulset.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: redis Deployment pod mounts no ServiceAccount token
+    templates:
+      - templates/redis-deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: test hook pins busybox and mounts no ServiceAccount token
+    templates:
+      - templates/tests/test-connection.yaml
+    asserts:
+      - equal:
+          path: spec.containers[0].image
+          value: busybox:1.37.0
+      - equal:
+          path: spec.automountServiceAccountToken
+          value: false
+
+  # The gotenberg and tika subcharts expose no automountServiceAccountToken value, so their
+  # pods keep the default token mount. Their test pod image is the one knob we do have.
+  - it: gotenberg subchart test hook pins busybox
+    templates:
+      - charts/gotenberg/templates/tests/test-connection.yaml
+    asserts:
+      - equal:
+          path: spec.containers[0].image
+          value: busybox:1.37.0

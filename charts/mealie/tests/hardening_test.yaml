@@ -1,0 +1,43 @@
+suite: pod hardening
+release:
+  name: mealie
+  namespace: mealie
+tests:
+  - it: Deployment pod mounts no ServiceAccount token
+    templates:
+      - templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: StatefulSet pod mounts no ServiceAccount token
+    templates:
+      - templates/statefulset.yaml
+    set:
+      type: "StatefulSet"
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: pre-sync hook Job pod mounts no ServiceAccount token
+    templates:
+      - templates/hooks/pre-sync-notification.yaml
+    set:
+      argocdHooks.preSyncNotification.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+
+  - it: test hook pins busybox and mounts no ServiceAccount token
+    templates:
+      - templates/tests/test-connection.yaml
+    asserts:
+      - equal:
+          path: spec.containers[0].image
+          value: busybox:1.37.0
+      - equal:
+          path: spec.automountServiceAccountToken
+          value: false
