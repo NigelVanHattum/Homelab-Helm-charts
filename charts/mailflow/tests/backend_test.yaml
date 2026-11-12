@@ -2,6 +2,8 @@ suite: backend workload
 release:
   name: mailflow
   namespace: mailflow
+set:
+  redis.auth.existingSecret: mailflow-redis
 templates:
   - templates/backend.yaml
 tests:
@@ -70,14 +72,51 @@ tests:
             emptyDir:
               sizeLimit: 4Gi
 
-  - it: points REDIS_URL at the Redis this chart deploys
+  # The password reaches the URL through a $(VAR) the kubelet expands, so the Secret's value
+  # never enters the pod spec. REDIS_PASSWORD has to come first: the kubelet only expands a
+  # reference to an earlier entry.
+  - it: builds REDIS_URL with the password reference, declared after it
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mailflow-redis
+                key: redis-password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            value: redis://:$(REDIS_PASSWORD)@mailflow-redis:6379
+      - equal:
+          path: spec.template.spec.containers[0].env[2].name
+          value: REDIS_PASSWORD
+      - equal:
+          path: spec.template.spec.containers[0].env[3].name
+          value: REDIS_URL
+
+  - it: points REDIS_URL at a bare Redis when auth is turned off
+    set:
+      redis.auth.enabled: false
+      redis.auth.existingSecret: ""
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: REDIS_URL
             value: redis://mailflow-redis:6379
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mailflow-redis
+                key: redis-password
 
+  # An external Redis carries its own credential in the URL; the chart adds nothing.
   - it: takes REDIS_URL from backend.redisUrl when one is given
     set:
       redis.enabled: false
@@ -88,6 +127,14 @@ tests:
           content:
             name: REDIS_URL
             value: redis://redis.redis.svc.cluster.local:6379/2
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mailflow-redis
+                key: redis-password
 
   - it: sets NODE_ENV and PORT from the backend service port
     set:

@@ -44,9 +44,30 @@ spec:
           {{- end }}
           image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}{{ with .Values.redis.image.digest }}@{{ . }}{{ end }}"
           imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
-          {{- with .Values.redis.args }}
+          {{- if or .Values.redis.args (include "mailflow.redisAuth" .) }}
           args:
+            {{- with .Values.redis.args }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if include "mailflow.redisAuth" . }}
+            - --requirepass
+            {{- /* Expanded by the kubelet from the env var below, so the password is never a literal here. */}}
+            - $(REDIS_PASSWORD)
+            {{- end }}
+          {{- end }}
+          {{- if include "mailflow.redisAuth" . }}
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.auth.existingSecret }}
+                  key: {{ include "mailflow.redisSecretKey" . }}
+            {{- /* redis-cli reads this, so the probes do not come back NOAUTH. */}}
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.auth.existingSecret }}
+                  key: {{ include "mailflow.redisSecretKey" . }}
           {{- end }}
           ports:
             - name: redis

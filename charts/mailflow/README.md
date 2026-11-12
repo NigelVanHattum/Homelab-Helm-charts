@@ -13,7 +13,7 @@ MailFlow ships no upstream Helm chart. This one follows `docker-compose.ghcr.yml
 |---|---|---|---|
 | `backend` | `ghcr.io/maathimself/mailflow-backend` | 3000 | `GET /api/health` |
 | `frontend` | `ghcr.io/maathimself/mailflow-frontend` | 80 | `GET /` |
-| `redis` | `redis:7-alpine` | 6379 | `redis-cli ping` |
+| `redis` | `redis`, pinned by tag and digest | 6379 | `redis-cli ping` |
 
 One `image.tag` drives backend and frontend, because upstream releases them together; it
 defaults to the chart `appVersion`. Redis has its own tag. Each component gets its own
@@ -118,9 +118,30 @@ The bundled Redis is pinned by tag **and** digest (`<tag>@<digest>`), as in
 pull whatever the tag points at that day. Change `redis.image.tag` and `redis.image.digest`
 together, or clear the digest to pull by tag.
 
-Redis takes no `requirepass` and the chart ships no NetworkPolicy, so any pod that can reach
-`<release>-redis:6379` can read MailFlow's sessions. A policy of the shape
-`charts/paperclip/templates/networkpolicy.yaml` uses is planned for 0.2.0.
+## The Redis password
+
+A MailFlow session is mailbox access, and nothing in front of `<release>-redis:6379` asks for a
+credential by itself, so the bundled Redis takes a `requirepass` and the chart refuses to
+render without one. `redis.auth.existingSecret` names a Secret something else owns; the chart
+writes no Secret and carries no default.
+
+One key reaches three places, each as a `secretKeyRef`:
+
+| Where | How |
+|---|---|
+| `--requirepass` on the server | `args: [..., --requirepass, $(REDIS_PASSWORD)]`, expanded by the kubelet |
+| the `redis-cli ping` probes | `REDISCLI_AUTH`, or both probes answer `NOAUTH` |
+| the backend's `REDIS_URL` | `redis://:$(REDIS_PASSWORD)@host:port`, with `REDIS_PASSWORD` declared before it |
+
+Nothing puts the value in the pod spec: `$(VAR)` is expanded at container start, not at render
+time. The password has to be **URL-safe** (no `@ : / ? # % [ ]`), because it goes into
+`REDIS_URL`.
+
+Two paths skip it. `redis.enabled: false` uses an external Redis, whose credential is already
+in `backend.redisUrl`. `redis.auth.enabled: false` accepts a Redis that asks for nothing — a
+decision, not a default, and only reasonable where something else keeps other pods off port
+6379. A NetworkPolicy is not that something in a cluster running Cilium with
+`enable-policy = never`.
 
 ## Database
 
@@ -134,7 +155,7 @@ Neither the image cache nor Redis claims a PVC.
 - `imageCache.path` is an `emptyDir` with `imageCache.sizeLimit`, mounted where
   `IMAGE_CACHE_DIR` points. Keep `IMAGE_CACHE_MAX_MB` (512 by default in the application)
   below that limit, or the kubelet evicts the pod before MailFlow prunes the cache itself.
-- `redis.enabled` deploys `redis:7-alpine` on an `emptyDir` at `/data`, with compose's
+- `redis.enabled` deploys the pinned `redis` image on an `emptyDir` at `/data`, with compose's
   `--save 60 1 --loglevel warning`. Sessions and cache only; they do not survive the pod.
   `redis.enabled: false` needs `backend.redisUrl`.
 
@@ -192,6 +213,10 @@ so a rollout never runs two of either beside each other.
 | redis.args[2] | string | `"1"` |  |
 | redis.args[3] | string | `"--loglevel"` |  |
 | redis.args[4] | string | `"warning"` |  |
+| redis.auth | object | `{"enabled":true,"existingSecret":"","existingSecretKey":"redis-password"}` | `requirepass` for the Redis this chart deploys, read from a Secret something else owns (Terraform's `kubernetes_secret_v1`). No default, and the chart renders no Secret: a password in values would land in the release. One key covers all three places it is needed - the server's `--requirepass`, `REDISCLI_AUTH` for the probes, and the password in the backend's `REDIS_URL` - and reaches each of them as a `secretKeyRef`, never a literal in the pod spec. The value has to be URL-safe (no `@ : / ? # % [ ]`): it goes into a URL. |
+| redis.auth.enabled | bool | `true` | `false` accepts a Redis that asks for no password. Only reasonable where something else keeps every other pod off port 6379, which a NetworkPolicy is not in a cluster running Cilium with `enable-policy = never`. |
+| redis.auth.existingSecret | string | `""` | Name of that Secret. Required while `redis.auth.enabled`. |
+| redis.auth.existingSecretKey | string | `"redis-password"` | Key inside it. |
 | redis.dataSizeLimit | string | `"1Gi"` | `emptyDir` at `/data`, never a PVC: nothing here survives the pod on purpose. |
 | redis.enabled | bool | `true` | Sessions and cache only. `false` needs `backend.redisUrl` pointed at a Redis of your own. |
 | redis.image.digest | string | `"sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe"` | Digest `redis.image.tag` resolved to when it was pinned. Rendered as `<tag>@<digest>`, so the tag documents the version and the digest is what gets pulled. Change both together. Set to `""` to pull by tag instead. |

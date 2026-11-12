@@ -2,6 +2,8 @@ suite: redis workload
 release:
   name: mailflow
   namespace: mailflow
+set:
+  redis.auth.existingSecret: mailflow-redis
 tests:
   # Pinned by digest, never a floating `7-alpine`: a rescheduled pod would otherwise pull
   # whatever the tag points at that day.
@@ -22,6 +24,8 @@ tests:
             - "1"
             - --loglevel
             - warning
+            - --requirepass
+            - $(REDIS_PASSWORD)
 
   # Sessions and cache only: a PVC here would outlive its own usefulness.
   - it: keeps its data on an emptyDir, never a claim
@@ -70,6 +74,78 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: redis:7.4.12-alpine3.22
+
+  # A session in this Redis is mailbox access, and the cluster enforces no NetworkPolicy, so
+  # the password is the only thing in front of port 6379.
+  - it: takes requirepass from the secret, never as a literal in the pod spec
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --save
+            - "60"
+            - "1"
+            - --loglevel
+            - warning
+            - --requirepass
+            - $(REDIS_PASSWORD)
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mailflow-redis
+                key: redis-password
+
+  # redis-cli answers NOAUTH once a password is set, so both probes would fail without this.
+  - it: authenticates the redis-cli probes through REDISCLI_AUTH
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDISCLI_AUTH
+            valueFrom:
+              secretKeyRef:
+                name: mailflow-redis
+                key: redis-password
+
+  - it: reads the password under its own key name
+    templates:
+      - templates/redis.yaml
+    set:
+      redis.auth.existingSecretKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mailflow-redis
+                key: password
+
+  - it: asks for no password when auth is turned off
+    templates:
+      - templates/redis.yaml
+    set:
+      redis.auth.enabled: false
+      redis.auth.existingSecret: ""
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].env
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --save
+            - "60"
+            - "1"
+            - --loglevel
+            - warning
 
   - it: probes with redis-cli ping
     templates:

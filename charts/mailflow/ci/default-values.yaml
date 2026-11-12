@@ -1,6 +1,9 @@
-# CI values: the chart renders on its defaults, so this exercises the paths a real release
-# uses - the raw backend env list with a secretKeyRef, and a multi-host traefik ingress.
-# Nothing here is a credential.
+# CI values: the redis password Secret the chart refuses to render without, plus the paths a
+# real release uses - the raw backend env list with a secretKeyRef, and a multi-host traefik
+# ingress. Only Secret names here, never a credential.
+redis:
+  auth:
+    existingSecret: ci-mailflow-redis-auth
 backend:
   env:
     - name: DB_HOST

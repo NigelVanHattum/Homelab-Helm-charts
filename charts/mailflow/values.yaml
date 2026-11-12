@@ -182,6 +182,21 @@ redis:
     - warning
   # -- `emptyDir` at `/data`, never a PVC: nothing here survives the pod on purpose.
   dataSizeLimit: 1Gi
+  # -- `requirepass` for the Redis this chart deploys, read from a Secret something else owns
+  # (Terraform's `kubernetes_secret_v1`). No default, and the chart renders no Secret: a
+  # password in values would land in the release. One key covers all three places it is
+  # needed - the server's `--requirepass`, `REDISCLI_AUTH` for the probes, and the password in
+  # the backend's `REDIS_URL` - and reaches each of them as a `secretKeyRef`, never a literal
+  # in the pod spec. The value has to be URL-safe (no `@ : / ? # % [ ]`): it goes into a URL.
+  auth:
+    # -- `false` accepts a Redis that asks for no password. Only reasonable where something
+    # else keeps every other pod off port 6379, which a NetworkPolicy is not in a cluster
+    # running Cilium with `enable-policy = never`.
+    enabled: true
+    # -- Name of that Secret. Required while `redis.auth.enabled`.
+    existingSecret: ""
+    # -- Key inside it.
+    existingSecretKey: redis-password
   # -- uid 999 / gid 1000, the `redis` user in the image. Required, not hardening: at uid 0 the
   # entrypoint takes its root branch and `chown`s `/data` then `gosu`s, both of which
   # `drop: [ALL]` forbids, and it runs under `set -e`, so the container exits before

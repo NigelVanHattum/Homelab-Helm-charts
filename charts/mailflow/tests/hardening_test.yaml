@@ -2,6 +2,8 @@ suite: pod hardening
 release:
   name: mailflow
   namespace: mailflow
+set:
+  redis.auth.existingSecret: mailflow-redis
 tests:
   - it: backend pod mounts no ServiceAccount token
     templates:

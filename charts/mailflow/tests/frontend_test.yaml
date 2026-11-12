@@ -2,6 +2,8 @@ suite: frontend workload
 release:
   name: mailflow
   namespace: mailflow
+set:
+  redis.auth.existingSecret: mailflow-redis
 templates:
   - templates/frontend.yaml
 tests:

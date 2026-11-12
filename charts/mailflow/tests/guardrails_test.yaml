@@ -84,6 +84,7 @@ tests:
 
   - it: accepts the same secret as a secretKeyRef
     set:
+      redis.auth.existingSecret: mailflow-redis
       backend.env:
         - name: SESSION_SECRET
           valueFrom:
@@ -109,8 +110,40 @@ tests:
       - isKind:
           of: Deployment
 
+  # Shipping a Redis that asks for nothing has to be a decision, not a default.
+  - it: fails on a bundled Redis with no password secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "redis.auth.existingSecret is required: Redis holds MailFlow's sessions, a session is mailbox access, and nothing in front of port 6379 asks for a credential. Point it at a Secret carrying the password, or set redis.auth.enabled=false to accept an open Redis"
+
+  - it: accepts an open Redis only when asked for explicitly
+    set:
+      redis.auth.enabled: false
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: needs no password secret for an external Redis
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://:pw@redis.redis.svc.cluster.local:6379
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: refuses REDIS_PASSWORD in the raw backend env list
+    set:
+      redis.auth.existingSecret: mailflow-redis
+      backend.env:
+        - name: REDIS_PASSWORD
+          value: hunter2
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets REDIS_PASSWORD, which this chart derives: use redis.auth.existingSecret"
+
   - it: fails on an empty imageCache.path
     set:
+      redis.auth.existingSecret: mailflow-redis
       imageCache.path: ""
     asserts:
       - failedTemplate:

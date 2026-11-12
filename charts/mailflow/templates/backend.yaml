@@ -49,6 +49,14 @@ spec:
               value: "production"
             - name: PORT
               value: {{ .Values.backend.service.port | quote }}
+            {{- if include "mailflow.redisAuth" . }}
+            {{- /* Declared before REDIS_URL: the kubelet only expands $(VAR) from an earlier entry. */}}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.auth.existingSecret }}
+                  key: {{ include "mailflow.redisSecretKey" . }}
+            {{- end }}
             - name: REDIS_URL
               value: {{ include "mailflow.redisUrl" . | quote }}
             - name: IMAGE_CACHE_DIR

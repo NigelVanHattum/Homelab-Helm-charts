@@ -89,10 +89,35 @@ together because upstream releases them together.
 {{- end }}
 
 {{/*
+Whether the Redis this chart deploys takes a requirepass. Empty output is false to `if`.
+An external Redis (redis.enabled: false) carries its own credential in backend.redisUrl.
+*/}}
+{{- define "mailflow.redisAuth" -}}
+{{- if and .Values.redis.enabled .Values.redis.auth.enabled -}}
+yes
+{{- end -}}
+{{- end }}
+
+{{- define "mailflow.redisSecretKey" -}}
+{{- .Values.redis.auth.existingSecretKey | default "redis-password" -}}
+{{- end }}
+
+{{/*
 REDIS_URL: the Redis this chart deploys, unless backend.redisUrl names another one.
+$(REDIS_PASSWORD) is expanded by the kubelet from the env var declared before this one, so the
+password reaches the URL without the Secret's value ever entering the pod spec.
 */}}
 {{- define "mailflow.redisUrl" -}}
-{{- .Values.backend.redisUrl | default (printf "redis://%s:%v" (include "mailflow.componentName" (dict "root" . "component" "redis")) .Values.redis.service.port) -}}
+{{- if .Values.backend.redisUrl -}}
+{{- .Values.backend.redisUrl -}}
+{{- else -}}
+{{- $host := include "mailflow.componentName" (dict "root" . "component" "redis") -}}
+{{- if include "mailflow.redisAuth" . -}}
+{{- printf "redis://:$(REDIS_PASSWORD)@%s:%v" $host .Values.redis.service.port -}}
+{{- else -}}
+{{- printf "redis://%s:%v" $host .Values.redis.service.port -}}
+{{- end -}}
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -121,12 +146,13 @@ spec, which ClusterRole view reads. README: "Configuration" and "Secrets".
 */}}
 {{- define "mailflow.validate" -}}
 {{- $managed := dict
-  "backend" (list "NODE_ENV" "PORT" "REDIS_URL" "IMAGE_CACHE_DIR")
+  "backend" (list "NODE_ENV" "PORT" "REDIS_URL" "REDIS_PASSWORD" "IMAGE_CACHE_DIR")
   "frontend" (list "NGINX_TLS" "TLS_MODE" "BACKEND_HOST" "BACKEND_PORT") -}}
 {{- $hint := dict
   "NODE_ENV" "the chart pins it to production"
   "PORT" "backend.service.port"
   "REDIS_URL" "backend.redisUrl"
+  "REDIS_PASSWORD" "redis.auth.existingSecret"
   "IMAGE_CACHE_DIR" "imageCache.path"
   "NGINX_TLS" "frontend.nginxTls"
   "TLS_MODE" "frontend.tlsMode"
@@ -146,6 +172,9 @@ spec, which ClusterRole view reads. README: "Configuration" and "Secrets".
 {{- end -}}
 {{- if and (not .Values.redis.enabled) (not .Values.backend.redisUrl) -}}
 {{- fail "redis.enabled=false needs backend.redisUrl: MailFlow keeps sessions in Redis and will not start without it" -}}
+{{- end -}}
+{{- if and (include "mailflow.redisAuth" .) (not .Values.redis.auth.existingSecret) -}}
+{{- fail "redis.auth.existingSecret is required: Redis holds MailFlow's sessions, a session is mailbox access, and nothing in front of port 6379 asks for a credential. Point it at a Secret carrying the password, or set redis.auth.enabled=false to accept an open Redis" -}}
 {{- end -}}
 {{- if not .Values.imageCache.path -}}
 {{- fail "imageCache.path is required: it is both IMAGE_CACHE_DIR and the emptyDir mount path" -}}
