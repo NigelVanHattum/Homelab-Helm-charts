@@ -60,12 +60,22 @@ backend:
   #     secretKeyRef:
   #       name: mailflow-database
   #       key: password
-  podSecurityContext: {}
+  # -- uid/gid 1000, the `node` user the image already runs as. The uid is explicit on purpose:
+  # the image's `USER` is the *name* `node`, which the kubelet cannot check against
+  # `runAsNonRoot`, so the pair without it fails with "image has non-numeric user". `fsGroup`
+  # is what makes the image-cache `emptyDir` writable for that gid.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
       drop:
         - ALL
+    seccompProfile:
+      type: RuntimeDefault
   resources: {}
     # limits:
     #   cpu: 1
@@ -131,6 +141,8 @@ frontend:
         - SETUID
         - SETGID
         - NET_BIND_SERVICE
+    seccompProfile:
+      type: RuntimeDefault
   resources: {}
   # -- `GET /` on port 80, not the image's own `/healthz`: 4.3.x has no such location, and the
   # listener the later Caddy frontend puts it on binds `127.0.0.1:2080`, which no kubelet
@@ -151,7 +163,12 @@ redis:
   enabled: true
   image:
     repository: redis
-    tag: 7-alpine
+    # -- A pinned patch release, not a moving `7-alpine`.
+    tag: "7.4.12-alpine3.22"
+    # -- Digest `redis.image.tag` resolved to when it was pinned. Rendered as `<tag>@<digest>`,
+    # so the tag documents the version and the digest is what gets pulled. Change both
+    # together. Set to `""` to pull by tag instead.
+    digest: "sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -179,6 +196,8 @@ redis:
     capabilities:
       drop:
         - ALL
+    seccompProfile:
+      type: RuntimeDefault
   resources: {}
   livenessProbe:
     exec:

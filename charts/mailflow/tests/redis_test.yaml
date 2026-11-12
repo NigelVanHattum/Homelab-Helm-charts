@@ -3,7 +3,9 @@ release:
   name: mailflow
   namespace: mailflow
 tests:
-  - it: runs redis:7-alpine with compose's save and log settings
+  # Pinned by digest, never a floating `7-alpine`: a rescheduled pod would otherwise pull
+  # whatever the tag points at that day.
+  - it: pulls redis by tag and digest, with compose's save and log settings
     templates:
       - templates/redis.yaml
     asserts:
@@ -11,7 +13,7 @@ tests:
           of: Deployment
       - equal:
           path: spec.template.spec.containers[0].image
-          value: redis:7-alpine
+          value: redis:7.4.12-alpine3.22@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
       - equal:
           path: spec.template.spec.containers[0].args
           value:
@@ -58,6 +60,16 @@ tests:
       - equal:
           path: spec.template.spec.securityContext.fsGroup
           value: 1000
+
+  - it: falls back to the plain tag when the digest is cleared
+    templates:
+      - templates/redis.yaml
+    set:
+      redis.image.digest: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: redis:7.4.12-alpine3.22
 
   - it: probes with redis-cli ping
     templates:

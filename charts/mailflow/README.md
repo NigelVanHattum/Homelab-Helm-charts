@@ -90,8 +90,8 @@ reaches.
 
 ## Security contexts
 
-All three drop every capability, and two of them need something back, because the images say
-so rather than as a preference:
+All three drop every capability and ask for the `RuntimeDefault` seccomp profile, and two of
+them need something back, because the images say so rather than as a preference:
 
 - `frontend` runs as **root** and adds `SETUID`, `SETGID`, `NET_BIND_SERVICE`. The image is
   `nginx:alpine` with no `USER`, so the master process is root and honours `user nginx;` from
@@ -103,13 +103,24 @@ so rather than as a preference:
   the `emptyDir`. At uid 0 the official entrypoint takes its root branch — `chown` of `/data`,
   then `gosu` — which `drop: [ALL]` forbids, and it runs under `set -e`, so the container
   exits before `redis-server` ever starts.
-- `backend` keeps a `startupProbe` in front of liveness. v4.3.1 reaches `httpServer.listen`
-  only after Redis connects and the migrations, the contact-photo backfill and the credential
-  re-encryption finish, so `/api/health` refuses connections for a while on a first install
-  and the kubelet's liveness default would restart the pod mid-migration.
+- `backend` runs as **uid/gid 1000**, the `node` user its image already uses. The uid is
+  explicit because the image's `USER` is the name `node`, which the kubelet cannot check
+  against `runAsNonRoot`. It also keeps a `startupProbe` in front of liveness: v4.3.1 reaches
+  `httpServer.listen` only after Redis connects and the migrations, the contact-photo backfill
+  and the credential re-encryption finish, so `/api/health` refuses connections for a while on
+  a first install and the kubelet's liveness default would restart the pod mid-migration.
 
 No `readOnlyRootFilesystem` anywhere: required off for the frontend, and not verified for the
 other two without running the images.
+
+The bundled Redis is pinned by tag **and** digest (`<tag>@<digest>`), as in
+`charts/paperless-ngx`: a floating `7-alpine` with `IfNotPresent` would let a rescheduled pod
+pull whatever the tag points at that day. Change `redis.image.tag` and `redis.image.digest`
+together, or clear the digest to pull by tag.
+
+Redis takes no `requirepass` and the chart ships no NetworkPolicy, so any pod that can reach
+`<release>-redis:6379` can read MailFlow's sessions. A policy of the shape
+`charts/paperclip/templates/networkpolicy.yaml` uses is planned for 0.2.0.
 
 ## Database
 
@@ -140,13 +151,14 @@ so a rollout never runs two of either beside each other.
 | backend.image.repository | string | `"ghcr.io/maathimself/mailflow-backend"` |  |
 | backend.livenessProbe.httpGet.path | string | `"/api/health"` |  |
 | backend.livenessProbe.httpGet.port | string | `"http"` |  |
-| backend.podSecurityContext | object | `{}` |  |
+| backend.podSecurityContext | object | `{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":1000}` | uid/gid 1000, the `node` user the image already runs as. The uid is explicit on purpose: the image's `USER` is the *name* `node`, which the kubelet cannot check against `runAsNonRoot`, so the pair without it fails with "image has non-numeric user". `fsGroup` is what makes the image-cache `emptyDir` writable for that gid. |
 | backend.readinessProbe.httpGet.path | string | `"/api/health"` |  |
 | backend.readinessProbe.httpGet.port | string | `"http"` |  |
 | backend.redisUrl | string | `""` | `REDIS_URL`. Empty points at the Redis this chart deploys; required when `redis.enabled` is `false`. |
 | backend.resources | object | `{}` |  |
 | backend.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | backend.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
+| backend.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | backend.service.port | int | `3000` | One port for the container's `PORT`, the Service and the frontend's `BACKEND_PORT`, so the three cannot drift apart. |
 | backend.service.type | string | `"ClusterIP"` |  |
 | backend.startupProbe | object | `{"failureThreshold":30,"httpGet":{"path":"/api/health","port":"http"},"periodSeconds":10}` | v4.3.1 reaches `httpServer.listen` only after Redis connects and the migrations, the contact-photo backfill and the credential re-encryption finish (`backend/src/index.js`), so `/api/health` refuses connections for a while on a first install. The kubelet's liveness default (3 x 10 s) would restart the pod mid-migration; this covers 300 s and holds liveness off until it passes once. Set it to `null` to drop the probe. |
@@ -160,7 +172,7 @@ so a rollout never runs two of either beside each other.
 | frontend.readinessProbe.httpGet.path | string | `"/"` |  |
 | frontend.readinessProbe.httpGet.port | string | `"http"` |  |
 | frontend.resources | object | `{}` |  |
-| frontend.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"add":["SETUID","SETGID","NET_BIND_SERVICE"],"drop":["ALL"]}}` | No `readOnlyRootFilesystem`: the entrypoint rewrites `/etc/nginx/conf.d/default.conf` at boot for `NGINX_TLS`, for the backend upstream and for the cluster DNS resolver, and a failed rewrite leaves HTTPS on with no certificate and `/api/` pointed at nothing. `SETUID`/`SETGID` are what the master needs to start its workers as `nginx`; `NET_BIND_SERVICE` is for port 80, so the pod does not depend on the node's `net.ipv4.ip_unprivileged_port_start`. |
+| frontend.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"add":["SETUID","SETGID","NET_BIND_SERVICE"],"drop":["ALL"]},"seccompProfile":{"type":"RuntimeDefault"}}` | No `readOnlyRootFilesystem`: the entrypoint rewrites `/etc/nginx/conf.d/default.conf` at boot for `NGINX_TLS`, for the backend upstream and for the cluster DNS resolver, and a failed rewrite leaves HTTPS on with no certificate and `/api/` pointed at nothing. `SETUID`/`SETGID` are what the master needs to start its workers as `nginx`; `NET_BIND_SERVICE` is for port 80, so the pod does not depend on the node's `net.ipv4.ip_unprivileged_port_start`. |
 | frontend.service.port | int | `80` |  |
 | frontend.service.type | string | `"ClusterIP"` |  |
 | frontend.startupProbe | object | `{}` |  |
@@ -182,9 +194,10 @@ so a rollout never runs two of either beside each other.
 | redis.args[4] | string | `"warning"` |  |
 | redis.dataSizeLimit | string | `"1Gi"` | `emptyDir` at `/data`, never a PVC: nothing here survives the pod on purpose. |
 | redis.enabled | bool | `true` | Sessions and cache only. `false` needs `backend.redisUrl` pointed at a Redis of your own. |
+| redis.image.digest | string | `"sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe"` | Digest `redis.image.tag` resolved to when it was pinned. Rendered as `<tag>@<digest>`, so the tag documents the version and the digest is what gets pulled. Change both together. Set to `""` to pull by tag instead. |
 | redis.image.pullPolicy | string | `"IfNotPresent"` |  |
 | redis.image.repository | string | `"redis"` |  |
-| redis.image.tag | string | `"7-alpine"` |  |
+| redis.image.tag | string | `"7.4.12-alpine3.22"` | A pinned patch release, not a moving `7-alpine`. |
 | redis.livenessProbe.exec.command[0] | string | `"redis-cli"` |  |
 | redis.livenessProbe.exec.command[1] | string | `"ping"` |  |
 | redis.podSecurityContext | object | `{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":999}` | uid 999 / gid 1000, the `redis` user in the image. Required, not hardening: at uid 0 the entrypoint takes its root branch and `chown`s `/data` then `gosu`s, both of which `drop: [ALL]` forbids, and it runs under `set -e`, so the container exits before `redis-server`. `fsGroup` is what makes the `emptyDir` writable for that gid. |
@@ -193,6 +206,7 @@ so a rollout never runs two of either beside each other.
 | redis.resources | object | `{}` |  |
 | redis.securityContext.allowPrivilegeEscalation | bool | `false` |  |
 | redis.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
+| redis.securityContext.seccompProfile.type | string | `"RuntimeDefault"` |  |
 | redis.service.port | int | `6379` |  |
 | redis.service.type | string | `"ClusterIP"` |  |
 | redis.startupProbe | object | `{}` |  |

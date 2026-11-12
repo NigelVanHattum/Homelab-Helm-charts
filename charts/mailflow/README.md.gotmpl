@@ -91,8 +91,8 @@ reaches.
 
 ## Security contexts
 
-All three drop every capability, and two of them need something back, because the images say
-so rather than as a preference:
+All three drop every capability and ask for the `RuntimeDefault` seccomp profile, and two of
+them need something back, because the images say so rather than as a preference:
 
 - `frontend` runs as **root** and adds `SETUID`, `SETGID`, `NET_BIND_SERVICE`. The image is
   `nginx:alpine` with no `USER`, so the master process is root and honours `user nginx;` from
@@ -104,13 +104,24 @@ so rather than as a preference:
   the `emptyDir`. At uid 0 the official entrypoint takes its root branch — `chown` of `/data`,
   then `gosu` — which `drop: [ALL]` forbids, and it runs under `set -e`, so the container
   exits before `redis-server` ever starts.
-- `backend` keeps a `startupProbe` in front of liveness. v4.3.1 reaches `httpServer.listen`
-  only after Redis connects and the migrations, the contact-photo backfill and the credential
-  re-encryption finish, so `/api/health` refuses connections for a while on a first install
-  and the kubelet's liveness default would restart the pod mid-migration.
+- `backend` runs as **uid/gid 1000**, the `node` user its image already uses. The uid is
+  explicit because the image's `USER` is the name `node`, which the kubelet cannot check
+  against `runAsNonRoot`. It also keeps a `startupProbe` in front of liveness: v4.3.1 reaches
+  `httpServer.listen` only after Redis connects and the migrations, the contact-photo backfill
+  and the credential re-encryption finish, so `/api/health` refuses connections for a while on
+  a first install and the kubelet's liveness default would restart the pod mid-migration.
 
 No `readOnlyRootFilesystem` anywhere: required off for the frontend, and not verified for the
 other two without running the images.
+
+The bundled Redis is pinned by tag **and** digest (`<tag>@<digest>`), as in
+`charts/paperless-ngx`: a floating `7-alpine` with `IfNotPresent` would let a rescheduled pod
+pull whatever the tag points at that day. Change `redis.image.tag` and `redis.image.digest`
+together, or clear the digest to pull by tag.
+
+Redis takes no `requirepass` and the chart ships no NetworkPolicy, so any pod that can reach
+`<release>-redis:6379` can read MailFlow's sessions. A policy of the shape
+`charts/paperclip/templates/networkpolicy.yaml` uses is planned for 0.2.0.
 
 ## Database
 

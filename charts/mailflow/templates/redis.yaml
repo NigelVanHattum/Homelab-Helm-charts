@@ -42,7 +42,7 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          image: {{ printf "%s:%s" .Values.redis.image.repository .Values.redis.image.tag | quote }}
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}{{ with .Values.redis.image.digest }}@{{ . }}{{ end }}"
           imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
           {{- with .Values.redis.args }}
           args:
