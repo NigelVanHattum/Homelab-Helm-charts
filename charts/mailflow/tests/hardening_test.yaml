@@ -71,7 +71,7 @@ tests:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
           value: false
 
-  - it: test hook pins busybox and mounts no ServiceAccount token
+  - it: test hook pins busybox, mounts no ServiceAccount token and drops the same privileges
     templates:
       - templates/tests/test-connection.yaml
     asserts:
@@ -81,3 +81,13 @@ tests:
       - equal:
           path: spec.automountServiceAccountToken
           value: false
+      - equal:
+          path: spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+      - equal:
+          path: spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault

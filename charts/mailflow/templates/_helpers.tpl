@@ -103,6 +103,18 @@ yes
 {{- end }}
 
 {{/*
+Whether the backend gets REDIS_PASSWORD from the Secret. Independent of redis.enabled: an
+external Redis needs the same escape from a literal password in the pod spec, and the chart
+renders the variable ahead of REDIS_URL so $(REDIS_PASSWORD) works inside backend.redisUrl too.
+Empty output is false to `if`.
+*/}}
+{{- define "mailflow.backendRedisPassword" -}}
+{{- if and .Values.redis.auth.enabled .Values.redis.auth.existingSecret -}}
+yes
+{{- end -}}
+{{- end }}
+
+{{/*
 REDIS_URL: the Redis this chart deploys, unless backend.redisUrl names another one.
 $(REDIS_PASSWORD) is expanded by the kubelet from the env var declared before this one, so the
 password reaches the URL without the Secret's value ever entering the pod spec.
@@ -112,7 +124,7 @@ password reaches the URL without the Secret's value ever entering the pod spec.
 {{- .Values.backend.redisUrl -}}
 {{- else -}}
 {{- $host := include "mailflow.componentName" (dict "root" . "component" "redis") -}}
-{{- if include "mailflow.redisAuth" . -}}
+{{- if include "mailflow.backendRedisPassword" . -}}
 {{- printf "redis://:$(REDIS_PASSWORD)@%s:%v" $host .Values.redis.service.port -}}
 {{- else -}}
 {{- printf "redis://%s:%v" $host .Values.redis.service.port -}}
@@ -152,7 +164,7 @@ spec, which ClusterRole view reads. README: "Configuration" and "Secrets".
   "NODE_ENV" "the chart pins it to production"
   "PORT" "backend.service.port"
   "REDIS_URL" "backend.redisUrl"
-  "REDIS_PASSWORD" "redis.auth.existingSecret"
+  "REDIS_PASSWORD" "redis.auth.existingSecret, which the chart renders ahead of REDIS_URL so $(REDIS_PASSWORD) resolves inside backend.redisUrl as well - an entry here would land after it and never expand"
   "IMAGE_CACHE_DIR" "imageCache.path"
   "NGINX_TLS" "frontend.nginxTls"
   "TLS_MODE" "frontend.tlsMode"
@@ -172,6 +184,9 @@ spec, which ClusterRole view reads. README: "Configuration" and "Secrets".
 {{- end -}}
 {{- if and (not .Values.redis.enabled) (not .Values.backend.redisUrl) -}}
 {{- fail "redis.enabled=false needs backend.redisUrl: MailFlow keeps sessions in Redis and will not start without it" -}}
+{{- end -}}
+{{- if and (contains "$(REDIS_PASSWORD)" (.Values.backend.redisUrl | toString)) (not (include "mailflow.backendRedisPassword" .)) -}}
+{{- fail "backend.redisUrl references $(REDIS_PASSWORD) but nothing defines it: set redis.auth.existingSecret (and keep redis.auth.enabled), or the literal string reaches Redis as the password" -}}
 {{- end -}}
 {{- if and (include "mailflow.redisAuth" .) (not .Values.redis.auth.existingSecret) -}}
 {{- fail "redis.auth.existingSecret is required: Redis holds MailFlow's sessions, a session is mailbox access, and nothing in front of port 6379 asks for a credential. Point it at a Secret carrying the password, or set redis.auth.enabled=false to accept an open Redis" -}}

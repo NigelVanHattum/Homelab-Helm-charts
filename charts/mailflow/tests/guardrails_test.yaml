@@ -126,11 +126,31 @@ tests:
   - it: needs no password secret for an external Redis
     set:
       redis.enabled: false
-      backend.redisUrl: redis://:pw@redis.redis.svc.cluster.local:6379
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
     asserts:
       - isKind:
           of: Deployment
 
+  # Unresolved, the literal string "$(REDIS_PASSWORD)" becomes the password Redis is sent.
+  - it: fails on a redisUrl referencing a password nothing defines
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://:$(REDIS_PASSWORD)@redis.other.svc.cluster.local:6379
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.redisUrl references $(REDIS_PASSWORD) but nothing defines it: set redis.auth.existingSecret (and keep redis.auth.enabled), or the literal string reaches Redis as the password"
+
+  - it: fails the same way when auth is turned off under it
+    set:
+      redis.enabled: false
+      redis.auth.enabled: false
+      redis.auth.existingSecret: mailflow-redis
+      backend.redisUrl: redis://:$(REDIS_PASSWORD)@redis.other.svc.cluster.local:6379
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.redisUrl references $(REDIS_PASSWORD) but nothing defines it: set redis.auth.existingSecret (and keep redis.auth.enabled), or the literal string reaches Redis as the password"
+
+  # backend.env is appended after REDIS_URL, so an entry here would never expand anyway.
   - it: refuses REDIS_PASSWORD in the raw backend env list
     set:
       redis.auth.existingSecret: mailflow-redis
@@ -139,7 +159,7 @@ tests:
           value: hunter2
     asserts:
       - failedTemplate:
-          errorMessage: "backend.env sets REDIS_PASSWORD, which this chart derives: use redis.auth.existingSecret"
+          errorMessage: "backend.env sets REDIS_PASSWORD, which this chart derives: use redis.auth.existingSecret, which the chart renders ahead of REDIS_URL so $(REDIS_PASSWORD) resolves inside backend.redisUrl as well - an entry here would land after it and never expand"
 
   - it: fails on an empty imageCache.path
     set:

@@ -11,6 +11,13 @@ spec:
   containers:
     - name: wget
       image: busybox:1.37.0
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        seccompProfile:
+          type: RuntimeDefault
       command: ['wget']
       args: ['-q', '-O', '-', '{{ include "mailflow.componentName" (dict "root" . "component" "backend") }}:{{ .Values.backend.service.port }}/api/health']
   restartPolicy: Never

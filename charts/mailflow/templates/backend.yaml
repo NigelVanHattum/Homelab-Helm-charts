@@ -49,7 +49,7 @@ spec:
               value: "production"
             - name: PORT
               value: {{ .Values.backend.service.port | quote }}
-            {{- if include "mailflow.redisAuth" . }}
+            {{- if include "mailflow.backendRedisPassword" . }}
             {{- /* Declared before REDIS_URL: the kubelet only expands $(VAR) from an earlier entry. */}}
             - name: REDIS_PASSWORD
               valueFrom:

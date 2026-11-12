@@ -90,8 +90,9 @@ reaches.
 
 ## Security contexts
 
-All three drop every capability and ask for the `RuntimeDefault` seccomp profile, and two of
-them need something back, because the images say so rather than as a preference:
+Every container drops every capability and asks for the `RuntimeDefault` seccomp profile, the
+`helm test` hook included. What each workload needs beyond that, the images decide, not a
+preference:
 
 - `frontend` runs as **root** and adds `SETUID`, `SETGID`, `NET_BIND_SERVICE`. The image is
   `nginx:alpine` with no `USER`, so the master process is root and honours `user nginx;` from
@@ -137,11 +138,26 @@ Nothing puts the value in the pod spec: `$(VAR)` is expanded at container start,
 time. The password has to be **URL-safe** (no `@ : / ? # % [ ]`), because it goes into
 `REDIS_URL`.
 
-Two paths skip it. `redis.enabled: false` uses an external Redis, whose credential is already
-in `backend.redisUrl`. `redis.auth.enabled: false` accepts a Redis that asks for nothing — a
-decision, not a default, and only reasonable where something else keeps other pods off port
-6379. A NetworkPolicy is not that something in a cluster running Cilium with
-`enable-policy = never`.
+An **external** Redis (`redis.enabled: false`) gets the same escape rather than a literal in
+the URL: `redis.auth.existingSecret` is honoured whatever `redis.enabled` says, and
+`REDIS_PASSWORD` still renders ahead of `REDIS_URL`, so reference it in `backend.redisUrl`
+yourself:
+
+```yaml
+redis:
+  enabled: false
+  auth:
+    existingSecret: mailflow-redis-auth
+backend:
+  redisUrl: redis://:$(REDIS_PASSWORD)@redis.other.svc.cluster.local:6379
+```
+
+The chart refuses to render a `backend.redisUrl` that references `$(REDIS_PASSWORD)` with no
+Secret behind it — unresolved, the literal string would become the password Redis is sent.
+
+`redis.auth.enabled: false` accepts a Redis that asks for nothing — a decision, not a default,
+and only reasonable where something else keeps other pods off port 6379. A NetworkPolicy is not
+that something in a cluster running Cilium with `enable-policy = never`.
 
 ## Database
 
