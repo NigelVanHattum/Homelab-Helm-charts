@@ -53,6 +53,11 @@ backend:
   # `IMAP_MAX_PERSISTENT_PER_HOST`, `IMAGE_CACHE_MAX_MB`, `MS_*`, `GOOGLE_*`. A sensitive one
   # belongs here as a `valueFrom`; a plain value for one fails to render. `NODE_ENV`, `PORT`,
   # `REDIS_URL` and `IMAGE_CACHE_DIR` are the chart's and are rejected here too.
+  #
+  # **Set `TRUST_PROXY_HOPS: "2"` whenever `ingress.enabled`.** Two proxies sit in front of the
+  # backend there - the ingress, then this chart's frontend - and the backend reads an empty
+  # value as one hop, which makes `req.ip` the ingress for every request: one shared login
+  # rate-limit bucket, and every sign-in logged as the ingress. `3` would be client-spoofable.
   env: []
   # - name: DB_HOST
   #   value: mailflow-rw.cnpg.svc.cluster.local
@@ -132,7 +137,10 @@ frontend:
   # change to the listening port, not a value here.
   podSecurityContext: {}
   # -- `NET_BIND_SERVICE` is what lets port 80 be bound beside `drop: [ALL]`; `SETUID`/`SETGID`
-  # are gone with nginx and its workers. `readOnlyRootFilesystem` holds because `TLS_MODE=off`
+  # are gone with nginx and its workers. An `image.tag` pinned back before 4.4.0 needs both of
+  # them added again - that nginx master is root and each worker calls `setgid()`/`setuid()`,
+  # which `drop: [ALL]` forbids, so every worker dies at init and nothing is served - and the
+  # chart refuses the pin without them. `readOnlyRootFilesystem` holds because `TLS_MODE=off`
   # writes no certificate and the Caddyfile sets `admin off` and `persist_config off`, so
   # nothing is written at all - which upstream keeps that way on purpose (upstream #453).
   securityContext:

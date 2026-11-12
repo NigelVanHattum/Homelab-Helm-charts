@@ -23,8 +23,13 @@ defaults to the chart `appVersion`. Each component gets its own Deployment, Serv
 **Redis is off by default.** 4.4.0 moved sessions and short-lived keys to Postgres and ignores
 `REDIS_URL`, so neither the workload, its Service nor the variable is rendered. It is kept, with
 its own tag, for an `image.tag` pinned back to 4.3.x — upstream documents going back, and that
-release does not start without a Redis. The chart refuses to render a pre-4.4.0 tag that has
-neither `redis.enabled` nor `backend.redisUrl`.
+release does not start without a Redis.
+
+A pin back carries the nginx frontend with it, so the chart refuses a pre-4.4.0 tag that is
+missing any of the three things that release needs: a Redis (`redis.enabled` or
+`backend.redisUrl`), `SETUID`/`SETGID` in `frontend.securityContext.capabilities.add`, and
+`frontend.securityContext.readOnlyRootFilesystem: false`. Each refusal names the pod failure it
+prevents. The recipe is under "The Redis password".
 
 Upgrading from a 4.3.x release of this chart signs **everyone** out once, as the sessions move;
 migrations 0076 and 0077 run on the backend's first start, which is what the `startupProbe`
@@ -44,6 +49,16 @@ variable needs no chart change. The variables 4.4.0 reads: `NODE_ENV`, `PORT`,
 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `IMAGE_CACHE_DIR`,
 `IMAGE_CACHE_MAX_MB`. `DOMAIN` and `ACME_EMAIL` go in `frontend.env`, for
 `frontend.tlsMode: letsencrypt`.
+
+**`TRUST_PROXY_HOPS: "2"` belongs in `backend.env` whenever `ingress.enabled`.** Two proxies
+are in front of the backend then — the ingress, then this chart's frontend — and the backend
+reads an empty value as one hop, which makes the client address it sees the ingress's for every
+request. The login rate limit and Login Activity both come from that address, so one shared
+bucket throttles every user when one account is attacked, and every sign-in is logged as the
+ingress. `3` would let a client choose the address it is limited and logged under. The chart
+cannot derive it — `backend.env` is a raw list and the proxy in front is not the chart's to
+know — so `NOTES.txt` says so at install time when an ingress is enabled and the variable is
+absent.
 
 `FIRST_USER_REGISTRATION=false` works from 4.4.0 on: the first account to register is then an
 ordinary one and registration starts closed. At 4.3.1 the variable did nothing and the first
@@ -128,7 +143,10 @@ preference:
   with no certificate and `/api/` pointed at nothing.
 - `frontend` still runs as **root**, and adds `NET_BIND_SERVICE` alone — `SETUID`/`SETGID` went
   with nginx, which forked its workers as another user. Caddy listens on port 80, and
-  `drop: [ALL]` takes the capability away from root as well. A non-root uid cannot have it
+  `drop: [ALL]` takes the capability away from root as well. A pre-4.4.0 `image.tag` needs both
+  capabilities back, and the chart refuses the pin without them: that nginx master is root and
+  starts each worker with `setgid()`/`setuid()`, so beside `drop: [ALL]` every worker exits at
+  init, the master respawns them forever and nothing is served. A non-root uid cannot have it
   instead: containerd grants no *ambient* capabilities, so a capability in the bounding set
   reaches a non-root process only if the binary carries it as a file capability, and
   `caddy:2-alpine` does not. A `restricted` namespace therefore waits on upstream serving the
@@ -181,6 +199,13 @@ image:
 frontend:
   securityContext:
     readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - SETUID
+        - SETGID
+        - NET_BIND_SERVICE
 redis:
   enabled: false
   auth:
@@ -221,7 +246,7 @@ so a rollout never runs two of either beside each other.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` |  |
-| backend.env | list | `[]` | Environment appended verbatim, the raw list `03_applications` wires: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET`, `ENCRYPTION_KEY`, `APP_URL`, `FRONTEND_URL`, `FIRST_USER_REGISTRATION`, `TRUST_PROXY_HOPS`, `VAPID_*`, `IMAP_MAX_PERSISTENT_PER_HOST`, `IMAGE_CACHE_MAX_MB`, `MS_*`, `GOOGLE_*`. A sensitive one belongs here as a `valueFrom`; a plain value for one fails to render. `NODE_ENV`, `PORT`, `REDIS_URL` and `IMAGE_CACHE_DIR` are the chart's and are rejected here too. |
+| backend.env | list | `[]` | Environment appended verbatim, the raw list `03_applications` wires: `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET`, `ENCRYPTION_KEY`, `APP_URL`, `FRONTEND_URL`, `FIRST_USER_REGISTRATION`, `TRUST_PROXY_HOPS`, `VAPID_*`, `IMAP_MAX_PERSISTENT_PER_HOST`, `IMAGE_CACHE_MAX_MB`, `MS_*`, `GOOGLE_*`. A sensitive one belongs here as a `valueFrom`; a plain value for one fails to render. `NODE_ENV`, `PORT`, `REDIS_URL` and `IMAGE_CACHE_DIR` are the chart's and are rejected here too.  **Set `TRUST_PROXY_HOPS: "2"` whenever `ingress.enabled`.** Two proxies sit in front of the backend there - the ingress, then this chart's frontend - and the backend reads an empty value as one hop, which makes `req.ip` the ingress for every request: one shared login rate-limit bucket, and every sign-in logged as the ingress. `3` would be client-spoofable. |
 | backend.image.repository | string | `"ghcr.io/maathimself/mailflow-backend"` |  |
 | backend.livenessProbe.httpGet.path | string | `"/api/health"` |  |
 | backend.livenessProbe.httpGet.port | string | `"http"` |  |
@@ -246,7 +271,7 @@ so a rollout never runs two of either beside each other.
 | frontend.readinessProbe.httpGet.path | string | `"/"` |  |
 | frontend.readinessProbe.httpGet.port | string | `"http"` |  |
 | frontend.resources | object | `{}` |  |
-| frontend.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"add":["NET_BIND_SERVICE"],"drop":["ALL"]},"readOnlyRootFilesystem":true,"seccompProfile":{"type":"RuntimeDefault"}}` | `NET_BIND_SERVICE` is what lets port 80 be bound beside `drop: [ALL]`; `SETUID`/`SETGID` are gone with nginx and its workers. `readOnlyRootFilesystem` holds because `TLS_MODE=off` writes no certificate and the Caddyfile sets `admin off` and `persist_config off`, so nothing is written at all - which upstream keeps that way on purpose (upstream #453). |
+| frontend.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"add":["NET_BIND_SERVICE"],"drop":["ALL"]},"readOnlyRootFilesystem":true,"seccompProfile":{"type":"RuntimeDefault"}}` | `NET_BIND_SERVICE` is what lets port 80 be bound beside `drop: [ALL]`; `SETUID`/`SETGID` are gone with nginx and its workers. An `image.tag` pinned back before 4.4.0 needs both of them added again - that nginx master is root and each worker calls `setgid()`/`setuid()`, which `drop: [ALL]` forbids, so every worker dies at init and nothing is served - and the chart refuses the pin without them. `readOnlyRootFilesystem` holds because `TLS_MODE=off` writes no certificate and the Caddyfile sets `admin off` and `persist_config off`, so nothing is written at all - which upstream keeps that way on purpose (upstream #453). |
 | frontend.service.port | int | `80` |  |
 | frontend.service.type | string | `"ClusterIP"` |  |
 | frontend.startupProbe | object | `{}` |  |

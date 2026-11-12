@@ -164,12 +164,15 @@ BACKEND_HOST: this release's backend Service, unless frontend.backendHost names 
 {{- end }}
 
 {{/*
-Whether backend.env carries APP_URL, for the note that says what is missing without it.
-Empty output is false to `if`.
+Whether backend.env carries one named variable, for the notes that say what is missing without
+it. Empty output is false to `if`.
+
+  {{ include "mailflow.hasBackendEnv" (dict "root" . "name" "APP_URL") }}
 */}}
-{{- define "mailflow.hasAppUrl" -}}
-{{- range .Values.backend.env | default list -}}
-{{- if eq (.name | default "") "APP_URL" -}}
+{{- define "mailflow.hasBackendEnv" -}}
+{{- $name := .name -}}
+{{- range .root.Values.backend.env | default list -}}
+{{- if eq (.name | default "") $name -}}
 yes
 {{- end -}}
 {{- end -}}
@@ -212,6 +215,10 @@ spec, which ClusterRole view reads. README: "Configuration" and "Secrets".
 {{- end -}}
 {{- if and (include "mailflow.pre44" .) $frontendSec.readOnlyRootFilesystem -}}
 {{- fail (printf "image.tag %s serves the app from nginx, whose entrypoint rewrites /etc/nginx/conf.d/default.conf at boot: set frontend.securityContext.readOnlyRootFilesystem=false, or the pod comes up with HTTPS on, no certificate and /api/ pointed at nothing" (.Values.image.tag | default .Chart.AppVersion)) -}}
+{{- end -}}
+{{- $frontendCaps := ($frontendSec.capabilities | default dict).add | default list -}}
+{{- if and (include "mailflow.pre44" .) (not (and (has "SETUID" $frontendCaps) (has "SETGID" $frontendCaps))) -}}
+{{- fail (printf "image.tag %s serves the app from nginx, whose master runs as root and starts each worker with setgid()/setuid(): add SETUID and SETGID to frontend.securityContext.capabilities.add, or drop: [ALL] makes every worker exit at init, the master respawns them forever and nothing is served" (.Values.image.tag | default .Chart.AppVersion)) -}}
 {{- end -}}
 {{- if ne (.Values.frontend.tlsMode | toString) "off" -}}
 {{- if has (.Values.frontend.tlsMode | toString) (list "self-signed" "letsencrypt") -}}
