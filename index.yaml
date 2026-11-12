@@ -598,6 +598,28 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/kasm-single-zone-1.17.0-develop/kasm-single-zone-1.17.0-develop.tgz
     version: 1.17.0-develop
+  mailflow:
+  - apiVersion: v2
+    appVersion: 4.3.1
+    created: "2026-11-12T19:11:44.48565892Z"
+    description: A Helm chart for MailFlow - a self-hosted, unified webmail client
+    digest: 54974e7231f4d63a909865ffa2ca4025315b398498ed1c6fcf3c9911ac079e6a
+    home: https://github.com/maathimself/mailflow
+    keywords:
+    - mailflow
+    - webmail
+    - email
+    - imap
+    - self-hosted
+    maintainers:
+    - name: NigelVanHattum
+    name: mailflow
+    sources:
+    - https://github.com/maathimself/mailflow
+    type: application
+    urls:
+    - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/mailflow-0.1.0/mailflow-0.1.0.tgz
+    version: 0.1.0
   mealie:
   - apiVersion: v2
     appVersion: 1.16.0
@@ -2064,4 +2086,4 @@ entries:
     urls:
     - https://github.com/NigelVanHattum/Homelab-Helm-charts/releases/download/terraform-mcp-server-0.1.0/terraform-mcp-server-0.1.0.tgz
     version: 0.1.0
-generated: "2026-11-11T23:25:10.451847627Z"
+generated: "2026-11-12T19:11:44.485851833Z"
