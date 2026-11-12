@@ -1,0 +1,243 @@
+# Default values for mailflow.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+image:
+  # -- Tag for both MailFlow images. Upstream releases backend and frontend together, so one
+  # value moves both. Defaults to the chart `appVersion`.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Annotations added to all three pods.
+podAnnotations: {}
+# -- Labels added to all three pods.
+podLabels: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# -- `IMAGE_CACHE_DIR` and the `emptyDir` the backend mounts there, from one value so the
+# variable and the mount path cannot drift apart. Keep `IMAGE_CACHE_MAX_MB` (512 by default
+# in the application) below `imageCache.sizeLimit`, or the kubelet evicts the pod before
+# MailFlow prunes the cache itself.
+imageCache:
+  path: /var/cache/mailflow/images
+  sizeLimit: 1Gi
+
+backend:
+  image:
+    repository: ghcr.io/maathimself/mailflow-backend
+  service:
+    type: ClusterIP
+    # -- One port for the container's `PORT`, the Service and the frontend's `BACKEND_PORT`,
+    # so the three cannot drift apart.
+    port: 3000
+  # -- Upstream waits up to 25 s for a send in flight to finish; compose gives it a 30 s
+  # `stop_grace_period`.
+  terminationGracePeriodSeconds: 30
+  # -- `REDIS_URL`. Empty points at the Redis this chart deploys; required when
+  # `redis.enabled` is `false`.
+  redisUrl: ""
+  # -- Environment appended verbatim, the raw list `03_applications` wires: `DB_HOST`,
+  # `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET`, `ENCRYPTION_KEY`,
+  # `APP_URL`, `FRONTEND_URL`, `FIRST_USER_REGISTRATION`, `TRUST_PROXY_HOPS`, `VAPID_*`,
+  # `IMAP_MAX_PERSISTENT_PER_HOST`, `IMAGE_CACHE_MAX_MB`, `MS_*`, `GOOGLE_*`. A sensitive one
+  # belongs here as a `valueFrom`; a plain value for one fails to render. `NODE_ENV`, `PORT`,
+  # `REDIS_URL` and `IMAGE_CACHE_DIR` are the chart's and are rejected here too.
+  env: []
+  # - name: DB_HOST
+  #   value: mailflow-rw.cnpg.svc.cluster.local
+  # - name: DB_PASSWORD
+  #   valueFrom:
+  #     secretKeyRef:
+  #       name: mailflow-database
+  #       key: password
+  # -- uid/gid 1000, the `node` user the image already runs as. The uid is explicit on purpose:
+  # the image's `USER` is the *name* `node`, which the kubelet cannot check against
+  # `runAsNonRoot`, so the pair without it fails with "image has non-numeric user". `fsGroup`
+  # is what makes the image-cache `emptyDir` writable for that gid.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  resources: {}
+    # limits:
+    #   cpu: 1
+    #   memory: 1Gi
+    # requests:
+    #   cpu: 100m
+    #   memory: 256Mi
+  livenessProbe:
+    httpGet:
+      path: /api/health
+      port: http
+  readinessProbe:
+    httpGet:
+      path: /api/health
+      port: http
+  # -- v4.3.1 reaches `httpServer.listen` only after Redis connects and the migrations, the
+  # contact-photo backfill and the credential re-encryption finish (`backend/src/index.js`), so
+  # `/api/health` refuses connections for a while on a first install. The kubelet's liveness
+  # default (3 x 10 s) would restart the pod mid-migration; this covers 300 s and holds
+  # liveness off until it passes once. Set it to `null` to drop the probe.
+  startupProbe:
+    httpGet:
+      path: /api/health
+      port: http
+    periodSeconds: 10
+    failureThreshold: 30
+
+frontend:
+  image:
+    repository: ghcr.io/maathimself/mailflow-frontend
+  service:
+    type: ClusterIP
+    port: 80
+  # -- `BACKEND_HOST`. Empty uses this release's backend Service. Never leave it at the
+  # image's compose default (`backend`), which resolves to nothing here (upstream #436).
+  backendHost: ""
+  # -- `NGINX_TLS`, which the 4.3.x nginx frontend reads. `off` comments out the HTTPS server
+  # and serves plain HTTP on port 80, for a TLS-terminating ingress; it then needs no
+  # certificate.
+  nginxTls: "off"
+  # -- `TLS_MODE`, which the post-4.4 Caddy frontend reads while still honouring `NGINX_TLS`.
+  # Inert at this `appVersion`; set so the 4.4 bump stays a tag change.
+  tlsMode: "off"
+  # -- Environment appended verbatim. `NGINX_TLS`, `TLS_MODE`, `BACKEND_HOST` and
+  # `BACKEND_PORT` are the chart's and are rejected here.
+  env: []
+  # -- Root, deliberately. The three boot scripts `sed -i` root-owned files under
+  # `/etc/nginx/conf.d`, and the image is `nginx:alpine` with no `USER`, so the master runs as
+  # root and honours `user nginx;` from the image's `nginx.conf`.
+  podSecurityContext: {}
+  # -- No `readOnlyRootFilesystem`: the entrypoint rewrites `/etc/nginx/conf.d/default.conf`
+  # at boot for `NGINX_TLS`, for the backend upstream and for the cluster DNS resolver, and a
+  # failed rewrite leaves HTTPS on with no certificate and `/api/` pointed at nothing.
+  # `SETUID`/`SETGID` are what the master needs to start its workers as `nginx`;
+  # `NET_BIND_SERVICE` is for port 80, so the pod does not depend on the node's
+  # `net.ipv4.ip_unprivileged_port_start`.
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+      add:
+        - SETUID
+        - SETGID
+        - NET_BIND_SERVICE
+    seccompProfile:
+      type: RuntimeDefault
+  resources: {}
+  # -- `GET /` on port 80, not the image's own `/healthz`: 4.3.x has no such location, and the
+  # listener the later Caddy frontend puts it on binds `127.0.0.1:2080`, which no kubelet
+  # reaches.
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+  startupProbe: {}
+
+redis:
+  # -- Sessions and cache only. `false` needs `backend.redisUrl` pointed at a Redis of your
+  # own.
+  enabled: true
+  image:
+    repository: redis
+    # -- A pinned patch release, not a moving `7-alpine`.
+    tag: "7.4.12-alpine3.22"
+    # -- Digest `redis.image.tag` resolved to when it was pinned. Rendered as `<tag>@<digest>`,
+    # so the tag documents the version and the digest is what gets pulled. Change both
+    # together. Set to `""` to pull by tag instead.
+    digest: "sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 6379
+  # -- compose's `redis-server --save 60 1 --loglevel warning`.
+  args:
+    - --save
+    - "60"
+    - "1"
+    - --loglevel
+    - warning
+  # -- `emptyDir` at `/data`, never a PVC: nothing here survives the pod on purpose.
+  dataSizeLimit: 1Gi
+  # -- `requirepass` for the Redis this chart deploys, read from a Secret something else owns
+  # (Terraform's `kubernetes_secret_v1`). No default, and the chart renders no Secret: a
+  # password in values would land in the release. One key covers all three places it is
+  # needed - the server's `--requirepass`, `REDISCLI_AUTH` for the probes, and the password in
+  # the backend's `REDIS_URL` - and reaches each of them as a `secretKeyRef`, never a literal
+  # in the pod spec. The value has to be URL-safe (no `@ : / ? # % [ ]`): it goes into a URL.
+  auth:
+    # -- `false` accepts a Redis that asks for no password. Only reasonable where something
+    # else keeps every other pod off port 6379, which a NetworkPolicy is not in a cluster
+    # running Cilium with `enable-policy = never`.
+    enabled: true
+    # -- Name of that Secret. Required while `redis.auth.enabled`.
+    existingSecret: ""
+    # -- Key inside it.
+    existingSecretKey: redis-password
+  # -- uid 999 / gid 1000, the `redis` user in the image. Required, not hardening: at uid 0 the
+  # entrypoint takes its root branch and `chown`s `/data` then `gosu`s, both of which
+  # `drop: [ALL]` forbids, and it runs under `set -e`, so the container exits before
+  # `redis-server`. `fsGroup` is what makes the `emptyDir` writable for that gid.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 999
+    runAsGroup: 1000
+    fsGroup: 1000
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  resources: {}
+  livenessProbe:
+    exec:
+      command:
+        - redis-cli
+        - ping
+  readinessProbe:
+    exec:
+      command:
+        - redis-cli
+        - ping
+  startupProbe: {}
+
+# -- Routes to the frontend Service. Multi-host: MailFlow is reached on every host listed.
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+    # - secretName: chart-example-tls
+    #   hosts:
+    #     - chart-example.local

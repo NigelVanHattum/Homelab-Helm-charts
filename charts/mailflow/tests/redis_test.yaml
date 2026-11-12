@@ -1,0 +1,197 @@
+suite: redis workload
+release:
+  name: mailflow
+  namespace: mailflow
+set:
+  redis.auth.existingSecret: mailflow-redis
+tests:
+  # Pinned by digest, never a floating `7-alpine`: a rescheduled pod would otherwise pull
+  # whatever the tag points at that day.
+  - it: pulls redis by tag and digest, with compose's save and log settings
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: redis:7.4.12-alpine3.22@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --save
+            - "60"
+            - "1"
+            - --loglevel
+            - warning
+            - --requirepass
+            - $(REDIS_PASSWORD)
+
+  # Sessions and cache only: a PVC here would outlive its own usefulness.
+  - it: keeps its data on an emptyDir, never a claim
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir:
+              sizeLimit: 1Gi
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+      - notExists:
+          path: spec.volumeClaimTemplates
+
+  # At uid 0 the entrypoint chowns /data and gosus, both of which drop: [ALL] forbids, and it
+  # runs under set -e: the container exits before redis-server.
+  - it: runs as the image's redis user, not root
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 999
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+
+  - it: falls back to the plain tag when the digest is cleared
+    templates:
+      - templates/redis.yaml
+    set:
+      redis.image.digest: ""
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: redis:7.4.12-alpine3.22
+
+  # A session in this Redis is mailbox access, and the cluster enforces no NetworkPolicy, so
+  # the password is the only thing in front of port 6379.
+  - it: takes requirepass from the secret, never as a literal in the pod spec
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --save
+            - "60"
+            - "1"
+            - --loglevel
+            - warning
+            - --requirepass
+            - $(REDIS_PASSWORD)
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mailflow-redis
+                key: redis-password
+
+  # redis-cli answers NOAUTH once a password is set, so both probes would fail without this.
+  - it: authenticates the redis-cli probes through REDISCLI_AUTH
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDISCLI_AUTH
+            valueFrom:
+              secretKeyRef:
+                name: mailflow-redis
+                key: redis-password
+
+  - it: reads the password under its own key name
+    templates:
+      - templates/redis.yaml
+    set:
+      redis.auth.existingSecretKey: password
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mailflow-redis
+                key: password
+
+  - it: asks for no password when auth is turned off
+    templates:
+      - templates/redis.yaml
+    set:
+      redis.auth.enabled: false
+      redis.auth.existingSecret: ""
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].env
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --save
+            - "60"
+            - "1"
+            - --loglevel
+            - warning
+
+  - it: probes with redis-cli ping
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command
+          value:
+            - redis-cli
+            - ping
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command
+          value:
+            - redis-cli
+            - ping
+
+  - it: serves the named port on the Service
+    templates:
+      - templates/redis-service.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: mailflow-redis
+      - equal:
+          path: spec.ports[0].port
+          value: 6379
+      - equal:
+          path: spec.ports[0].targetPort
+          value: redis
+
+  - it: renders no workload when disabled
+    templates:
+      - templates/redis.yaml
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders no Service when disabled
+    templates:
+      - templates/redis-service.yaml
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -1,0 +1,93 @@
+suite: pod hardening
+release:
+  name: mailflow
+  namespace: mailflow
+set:
+  redis.auth.existingSecret: mailflow-redis
+tests:
+  - it: backend pod mounts no ServiceAccount token
+    templates:
+      - templates/backend.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+
+  # The kubelet default is Unconfined unless the spec says otherwise, which leaves every
+  # syscall open beside drop: [ALL].
+  - it: every container asks for the runtime's default seccomp profile
+    templates:
+      - templates/backend.yaml
+      - templates/frontend.yaml
+      - templates/redis.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault
+
+  # The image's USER is the name `node`, which the kubelet cannot check against runAsNonRoot,
+  # so the uid is explicit or the pod fails with "image has non-numeric user".
+  - it: backend runs as the image's node uid, not root
+    templates:
+      - templates/backend.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+
+  - it: frontend pod mounts no ServiceAccount token
+    templates:
+      - templates/frontend.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+
+  - it: redis pod mounts no ServiceAccount token
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: test hook pins busybox, mounts no ServiceAccount token and drops the same privileges
+    templates:
+      - templates/tests/test-connection.yaml
+    asserts:
+      - equal:
+          path: spec.containers[0].image
+          value: busybox:1.37.0
+      - equal:
+          path: spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+      - equal:
+          path: spec.containers[0].securityContext.seccompProfile.type
+          value: RuntimeDefault

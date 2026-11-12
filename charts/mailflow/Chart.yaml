@@ -1,0 +1,24 @@
+apiVersion: v2
+name: mailflow
+description: A Helm chart for MailFlow - a self-hosted, unified webmail client
+type: application
+
+# This is the chart version. This version number should be incremented each time you make changes
+# to the chart and its templates, including the app version.
+version: 0.1.0
+
+# image.tag defaults to this for both MailFlow images, which upstream releases together.
+# renovate: datasource=docker depName=ghcr.io/maathimself/mailflow-backend
+appVersion: "4.3.1"
+
+keywords:
+  - mailflow
+  - webmail
+  - email
+  - imap
+  - self-hosted
+home: https://github.com/maathimself/mailflow
+sources:
+  - https://github.com/maathimself/mailflow
+maintainers:
+  - name: NigelVanHattum

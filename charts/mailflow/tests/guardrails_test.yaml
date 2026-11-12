@@ -1,0 +1,170 @@
+suite: guardrails that refuse to render a broken release
+release:
+  name: mailflow
+  namespace: mailflow
+templates:
+  - templates/backend.yaml
+tests:
+  # A duplicate name in the raw env list leaves which value wins up to the kubelet.
+  - it: refuses a backend variable the chart derives
+    set:
+      backend.env:
+        - name: REDIS_URL
+          value: redis://somewhere:6379
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets REDIS_URL, which this chart derives: use backend.redisUrl"
+
+  - it: refuses IMAGE_CACHE_DIR, which has to match the mount
+    set:
+      backend.env:
+        - name: IMAGE_CACHE_DIR
+          value: /somewhere-else
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets IMAGE_CACHE_DIR, which this chart derives: use imageCache.path"
+
+  - it: refuses PORT, which has to match the Service
+    set:
+      backend.env:
+        - name: PORT
+          value: "9999"
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets PORT, which this chart derives: use backend.service.port"
+
+  # Asserted on the backend template like the rest: the guard runs before any of the three
+  # workloads render, so the failure is not attributed to the frontend one.
+  - it: refuses a frontend variable the chart derives
+    set:
+      frontend.env:
+        - name: BACKEND_HOST
+          value: backend
+    asserts:
+      - failedTemplate:
+          errorMessage: "frontend.env sets BACKEND_HOST, which this chart derives: use frontend.backendHost"
+
+  # Terraform owns the kubernetes_secret_v1; a plain value here lands in the workload spec,
+  # which ClusterRole view reads.
+  - it: refuses a plain SESSION_SECRET
+    set:
+      backend.env:
+        - name: SESSION_SECRET
+          value: hunter2
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets SESSION_SECRET as a plain value, which lands in the workload spec: use valueFrom.secretKeyRef, pointing at a Secret Terraform owns"
+
+  - it: refuses a plain DB_PASSWORD
+    set:
+      backend.env:
+        - name: DB_PASSWORD
+          value: hunter2
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets DB_PASSWORD as a plain value, which lands in the workload spec: use valueFrom.secretKeyRef, pointing at a Secret Terraform owns"
+
+  - it: refuses a plain ENCRYPTION_KEY
+    set:
+      backend.env:
+        - name: ENCRYPTION_KEY
+          value: 0123456789abcdef
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets ENCRYPTION_KEY as a plain value, which lands in the workload spec: use valueFrom.secretKeyRef, pointing at a Secret Terraform owns"
+
+  - it: refuses a plain GOOGLE_CLIENT_SECRET
+    set:
+      backend.env:
+        - name: GOOGLE_CLIENT_SECRET
+          value: a-google-secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets GOOGLE_CLIENT_SECRET as a plain value, which lands in the workload spec: use valueFrom.secretKeyRef, pointing at a Secret Terraform owns"
+
+  - it: accepts the same secret as a secretKeyRef
+    set:
+      redis.auth.existingSecret: mailflow-redis
+      backend.env:
+        - name: SESSION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: mailflow-session
+              key: secret
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: fails on no Redis and no REDIS_URL to use instead
+    set:
+      redis.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "redis.enabled=false needs backend.redisUrl: MailFlow keeps sessions in Redis and will not start without it"
+
+  - it: accepts no Redis with an external one named
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+    asserts:
+      - isKind:
+          of: Deployment
+
+  # Shipping a Redis that asks for nothing has to be a decision, not a default.
+  - it: fails on a bundled Redis with no password secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "redis.auth.existingSecret is required: Redis holds MailFlow's sessions, a session is mailbox access, and nothing in front of port 6379 asks for a credential. Point it at a Secret carrying the password, or set redis.auth.enabled=false to accept an open Redis"
+
+  - it: accepts an open Redis only when asked for explicitly
+    set:
+      redis.auth.enabled: false
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: needs no password secret for an external Redis
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+    asserts:
+      - isKind:
+          of: Deployment
+
+  # Unresolved, the literal string "$(REDIS_PASSWORD)" becomes the password Redis is sent.
+  - it: fails on a redisUrl referencing a password nothing defines
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://:$(REDIS_PASSWORD)@redis.other.svc.cluster.local:6379
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.redisUrl references $(REDIS_PASSWORD) but nothing defines it: set redis.auth.existingSecret (and keep redis.auth.enabled), or the literal string reaches Redis as the password"
+
+  - it: fails the same way when auth is turned off under it
+    set:
+      redis.enabled: false
+      redis.auth.enabled: false
+      redis.auth.existingSecret: mailflow-redis
+      backend.redisUrl: redis://:$(REDIS_PASSWORD)@redis.other.svc.cluster.local:6379
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.redisUrl references $(REDIS_PASSWORD) but nothing defines it: set redis.auth.existingSecret (and keep redis.auth.enabled), or the literal string reaches Redis as the password"
+
+  # backend.env is appended after REDIS_URL, so an entry here would never expand anyway.
+  - it: refuses REDIS_PASSWORD in the raw backend env list
+    set:
+      redis.auth.existingSecret: mailflow-redis
+      backend.env:
+        - name: REDIS_PASSWORD
+          value: hunter2
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets REDIS_PASSWORD, which this chart derives: use redis.auth.existingSecret, which the chart renders ahead of REDIS_URL so $(REDIS_PASSWORD) resolves inside backend.redisUrl as well - an entry here would land after it and never expand"
+
+  - it: fails on an empty imageCache.path
+    set:
+      redis.auth.existingSecret: mailflow-redis
+      imageCache.path: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "imageCache.path is required: it is both IMAGE_CACHE_DIR and the emptyDir mount path"
