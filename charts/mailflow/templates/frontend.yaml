@@ -34,7 +34,6 @@ spec:
       {{- end }}
       containers:
         - name: frontend
-          {{- /* No readOnlyRootFilesystem: the entrypoint rewrites /etc/nginx/conf.d/default.conf at boot. */}}
           {{- with .Values.frontend.securityContext }}
           securityContext:
             {{- toYaml . | nindent 12 }}
@@ -46,10 +45,9 @@ spec:
             - name: NGINX_TLS
               value: {{ . | quote }}
             {{- end }}
-            {{- with .Values.frontend.tlsMode }}
+            {{- /* Never conditional: an unset TLS_MODE is self-signed to the Caddy frontend. */}}
             - name: TLS_MODE
-              value: {{ . | quote }}
-            {{- end }}
+              value: {{ .Values.frontend.tlsMode | quote }}
             - name: BACKEND_HOST
               value: {{ include "mailflow.backendHost" . | quote }}
             - name: BACKEND_PORT

@@ -2,8 +2,6 @@ suite: services and ingress
 release:
   name: mailflow
   namespace: mailflow
-set:
-  redis.auth.existingSecret: mailflow-redis
 tests:
   - it: names each Service after its component and targets the named port
     templates:

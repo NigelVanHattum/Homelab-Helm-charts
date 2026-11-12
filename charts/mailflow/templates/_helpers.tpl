@@ -89,6 +89,30 @@ together because upstream releases them together.
 {{- end }}
 
 {{/*
+Whether the resolved image tag is a MailFlow release before 4.4.0, the one that still keeps
+sessions in Redis and still serves the app from nginx. A tag that is not a plain x.y.z (a
+branch build, `latest`) says nothing either way, so it answers no and the guardrails below stay
+out of the way. Empty output is false to `if`.
+*/}}
+{{- define "mailflow.pre44" -}}
+{{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
+{{- if and (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+$" $tag) (semverCompare "<4.4.0" $tag) -}}
+yes
+{{- end -}}
+{{- end }}
+
+{{/*
+Whether a Redis is in play at all: the one this chart deploys, or an external one named in
+backend.redisUrl. 4.4.0 moved sessions to Postgres and ignores REDIS_URL, so the default
+renders neither the workload nor the variable. Empty output is false to `if`.
+*/}}
+{{- define "mailflow.redisInUse" -}}
+{{- if or .Values.redis.enabled .Values.backend.redisUrl -}}
+yes
+{{- end -}}
+{{- end }}
+
+{{/*
 Whether the Redis this chart deploys takes a requirepass. Empty output is false to `if`.
 An external Redis (redis.enabled: false) carries its own credential in backend.redisUrl.
 */}}
@@ -106,10 +130,10 @@ yes
 Whether the backend gets REDIS_PASSWORD from the Secret. Independent of redis.enabled: an
 external Redis needs the same escape from a literal password in the pod spec, and the chart
 renders the variable ahead of REDIS_URL so $(REDIS_PASSWORD) works inside backend.redisUrl too.
-Empty output is false to `if`.
+Nothing renders it when no Redis is in play at all. Empty output is false to `if`.
 */}}
 {{- define "mailflow.backendRedisPassword" -}}
-{{- if and .Values.redis.auth.enabled .Values.redis.auth.existingSecret -}}
+{{- if and (include "mailflow.redisInUse" .) .Values.redis.auth.enabled .Values.redis.auth.existingSecret -}}
 yes
 {{- end -}}
 {{- end }}
@@ -140,12 +164,15 @@ BACKEND_HOST: this release's backend Service, unless frontend.backendHost names 
 {{- end }}
 
 {{/*
-Whether backend.env carries APP_URL, for the note that says what is missing without it.
-Empty output is false to `if`.
+Whether backend.env carries one named variable, for the notes that say what is missing without
+it. Empty output is false to `if`.
+
+  {{ include "mailflow.hasBackendEnv" (dict "root" . "name" "APP_URL") }}
 */}}
-{{- define "mailflow.hasAppUrl" -}}
-{{- range .Values.backend.env | default list -}}
-{{- if eq (.name | default "") "APP_URL" -}}
+{{- define "mailflow.hasBackendEnv" -}}
+{{- $name := .name -}}
+{{- range .root.Values.backend.env | default list -}}
+{{- if eq (.name | default "") $name -}}
 yes
 {{- end -}}
 {{- end -}}
@@ -182,8 +209,22 @@ spec, which ClusterRole view reads. README: "Configuration" and "Secrets".
 {{- end -}}
 {{- end -}}
 {{- end -}}
-{{- if and (not .Values.redis.enabled) (not .Values.backend.redisUrl) -}}
-{{- fail "redis.enabled=false needs backend.redisUrl: MailFlow keeps sessions in Redis and will not start without it" -}}
+{{- $frontendSec := .Values.frontend.securityContext | default dict -}}
+{{- if and (include "mailflow.pre44" .) (not (include "mailflow.redisInUse" .)) -}}
+{{- fail (printf "image.tag %s is a release before 4.4.0, which keeps sessions in Redis and will not start without one: set redis.enabled=true (with redis.auth.existingSecret) or backend.redisUrl. 4.4.0 and later keep sessions in Postgres and need neither" (.Values.image.tag | default .Chart.AppVersion)) -}}
+{{- end -}}
+{{- if and (include "mailflow.pre44" .) $frontendSec.readOnlyRootFilesystem -}}
+{{- fail (printf "image.tag %s serves the app from nginx, whose entrypoint rewrites /etc/nginx/conf.d/default.conf at boot: set frontend.securityContext.readOnlyRootFilesystem=false, or the pod comes up with HTTPS on, no certificate and /api/ pointed at nothing" (.Values.image.tag | default .Chart.AppVersion)) -}}
+{{- end -}}
+{{- $frontendCaps := ($frontendSec.capabilities | default dict).add | default list -}}
+{{- if and (include "mailflow.pre44" .) (not (and (has "SETUID" $frontendCaps) (has "SETGID" $frontendCaps))) -}}
+{{- fail (printf "image.tag %s serves the app from nginx, whose master runs as root and starts each worker with setgid()/setuid(): add SETUID and SETGID to frontend.securityContext.capabilities.add, or drop: [ALL] makes every worker exit at init, the master respawns them forever and nothing is served" (.Values.image.tag | default .Chart.AppVersion)) -}}
+{{- end -}}
+{{- if ne (.Values.frontend.tlsMode | toString) "off" -}}
+{{- if has (.Values.frontend.tlsMode | toString) (list "self-signed" "letsencrypt") -}}
+{{- fail (printf "frontend.tlsMode=%s serves HTTPS on port 443, which this chart does not publish: it gives the frontend port 80 only, for an ingress that terminates TLS. letsencrypt serves nothing else at all - its only Caddy site matches the DOMAIN host, so the kubelet's GET / on the pod IP answers 404 and liveness restarts the pod. Terminate TLS at the ingress and leave this off" (.Values.frontend.tlsMode | toString)) -}}
+{{- end -}}
+{{- fail (printf "frontend.tlsMode is %q: this chart serves plain HTTP on port 80 behind a TLS-terminating ingress, so off is the only mode it can render - and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed" (.Values.frontend.tlsMode | toString)) -}}
 {{- end -}}
 {{- if and (contains "$(REDIS_PASSWORD)" (.Values.backend.redisUrl | toString)) (not (include "mailflow.backendRedisPassword" .)) -}}
 {{- fail "backend.redisUrl references $(REDIS_PASSWORD) but nothing defines it: set redis.auth.existingSecret (and keep redis.auth.enabled), or the literal string reaches Redis as the password" -}}

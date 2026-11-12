@@ -95,29 +95,91 @@ tests:
       - isKind:
           of: Deployment
 
-  - it: fails on no Redis and no REDIS_URL to use instead
+  # 4.4.0 keeps sessions in Postgres, so no Redis anywhere is the default and has to render.
+  - it: renders with no Redis at all
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: accepts an external Redis named instead
     set:
-      redis.enabled: false
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+    asserts:
+      - isKind:
+          of: Deployment
+
+  # A tag pinned back before 4.4.0 is the one release that will not start without a Redis.
+  - it: fails on a pre-4.4.0 tag with no Redis and no REDIS_URL
+    set:
+      image.tag: "4.3.1"
+      frontend.securityContext.readOnlyRootFilesystem: false
+      frontend.securityContext.capabilities.add:
+        - SETUID
+        - SETGID
+        - NET_BIND_SERVICE
     asserts:
       - failedTemplate:
-          errorMessage: "redis.enabled=false needs backend.redisUrl: MailFlow keeps sessions in Redis and will not start without it"
+          errorMessage: "image.tag 4.3.1 is a release before 4.4.0, which keeps sessions in Redis and will not start without one: set redis.enabled=true (with redis.auth.existingSecret) or backend.redisUrl. 4.4.0 and later keep sessions in Postgres and need neither"
 
-  - it: accepts no Redis with an external one named
+  - it: accepts a pre-4.4.0 tag with the bundled Redis turned on
     set:
-      redis.enabled: false
-      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+      image.tag: "4.3.1"
+      redis.enabled: true
+      redis.auth.existingSecret: mailflow-redis
+      frontend.securityContext.readOnlyRootFilesystem: false
+      frontend.securityContext.capabilities.add:
+        - SETUID
+        - SETGID
+        - NET_BIND_SERVICE
+    asserts:
+      - isKind:
+          of: Deployment
+
+  # nginx's master is root and starts each worker with setgid()/setuid(); beside drop: [ALL]
+  # every worker exits at init and the master respawns them forever.
+  - it: fails on a pre-4.4.0 tag without SETUID and SETGID
+    set:
+      image.tag: "4.3.1"
+      redis.enabled: true
+      redis.auth.existingSecret: mailflow-redis
+      frontend.securityContext.readOnlyRootFilesystem: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "image.tag 4.3.1 serves the app from nginx, whose master runs as root and starts each worker with setgid()/setuid(): add SETUID and SETGID to frontend.securityContext.capabilities.add, or drop: [ALL] makes every worker exit at init, the master respawns them forever and nothing is served"
+
+  - it: fails on a pre-4.4.0 tag carrying only one of the two
+    set:
+      image.tag: "4.3.1"
+      redis.enabled: true
+      redis.auth.existingSecret: mailflow-redis
+      frontend.securityContext.readOnlyRootFilesystem: false
+      frontend.securityContext.capabilities.add:
+        - SETUID
+        - NET_BIND_SERVICE
+    asserts:
+      - failedTemplate:
+          errorMessage: "image.tag 4.3.1 serves the app from nginx, whose master runs as root and starts each worker with setgid()/setuid(): add SETUID and SETGID to frontend.securityContext.capabilities.add, or drop: [ALL] makes every worker exit at init, the master respawns them forever and nothing is served"
+
+  # A tag that is not a plain x.y.z says nothing about which release it is, so neither
+  # pre-4.4.0 guardrail fires on it.
+  - it: leaves a tag it cannot read alone
+    set:
+      image.tag: latest
     asserts:
       - isKind:
           of: Deployment
 
   # Shipping a Redis that asks for nothing has to be a decision, not a default.
   - it: fails on a bundled Redis with no password secret
+    set:
+      redis.enabled: true
     asserts:
       - failedTemplate:
           errorMessage: "redis.auth.existingSecret is required: Redis holds MailFlow's sessions, a session is mailbox access, and nothing in front of port 6379 asks for a credential. Point it at a Secret carrying the password, or set redis.auth.enabled=false to accept an open Redis"
 
   - it: accepts an open Redis only when asked for explicitly
     set:
+      redis.enabled: true
       redis.auth.enabled: false
     asserts:
       - isKind:
@@ -125,11 +187,66 @@ tests:
 
   - it: needs no password secret for an external Redis
     set:
-      redis.enabled: false
       backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
     asserts:
       - isKind:
           of: Deployment
+
+  # The nginx frontend rewrites /etc/nginx/conf.d/default.conf at boot three times over; each
+  # rewrite fails soft, so a read-only filesystem serves HTTPS with no certificate and /api/
+  # pointed at nothing instead of crashing.
+  - it: fails on a pre-4.4.0 tag with a read-only root filesystem
+    set:
+      image.tag: "4.3.1"
+      redis.enabled: true
+      redis.auth.existingSecret: mailflow-redis
+      frontend.securityContext.capabilities.add:
+        - SETUID
+        - SETGID
+        - NET_BIND_SERVICE
+    asserts:
+      - failedTemplate:
+          errorMessage: "image.tag 4.3.1 serves the app from nginx, whose entrypoint rewrites /etc/nginx/conf.d/default.conf at boot: set frontend.securityContext.readOnlyRootFilesystem=false, or the pod comes up with HTTPS on, no certificate and /api/ pointed at nothing"
+
+  # Unset, TLS_MODE is self-signed to the image: it would serve a certificate of its own making
+  # behind an ingress that already terminates TLS, and HSTS makes that unrecoverable.
+  - it: refuses an empty tlsMode
+    set:
+      frontend.tlsMode: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "frontend.tlsMode is \"\": this chart serves plain HTTP on port 80 behind a TLS-terminating ingress, so off is the only mode it can render - and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed"
+
+  - it: refuses a tlsMode the image does not know
+    set:
+      frontend.tlsMode: "on"
+    asserts:
+      - failedTemplate:
+          errorMessage: "frontend.tlsMode is \"on\": this chart serves plain HTTP on port 80 behind a TLS-terminating ingress, so off is the only mode it can render - and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed"
+
+  # self-signed's HTTPS site is :443, which this chart does not publish, so the listener is
+  # unreachable and the certificate it writes is pointless. A writable filesystem does not
+  # make it work.
+  - it: refuses self-signed, whose HTTPS port is not published
+    set:
+      frontend.tlsMode: self-signed
+      frontend.securityContext.readOnlyRootFilesystem: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "frontend.tlsMode=self-signed serves HTTPS on port 443, which this chart does not publish: it gives the frontend port 80 only, for an ingress that terminates TLS. letsencrypt serves nothing else at all - its only Caddy site matches the DOMAIN host, so the kubelet's GET / on the pod IP answers 404 and liveness restarts the pod. Terminate TLS at the ingress and leave this off"
+
+  # letsencrypt's only site is {$DOMAIN}: the kubelet probes the pod IP, matches no site, gets
+  # a 404, and liveness restarts the pod.
+  - it: refuses letsencrypt, which answers nothing on the pod IP
+    set:
+      frontend.tlsMode: letsencrypt
+      frontend.securityContext.readOnlyRootFilesystem: false
+      frontend.env:
+        - name: DOMAIN
+          value: mail.example.com
+    asserts:
+      - failedTemplate:
+          errorMessage: "frontend.tlsMode=letsencrypt serves HTTPS on port 443, which this chart does not publish: it gives the frontend port 80 only, for an ingress that terminates TLS. letsencrypt serves nothing else at all - its only Caddy site matches the DOMAIN host, so the kubelet's GET / on the pod IP answers 404 and liveness restarts the pod. Terminate TLS at the ingress and leave this off"
 
   # Unresolved, the literal string "$(REDIS_PASSWORD)" becomes the password Redis is sent.
   - it: fails on a redisUrl referencing a password nothing defines
