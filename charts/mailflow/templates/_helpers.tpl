@@ -89,6 +89,30 @@ together because upstream releases them together.
 {{- end }}
 
 {{/*
+Whether the resolved image tag is a MailFlow release before 4.4.0, the one that still keeps
+sessions in Redis and still serves the app from nginx. A tag that is not a plain x.y.z (a
+branch build, `latest`) says nothing either way, so it answers no and the guardrails below stay
+out of the way. Empty output is false to `if`.
+*/}}
+{{- define "mailflow.pre44" -}}
+{{- $tag := .Values.image.tag | default .Chart.AppVersion -}}
+{{- if and (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+$" $tag) (semverCompare "<4.4.0" $tag) -}}
+yes
+{{- end -}}
+{{- end }}
+
+{{/*
+Whether a Redis is in play at all: the one this chart deploys, or an external one named in
+backend.redisUrl. 4.4.0 moved sessions to Postgres and ignores REDIS_URL, so the default
+renders neither the workload nor the variable. Empty output is false to `if`.
+*/}}
+{{- define "mailflow.redisInUse" -}}
+{{- if or .Values.redis.enabled .Values.backend.redisUrl -}}
+yes
+{{- end -}}
+{{- end }}
+
+{{/*
 Whether the Redis this chart deploys takes a requirepass. Empty output is false to `if`.
 An external Redis (redis.enabled: false) carries its own credential in backend.redisUrl.
 */}}
@@ -106,10 +130,10 @@ yes
 Whether the backend gets REDIS_PASSWORD from the Secret. Independent of redis.enabled: an
 external Redis needs the same escape from a literal password in the pod spec, and the chart
 renders the variable ahead of REDIS_URL so $(REDIS_PASSWORD) works inside backend.redisUrl too.
-Empty output is false to `if`.
+Nothing renders it when no Redis is in play at all. Empty output is false to `if`.
 */}}
 {{- define "mailflow.backendRedisPassword" -}}
-{{- if and .Values.redis.auth.enabled .Values.redis.auth.existingSecret -}}
+{{- if and (include "mailflow.redisInUse" .) .Values.redis.auth.enabled .Values.redis.auth.existingSecret -}}
 yes
 {{- end -}}
 {{- end }}
@@ -182,8 +206,18 @@ spec, which ClusterRole view reads. README: "Configuration" and "Secrets".
 {{- end -}}
 {{- end -}}
 {{- end -}}
-{{- if and (not .Values.redis.enabled) (not .Values.backend.redisUrl) -}}
-{{- fail "redis.enabled=false needs backend.redisUrl: MailFlow keeps sessions in Redis and will not start without it" -}}
+{{- $frontendSec := .Values.frontend.securityContext | default dict -}}
+{{- if and (include "mailflow.pre44" .) (not (include "mailflow.redisInUse" .)) -}}
+{{- fail (printf "image.tag %s is a release before 4.4.0, which keeps sessions in Redis and will not start without one: set redis.enabled=true (with redis.auth.existingSecret) or backend.redisUrl. 4.4.0 and later keep sessions in Postgres and need neither" (.Values.image.tag | default .Chart.AppVersion)) -}}
+{{- end -}}
+{{- if and (include "mailflow.pre44" .) $frontendSec.readOnlyRootFilesystem -}}
+{{- fail (printf "image.tag %s serves the app from nginx, whose entrypoint rewrites /etc/nginx/conf.d/default.conf at boot: set frontend.securityContext.readOnlyRootFilesystem=false, or the pod comes up with HTTPS on, no certificate and /api/ pointed at nothing" (.Values.image.tag | default .Chart.AppVersion)) -}}
+{{- end -}}
+{{- if not (has (.Values.frontend.tlsMode | toString) (list "self-signed" "letsencrypt" "off")) -}}
+{{- fail (printf "frontend.tlsMode is %q: it has to be self-signed, letsencrypt or off, and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed and serves HTTPS with a certificate it made up" (.Values.frontend.tlsMode | toString)) -}}
+{{- end -}}
+{{- if and (ne (.Values.frontend.tlsMode | toString) "off") $frontendSec.readOnlyRootFilesystem -}}
+{{- fail (printf "frontend.tlsMode=%s needs a writable filesystem - self-signed writes a certificate, letsencrypt writes the ACME account and certificate - so set frontend.securityContext.readOnlyRootFilesystem=false, or mount writable volumes at /etc/mailflow/certs and /data" (.Values.frontend.tlsMode | toString)) -}}
 {{- end -}}
 {{- if and (contains "$(REDIS_PASSWORD)" (.Values.backend.redisUrl | toString)) (not (include "mailflow.backendRedisPassword" .)) -}}
 {{- fail "backend.redisUrl references $(REDIS_PASSWORD) but nothing defines it: set redis.auth.existingSecret (and keep redis.auth.enabled), or the literal string reaches Redis as the password" -}}

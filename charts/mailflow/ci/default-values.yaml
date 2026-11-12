@@ -1,9 +1,5 @@
-# CI values: the redis password Secret the chart refuses to render without, plus the paths a
-# real release uses - the raw backend env list with a secretKeyRef, and a multi-host traefik
-# ingress. Only Secret names here, never a credential.
-redis:
-  auth:
-    existingSecret: ci-mailflow-redis-auth
+# CI values: the paths a real 4.4.0 release uses - no Redis, the raw backend env list with a
+# secretKeyRef, and a multi-host traefik ingress. Only Secret names here, never a credential.
 backend:
   env:
     - name: DB_HOST
@@ -19,6 +15,10 @@ backend:
           key: password
     - name: APP_URL
       value: https://mailflow.chart-example.local
+    # Admins come from single sign-on here, so the first account to register is an ordinary one
+    # and registration starts closed.
+    - name: FIRST_USER_REGISTRATION
+      value: "false"
 ingress:
   enabled: true
   className: traefik

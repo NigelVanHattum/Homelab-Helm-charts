@@ -2,7 +2,9 @@ suite: pod hardening
 release:
   name: mailflow
   namespace: mailflow
+# redis.enabled so the suite can assert on that workload too; 4.4.0 leaves it off.
 set:
+  redis.enabled: true
   redis.auth.existingSecret: mailflow-redis
 tests:
   - it: backend pod mounts no ServiceAccount token

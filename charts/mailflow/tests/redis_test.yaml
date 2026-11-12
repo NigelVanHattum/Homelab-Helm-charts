@@ -1,8 +1,11 @@
+# Only an image.tag pinned back before 4.4.0 deploys this workload; 4.4.0 keeps sessions in
+# Postgres. Every test here therefore turns it on explicitly.
 suite: redis workload
 release:
   name: mailflow
   namespace: mailflow
 set:
+  redis.enabled: true
   redis.auth.existingSecret: mailflow-redis
 tests:
   # Pinned by digest, never a floating `7-alpine`: a rescheduled pod would otherwise pull
@@ -134,7 +137,6 @@ tests:
       - templates/redis.yaml
     set:
       redis.auth.enabled: false
-      redis.auth.existingSecret: ""
     asserts:
       - notExists:
           path: spec.template.spec.containers[0].env
@@ -176,12 +178,11 @@ tests:
           path: spec.ports[0].targetPort
           value: redis
 
-  - it: renders no workload when disabled
+  - it: renders no workload when disabled, which is the default
     templates:
       - templates/redis.yaml
     set:
       redis.enabled: false
-      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
     asserts:
       - hasDocuments:
           count: 0
@@ -191,7 +192,6 @@ tests:
       - templates/redis-service.yaml
     set:
       redis.enabled: false
-      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
     asserts:
       - hasDocuments:
           count: 0

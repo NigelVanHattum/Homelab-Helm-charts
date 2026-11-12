@@ -2,8 +2,6 @@ suite: frontend workload
 release:
   name: mailflow
   namespace: mailflow
-set:
-  redis.auth.existingSecret: mailflow-redis
 templates:
   - templates/frontend.yaml
 tests:
@@ -17,14 +15,14 @@ tests:
 
   - it: moves with image.tag, so one value bumps both images
     set:
-      image.tag: "4.4.0"
+      image.tag: "4.5.0"
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/maathimself/mailflow-frontend:4.4.0
+          value: ghcr.io/maathimself/mailflow-frontend:4.5.0
 
-  # 4.3.x reads NGINX_TLS; post-4.4 (Caddy) reads TLS_MODE and still honours NGINX_TLS. Both
-  # set makes the 4.4 bump a tag change.
+  # 4.4's Caddy frontend reads TLS_MODE and still honours NGINX_TLS; a 4.3.x image.tag reads
+  # only NGINX_TLS. Both set keeps pinning back a tag change.
   - it: turns TLS off through both variables
     asserts:
       - contains:
@@ -83,20 +81,20 @@ tests:
             name: BACKEND_HOST
             value: mailflow-api.other.svc.cluster.local
 
-  # NGINX_TLS=off rewrites /etc/nginx/conf.d/default.conf at boot, and so do the resolver and
-  # backend-upstream scripts: a read-only root filesystem leaves HTTPS on with no certificate
-  # and /api/ pointed at nothing.
-  - it: keeps the root filesystem writable
+  # The Caddyfile sets `admin off` and `persist_config off`, and TLS_MODE=off writes no
+  # certificate, so nothing writes to the filesystem at all (upstream #453).
+  - it: runs on a read-only root filesystem
     asserts:
-      - notExists:
+      - equal:
           path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
       - equal:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
           value: false
 
-  # nginx:alpine has no USER, so the master is root and honours `user nginx;`: without
-  # SETUID/SETGID every worker dies at init and nothing is served.
-  - it: keeps the capabilities nginx needs to fork its workers and bind 80
+  # Caddy listens on port 80, and drop: [ALL] takes NET_BIND_SERVICE away from root too.
+  # SETUID/SETGID went with nginx, which forked its workers as another user.
+  - it: keeps only the capability Caddy needs to bind port 80
     asserts:
       - equal:
           path: spec.template.spec.containers[0].securityContext.capabilities.drop
@@ -105,11 +103,9 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.capabilities.add
           value:
-            - SETUID
-            - SETGID
             - NET_BIND_SERVICE
 
-  # The image's own /healthz does not exist in 4.3.x, and later binds 127.0.0.1:2080.
+  # The image's own /healthz binds 127.0.0.1:2080, and 4.3.x has no such location.
   - it: probes GET / on port 80
     asserts:
       - equal:
@@ -137,18 +133,37 @@ tests:
             name: SOMETHING_ELSE
             value: "1"
 
-  - it: drops a TLS variable emptied on purpose
+  - it: drops NGINX_TLS when emptied on purpose, and keeps TLS_MODE
     set:
       frontend.nginxTls: ""
-      frontend.tlsMode: ""
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].env
           content:
             name: NGINX_TLS
             value: "off"
-      - notContains:
+      - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: TLS_MODE
             value: "off"
+
+  # An unset TLS_MODE is self-signed to the image, so the variable is never conditional: it
+  # renders even when every other TLS value is cleared.
+  - it: renders TLS_MODE whatever else is set
+    set:
+      frontend.nginxTls: ""
+      frontend.tlsMode: letsencrypt
+      frontend.securityContext.readOnlyRootFilesystem: false
+      frontend.env:
+        - name: DOMAIN
+          value: mail.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TLS_MODE
+            value: letsencrypt
+      - lengthEqual:
+          path: spec.template.spec.containers[0].env
+          count: 4

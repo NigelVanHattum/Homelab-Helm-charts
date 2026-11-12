@@ -95,29 +95,58 @@ tests:
       - isKind:
           of: Deployment
 
-  - it: fails on no Redis and no REDIS_URL to use instead
+  # 4.4.0 keeps sessions in Postgres, so no Redis anywhere is the default and has to render.
+  - it: renders with no Redis at all
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: accepts an external Redis named instead
     set:
-      redis.enabled: false
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+    asserts:
+      - isKind:
+          of: Deployment
+
+  # A tag pinned back before 4.4.0 is the one release that will not start without a Redis.
+  - it: fails on a pre-4.4.0 tag with no Redis and no REDIS_URL
+    set:
+      image.tag: "4.3.1"
+      frontend.securityContext.readOnlyRootFilesystem: false
     asserts:
       - failedTemplate:
-          errorMessage: "redis.enabled=false needs backend.redisUrl: MailFlow keeps sessions in Redis and will not start without it"
+          errorMessage: "image.tag 4.3.1 is a release before 4.4.0, which keeps sessions in Redis and will not start without one: set redis.enabled=true (with redis.auth.existingSecret) or backend.redisUrl. 4.4.0 and later keep sessions in Postgres and need neither"
 
-  - it: accepts no Redis with an external one named
+  - it: accepts a pre-4.4.0 tag with the bundled Redis turned on
     set:
-      redis.enabled: false
-      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+      image.tag: "4.3.1"
+      redis.enabled: true
+      redis.auth.existingSecret: mailflow-redis
+      frontend.securityContext.readOnlyRootFilesystem: false
+    asserts:
+      - isKind:
+          of: Deployment
+
+  # A tag that is not a plain x.y.z says nothing about which release it is, so neither
+  # pre-4.4.0 guardrail fires on it.
+  - it: leaves a tag it cannot read alone
+    set:
+      image.tag: latest
     asserts:
       - isKind:
           of: Deployment
 
   # Shipping a Redis that asks for nothing has to be a decision, not a default.
   - it: fails on a bundled Redis with no password secret
+    set:
+      redis.enabled: true
     asserts:
       - failedTemplate:
           errorMessage: "redis.auth.existingSecret is required: Redis holds MailFlow's sessions, a session is mailbox access, and nothing in front of port 6379 asks for a credential. Point it at a Secret carrying the password, or set redis.auth.enabled=false to accept an open Redis"
 
   - it: accepts an open Redis only when asked for explicitly
     set:
+      redis.enabled: true
       redis.auth.enabled: false
     asserts:
       - isKind:
@@ -125,8 +154,52 @@ tests:
 
   - it: needs no password secret for an external Redis
     set:
-      redis.enabled: false
       backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+    asserts:
+      - isKind:
+          of: Deployment
+
+  # The nginx frontend rewrites /etc/nginx/conf.d/default.conf at boot three times over; each
+  # rewrite fails soft, so a read-only filesystem serves HTTPS with no certificate and /api/
+  # pointed at nothing instead of crashing.
+  - it: fails on a pre-4.4.0 tag with a read-only root filesystem
+    set:
+      image.tag: "4.3.1"
+      redis.enabled: true
+      redis.auth.existingSecret: mailflow-redis
+    asserts:
+      - failedTemplate:
+          errorMessage: "image.tag 4.3.1 serves the app from nginx, whose entrypoint rewrites /etc/nginx/conf.d/default.conf at boot: set frontend.securityContext.readOnlyRootFilesystem=false, or the pod comes up with HTTPS on, no certificate and /api/ pointed at nothing"
+
+  # Unset, TLS_MODE is self-signed to the image: it would serve a certificate of its own making
+  # behind an ingress that already terminates TLS, and HSTS makes that unrecoverable.
+  - it: refuses an empty tlsMode
+    set:
+      frontend.tlsMode: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "frontend.tlsMode is \"\": it has to be self-signed, letsencrypt or off, and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed and serves HTTPS with a certificate it made up"
+
+  - it: refuses a tlsMode the image does not know
+    set:
+      frontend.tlsMode: "on"
+    asserts:
+      - failedTemplate:
+          errorMessage: "frontend.tlsMode is \"on\": it has to be self-signed, letsencrypt or off, and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed and serves HTTPS with a certificate it made up"
+
+  # self-signed writes a certificate and letsencrypt writes the ACME account; TLS_MODE=off is
+  # the one mode that writes nothing.
+  - it: refuses a read-only root filesystem with TLS on
+    set:
+      frontend.tlsMode: self-signed
+    asserts:
+      - failedTemplate:
+          errorMessage: "frontend.tlsMode=self-signed needs a writable filesystem - self-signed writes a certificate, letsencrypt writes the ACME account and certificate - so set frontend.securityContext.readOnlyRootFilesystem=false, or mount writable volumes at /etc/mailflow/certs and /data"
+
+  - it: accepts TLS on with a writable filesystem
+    set:
+      frontend.tlsMode: letsencrypt
+      frontend.securityContext.readOnlyRootFilesystem: false
     asserts:
       - isKind:
           of: Deployment

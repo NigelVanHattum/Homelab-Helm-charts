@@ -2,8 +2,6 @@ suite: backend workload
 release:
   name: mailflow
   namespace: mailflow
-set:
-  redis.auth.existingSecret: mailflow-redis
 templates:
   - templates/backend.yaml
 tests:
@@ -18,11 +16,28 @@ tests:
 
   - it: lets image.tag win over the appVersion
     set:
-      image.tag: "4.4.0"
+      image.tag: "4.5.0"
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/maathimself/mailflow-backend:4.4.0
+          value: ghcr.io/maathimself/mailflow-backend:4.5.0
+
+  # Pinning back before 4.4.0 brings Redis with it, or the chart refuses to render.
+  - it: still serves a tag pinned back to 4.3.1
+    set:
+      image.tag: "4.3.1"
+      redis.enabled: true
+      redis.auth.existingSecret: mailflow-redis
+      frontend.securityContext.readOnlyRootFilesystem: false
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/maathimself/mailflow-backend:4.3.1
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            value: redis://:$(REDIS_PASSWORD)@mailflow-redis:6379
 
   # Upstream waits up to 25 s for a send in flight; a shorter grace period kills it mid-send.
   - it: gives a send in flight 30 seconds to finish
@@ -72,10 +87,33 @@ tests:
             emptyDir:
               sizeLimit: 4Gi
 
+  # 4.4.0 keeps sessions and short-lived keys in Postgres and ignores REDIS_URL, so neither
+  # variable is rendered unless a Redis is asked for.
+  - it: sets no REDIS_URL and no REDIS_PASSWORD by default
+    set:
+      redis.auth.existingSecret: mailflow-redis
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          any: true
+          content:
+            name: REDIS_URL
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          any: true
+          content:
+            name: REDIS_PASSWORD
+      - equal:
+          path: spec.template.spec.containers[0].env[2].name
+          value: IMAGE_CACHE_DIR
+
   # The password reaches the URL through a $(VAR) the kubelet expands, so the Secret's value
   # never enters the pod spec. REDIS_PASSWORD has to come first: the kubelet only expands a
   # reference to an earlier entry.
   - it: builds REDIS_URL with the password reference, declared after it
+    set:
+      redis.enabled: true
+      redis.auth.existingSecret: mailflow-redis
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -99,8 +137,8 @@ tests:
 
   - it: points REDIS_URL at a bare Redis when auth is turned off
     set:
+      redis.enabled: true
       redis.auth.enabled: false
-      redis.auth.existingSecret: ""
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
@@ -118,8 +156,6 @@ tests:
 
   - it: takes REDIS_URL from backend.redisUrl when one is given
     set:
-      redis.enabled: false
-      redis.auth.existingSecret: ""
       backend.redisUrl: redis://redis.redis.svc.cluster.local:6379/2
     asserts:
       - contains:
@@ -140,7 +176,7 @@ tests:
   # is honoured whatever redis.enabled says, and REDIS_PASSWORD still lands ahead of REDIS_URL.
   - it: lets an external redisUrl reference the password from the secret
     set:
-      redis.enabled: false
+      redis.auth.existingSecret: mailflow-redis
       backend.redisUrl: redis://:$(REDIS_PASSWORD)@redis.other.svc.cluster.local:6379
     asserts:
       - contains:
@@ -220,8 +256,9 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.port
           value: http
 
-  # /api/health refuses connections until Redis, the migrations and the backfills finish, so
-  # the kubelet's liveness default would restart the pod mid-migration.
+  # /api/health refuses connections until the migrations and the backfills finish - 4.4.0 adds
+  # 0076 and 0077, which move every session into Postgres - so the kubelet's liveness default
+  # would restart the pod mid-migration.
   - it: holds liveness off with a startup probe that covers 300 s
     asserts:
       - equal:
