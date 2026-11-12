@@ -1,0 +1,117 @@
+suite: guardrails that refuse to render a broken release
+release:
+  name: mailflow
+  namespace: mailflow
+templates:
+  - templates/backend.yaml
+tests:
+  # A duplicate name in the raw env list leaves which value wins up to the kubelet.
+  - it: refuses a backend variable the chart derives
+    set:
+      backend.env:
+        - name: REDIS_URL
+          value: redis://somewhere:6379
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets REDIS_URL, which this chart derives: use backend.redisUrl"
+
+  - it: refuses IMAGE_CACHE_DIR, which has to match the mount
+    set:
+      backend.env:
+        - name: IMAGE_CACHE_DIR
+          value: /somewhere-else
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets IMAGE_CACHE_DIR, which this chart derives: use imageCache.path"
+
+  - it: refuses PORT, which has to match the Service
+    set:
+      backend.env:
+        - name: PORT
+          value: "9999"
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets PORT, which this chart derives: use backend.service.port"
+
+  # Asserted on the backend template like the rest: the guard runs before any of the three
+  # workloads render, so the failure is not attributed to the frontend one.
+  - it: refuses a frontend variable the chart derives
+    set:
+      frontend.env:
+        - name: BACKEND_HOST
+          value: backend
+    asserts:
+      - failedTemplate:
+          errorMessage: "frontend.env sets BACKEND_HOST, which this chart derives: use frontend.backendHost"
+
+  # Terraform owns the kubernetes_secret_v1; a plain value here lands in the workload spec,
+  # which ClusterRole view reads.
+  - it: refuses a plain SESSION_SECRET
+    set:
+      backend.env:
+        - name: SESSION_SECRET
+          value: hunter2
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets SESSION_SECRET as a plain value, which lands in the workload spec: use valueFrom.secretKeyRef, pointing at a Secret Terraform owns"
+
+  - it: refuses a plain DB_PASSWORD
+    set:
+      backend.env:
+        - name: DB_PASSWORD
+          value: hunter2
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets DB_PASSWORD as a plain value, which lands in the workload spec: use valueFrom.secretKeyRef, pointing at a Secret Terraform owns"
+
+  - it: refuses a plain ENCRYPTION_KEY
+    set:
+      backend.env:
+        - name: ENCRYPTION_KEY
+          value: 0123456789abcdef
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets ENCRYPTION_KEY as a plain value, which lands in the workload spec: use valueFrom.secretKeyRef, pointing at a Secret Terraform owns"
+
+  - it: refuses a plain GOOGLE_CLIENT_SECRET
+    set:
+      backend.env:
+        - name: GOOGLE_CLIENT_SECRET
+          value: a-google-secret
+    asserts:
+      - failedTemplate:
+          errorMessage: "backend.env sets GOOGLE_CLIENT_SECRET as a plain value, which lands in the workload spec: use valueFrom.secretKeyRef, pointing at a Secret Terraform owns"
+
+  - it: accepts the same secret as a secretKeyRef
+    set:
+      backend.env:
+        - name: SESSION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: mailflow-session
+              key: secret
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: fails on no Redis and no REDIS_URL to use instead
+    set:
+      redis.enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: "redis.enabled=false needs backend.redisUrl: MailFlow keeps sessions in Redis and will not start without it"
+
+  - it: accepts no Redis with an external one named
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+    asserts:
+      - isKind:
+          of: Deployment
+
+  - it: fails on an empty imageCache.path
+    set:
+      imageCache.path: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: "imageCache.path is required: it is both IMAGE_CACHE_DIR and the emptyDir mount path"

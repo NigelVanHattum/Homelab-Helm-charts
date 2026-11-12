@@ -1,0 +1,161 @@
+suite: backend workload
+release:
+  name: mailflow
+  namespace: mailflow
+templates:
+  - templates/backend.yaml
+tests:
+  # Asserted as a pattern, not a literal: an appVersion bump must not fail this suite.
+  - it: pins the backend image to the appVersion
+    asserts:
+      - isKind:
+          of: Deployment
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: '^ghcr\.io/maathimself/mailflow-backend:[0-9]+\.[0-9]+\.[0-9]+$'
+
+  - it: lets image.tag win over the appVersion
+    set:
+      image.tag: "4.4.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/maathimself/mailflow-backend:4.4.0
+
+  # Upstream waits up to 25 s for a send in flight; a shorter grace period kills it mid-send.
+  - it: gives a send in flight 30 seconds to finish
+    asserts:
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 30
+
+  - it: mounts the image cache emptyDir where IMAGE_CACHE_DIR points
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: IMAGE_CACHE_DIR
+            value: /var/cache/mailflow/images
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: image-cache
+            mountPath: /var/cache/mailflow/images
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: image-cache
+            emptyDir:
+              sizeLimit: 1Gi
+
+  - it: moves the env and the mount together when imageCache.path changes
+    set:
+      imageCache.path: /cache
+      imageCache.sizeLimit: 4Gi
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: IMAGE_CACHE_DIR
+            value: /cache
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: image-cache
+            mountPath: /cache
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: image-cache
+            emptyDir:
+              sizeLimit: 4Gi
+
+  - it: points REDIS_URL at the Redis this chart deploys
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            value: redis://mailflow-redis:6379
+
+  - it: takes REDIS_URL from backend.redisUrl when one is given
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379/2
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: REDIS_URL
+            value: redis://redis.redis.svc.cluster.local:6379/2
+
+  - it: sets NODE_ENV and PORT from the backend service port
+    set:
+      backend.service.port: 3100
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NODE_ENV
+            value: "production"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PORT
+            value: "3100"
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 3100
+
+  - it: appends backend.env verbatim, secret references included
+    set:
+      backend.env:
+        - name: DB_HOST
+          value: mailflow-rw.cnpg.svc.cluster.local
+        - name: TRUST_PROXY_HOPS
+          value: "1"
+        - name: SESSION_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: mailflow-session
+              key: secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DB_HOST
+            value: mailflow-rw.cnpg.svc.cluster.local
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TRUST_PROXY_HOPS
+            value: "1"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SESSION_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: mailflow-session
+                key: secret
+
+  - it: probes /api/health on the named port
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
+
+  - it: runs one pod and recreates it, never two beside each other
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate

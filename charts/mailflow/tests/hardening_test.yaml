@@ -1,0 +1,53 @@
+suite: pod hardening
+release:
+  name: mailflow
+  namespace: mailflow
+tests:
+  - it: backend pod mounts no ServiceAccount token
+    templates:
+      - templates/backend.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+
+  - it: frontend pod mounts no ServiceAccount token
+    templates:
+      - templates/frontend.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+
+  - it: redis pod mounts no ServiceAccount token
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  - it: test hook pins busybox and mounts no ServiceAccount token
+    templates:
+      - templates/tests/test-connection.yaml
+    asserts:
+      - equal:
+          path: spec.containers[0].image
+          value: busybox:1.37.0
+      - equal:
+          path: spec.automountServiceAccountToken
+          value: false

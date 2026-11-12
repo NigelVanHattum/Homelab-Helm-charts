@@ -1,0 +1,101 @@
+suite: services and ingress
+release:
+  name: mailflow
+  namespace: mailflow
+tests:
+  - it: names each Service after its component and targets the named port
+    templates:
+      - templates/backend-service.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: mailflow-backend
+      - equal:
+          path: spec.ports[0].port
+          value: 3000
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: backend
+
+  - it: selects only the frontend pods
+    templates:
+      - templates/frontend-service.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: mailflow-frontend
+      - equal:
+          path: spec.ports[0].port
+          value: 80
+      - equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: frontend
+
+  - it: renders no ingress by default
+    templates:
+      - templates/ingress.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  # The frontend proxies /api/ itself, so every host routes to it and the backend Service stays
+  # internal.
+  - it: routes every host to the frontend Service
+    templates:
+      - templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.className: traefik
+      ingress.hosts:
+        - host: mailflow.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+        - host: mail.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+    asserts:
+      - equal:
+          path: spec.ingressClassName
+          value: traefik
+      - lengthEqual:
+          path: spec.rules
+          count: 2
+      - equal:
+          path: spec.rules[0].host
+          value: mailflow.example.com
+      - equal:
+          path: spec.rules[1].host
+          value: mail.example.com
+      - equal:
+          path: spec.rules[1].http.paths[0].backend.service.name
+          value: mailflow-frontend
+      - equal:
+          path: spec.rules[1].http.paths[0].backend.service.port.number
+          value: 80
+
+  - it: carries the TLS block through
+    templates:
+      - templates/ingress.yaml
+    set:
+      ingress.enabled: true
+      ingress.hosts:
+        - host: mailflow.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+      ingress.tls:
+        - secretName: mailflow-tls
+          hosts:
+            - mailflow.example.com
+    asserts:
+      - equal:
+          path: spec.tls[0].secretName
+          value: mailflow-tls
+      - equal:
+          path: spec.tls[0].hosts[0]
+          value: mailflow.example.com

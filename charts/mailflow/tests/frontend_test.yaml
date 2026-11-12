@@ -1,0 +1,137 @@
+suite: frontend workload
+release:
+  name: mailflow
+  namespace: mailflow
+templates:
+  - templates/frontend.yaml
+tests:
+  - it: pins the frontend image to the same tag as the backend
+    asserts:
+      - isKind:
+          of: Deployment
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: '^ghcr\.io/maathimself/mailflow-frontend:[0-9]+\.[0-9]+\.[0-9]+$'
+
+  - it: moves with image.tag, so one value bumps both images
+    set:
+      image.tag: "4.4.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/maathimself/mailflow-frontend:4.4.0
+
+  # 4.3.x reads NGINX_TLS; post-4.4 (Caddy) reads TLS_MODE and still honours NGINX_TLS. Both
+  # set makes the 4.4 bump a tag change.
+  - it: turns TLS off through both variables
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGINX_TLS
+            value: "off"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TLS_MODE
+            value: "off"
+
+  - it: points the API upstream at this release's backend Service, never the compose default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BACKEND_HOST
+            value: mailflow-backend
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BACKEND_PORT
+            value: "3000"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BACKEND_HOST
+            value: backend
+
+  - it: follows a renamed release and a moved backend port
+    release:
+      name: webmail
+    set:
+      backend.service.port: 3100
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BACKEND_HOST
+            value: webmail-mailflow-backend
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BACKEND_PORT
+            value: "3100"
+
+  - it: takes an explicit backendHost
+    set:
+      frontend.backendHost: mailflow-api.other.svc.cluster.local
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BACKEND_HOST
+            value: mailflow-api.other.svc.cluster.local
+
+  # NGINX_TLS=off rewrites /etc/nginx/conf.d/default.conf at boot, and so do the resolver and
+  # backend-upstream scripts: a read-only root filesystem leaves HTTPS on with no certificate
+  # and /api/ pointed at nothing.
+  - it: keeps the root filesystem writable
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+
+  # The image's own /healthz does not exist in 4.3.x, and later binds 127.0.0.1:2080.
+  - it: probes GET / on port 80
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 80
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
+
+  - it: appends frontend.env verbatim
+    set:
+      frontend.env:
+        - name: SOMETHING_ELSE
+          value: "1"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SOMETHING_ELSE
+            value: "1"
+
+  - it: drops a TLS variable emptied on purpose
+    set:
+      frontend.nginxTls: ""
+      frontend.tlsMode: ""
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: NGINX_TLS
+            value: "off"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TLS_MODE
+            value: "off"

@@ -1,0 +1,90 @@
+suite: redis workload
+release:
+  name: mailflow
+  namespace: mailflow
+tests:
+  - it: runs redis:7-alpine with compose's save and log settings
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: redis:7-alpine
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --save
+            - "60"
+            - "1"
+            - --loglevel
+            - warning
+
+  # Sessions and cache only: a PVC here would outlive its own usefulness.
+  - it: keeps its data on an emptyDir, never a claim
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: data
+            emptyDir:
+              sizeLimit: 1Gi
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: data
+            mountPath: /data
+      - notExists:
+          path: spec.volumeClaimTemplates
+
+  - it: probes with redis-cli ping
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command
+          value:
+            - redis-cli
+            - ping
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.exec.command
+          value:
+            - redis-cli
+            - ping
+
+  - it: serves the named port on the Service
+    templates:
+      - templates/redis-service.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: mailflow-redis
+      - equal:
+          path: spec.ports[0].port
+          value: 6379
+      - equal:
+          path: spec.ports[0].targetPort
+          value: redis
+
+  - it: renders no workload when disabled
+    templates:
+      - templates/redis.yaml
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders no Service when disabled
+    templates:
+      - templates/redis-service.yaml
+    set:
+      redis.enabled: false
+      backend.redisUrl: redis://redis.redis.svc.cluster.local:6379
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -1,0 +1,26 @@
+MailFlow {{ .Chart.AppVersion }} deployed: {{ include "mailflow.componentName" (dict "root" . "component" "frontend") }}, {{ include "mailflow.componentName" (dict "root" . "component" "backend") }}{{ if .Values.redis.enabled }} and {{ include "mailflow.componentName" (dict "root" . "component" "redis") }}{{ end }}.
+
+1. Reach it:
+{{- if .Values.ingress.enabled }}
+{{- range $host := .Values.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
+  {{- end }}
+{{- end }}
+{{- else }}
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "mailflow.componentName" (dict "root" . "component" "frontend") }} 8080:{{ .Values.frontend.service.port }}
+  echo "Visit http://127.0.0.1:8080"
+{{- end }}
+
+2. The frontend serves {{ if eq (.Values.frontend.nginxTls | toString) "off" }}plain HTTP on port 80 (NGINX_TLS=off) and expects the ingress to terminate TLS{{ else }}HTTPS, which needs a certificate in /etc/nginx/ssl (NGINX_TLS={{ .Values.frontend.nginxTls }}){{ end }}. Its API upstream is {{ include "mailflow.backendHost" . }}:{{ .Values.backend.service.port }}.
+
+3. This chart deploys no database. Point DB_HOST, DB_PORT, DB_NAME, DB_USER and DB_PASSWORD at
+   your PostgreSQL through backend.env; DB_PASSWORD and every other credential belong there as
+   a valueFrom.
+
+4. Redis: {{ if .Values.redis.enabled }}deployed, on an emptyDir. Sessions and cache do not survive the pod{{ else }}not deployed; backend.redisUrl points at {{ .Values.backend.redisUrl }}{{ end }}.
+{{- if not (include "mailflow.hasAppUrl" .) }}
+
+5. APP_URL is not set in backend.env. MailFlow builds OAuth redirects and push links from it;
+   set it to the URL the ingress serves.
+{{- end }}

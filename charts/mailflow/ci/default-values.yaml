@@ -1,0 +1,30 @@
+# CI values: the chart renders on its defaults, so this exercises the paths a real release
+# uses - the raw backend env list with a secretKeyRef, and a multi-host traefik ingress.
+# Nothing here is a credential.
+backend:
+  env:
+    - name: DB_HOST
+      value: mailflow-rw.cnpg.svc.cluster.local
+    - name: DB_NAME
+      value: mailflow
+    - name: DB_USER
+      value: mailflow
+    - name: DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: ci-mailflow-database
+          key: password
+    - name: APP_URL
+      value: https://mailflow.chart-example.local
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: mailflow.chart-example.local
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: mail.chart-example.local
+      paths:
+        - path: /
+          pathType: Prefix
