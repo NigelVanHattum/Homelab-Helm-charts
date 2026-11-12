@@ -40,6 +40,25 @@ tests:
       - notExists:
           path: spec.volumeClaimTemplates
 
+  # At uid 0 the entrypoint chowns /data and gosus, both of which drop: [ALL] forbids, and it
+  # runs under set -e: the container exits before redis-server.
+  - it: runs as the image's redis user, not root
+    templates:
+      - templates/redis.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 999
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+
   - it: probes with redis-cli ping
     templates:
       - templates/redis.yaml

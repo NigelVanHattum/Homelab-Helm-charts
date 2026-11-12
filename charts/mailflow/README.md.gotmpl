@@ -89,6 +89,29 @@ Its probe is `GET /` on port 80, not the image's own `/healthz`: 4.3.x has no su
 and the listener the later Caddy frontend puts it on binds `127.0.0.1:2080`, which no kubelet
 reaches.
 
+## Security contexts
+
+All three drop every capability, and two of them need something back, because the images say
+so rather than as a preference:
+
+- `frontend` runs as **root** and adds `SETUID`, `SETGID`, `NET_BIND_SERVICE`. The image is
+  `nginx:alpine` with no `USER`, so the master process is root and honours `user nginx;` from
+  the image's `nginx.conf`; without those two capabilities every worker dies at init and
+  nothing is served. `NET_BIND_SERVICE` keeps port 80 from depending on the node's
+  `net.ipv4.ip_unprivileged_port_start`. Running it as a non-root uid instead breaks the boot
+  rewrites, whose targets are root-owned.
+- `redis` runs as **uid 999 / gid 1000**, the image's `redis` user, with `fsGroup: 1000` for
+  the `emptyDir`. At uid 0 the official entrypoint takes its root branch — `chown` of `/data`,
+  then `gosu` — which `drop: [ALL]` forbids, and it runs under `set -e`, so the container
+  exits before `redis-server` ever starts.
+- `backend` keeps a `startupProbe` in front of liveness. v4.3.1 reaches `httpServer.listen`
+  only after Redis connects and the migrations, the contact-photo backfill and the credential
+  re-encryption finish, so `/api/health` refuses connections for a while on a first install
+  and the kubelet's liveness default would restart the pod mid-migration.
+
+No `readOnlyRootFilesystem` anywhere: required off for the frontend, and not verified for the
+other two without running the images.
+
 ## Database
 
 Nothing here deploys PostgreSQL. Point `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and

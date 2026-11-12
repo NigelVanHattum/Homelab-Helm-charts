@@ -88,6 +88,29 @@ Its probe is `GET /` on port 80, not the image's own `/healthz`: 4.3.x has no su
 and the listener the later Caddy frontend puts it on binds `127.0.0.1:2080`, which no kubelet
 reaches.
 
+## Security contexts
+
+All three drop every capability, and two of them need something back, because the images say
+so rather than as a preference:
+
+- `frontend` runs as **root** and adds `SETUID`, `SETGID`, `NET_BIND_SERVICE`. The image is
+  `nginx:alpine` with no `USER`, so the master process is root and honours `user nginx;` from
+  the image's `nginx.conf`; without those two capabilities every worker dies at init and
+  nothing is served. `NET_BIND_SERVICE` keeps port 80 from depending on the node's
+  `net.ipv4.ip_unprivileged_port_start`. Running it as a non-root uid instead breaks the boot
+  rewrites, whose targets are root-owned.
+- `redis` runs as **uid 999 / gid 1000**, the image's `redis` user, with `fsGroup: 1000` for
+  the `emptyDir`. At uid 0 the official entrypoint takes its root branch — `chown` of `/data`,
+  then `gosu` — which `drop: [ALL]` forbids, and it runs under `set -e`, so the container
+  exits before `redis-server` ever starts.
+- `backend` keeps a `startupProbe` in front of liveness. v4.3.1 reaches `httpServer.listen`
+  only after Redis connects and the migrations, the contact-photo backfill and the credential
+  re-encryption finish, so `/api/health` refuses connections for a while on a first install
+  and the kubelet's liveness default would restart the pod mid-migration.
+
+No `readOnlyRootFilesystem` anywhere: required off for the frontend, and not verified for the
+other two without running the images.
+
 ## Database
 
 Nothing here deploys PostgreSQL. Point `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` and
@@ -126,19 +149,21 @@ so a rollout never runs two of either beside each other.
 | backend.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | backend.service.port | int | `3000` | One port for the container's `PORT`, the Service and the frontend's `BACKEND_PORT`, so the three cannot drift apart. |
 | backend.service.type | string | `"ClusterIP"` |  |
+| backend.startupProbe | object | `{"failureThreshold":30,"httpGet":{"path":"/api/health","port":"http"},"periodSeconds":10}` | v4.3.1 reaches `httpServer.listen` only after Redis connects and the migrations, the contact-photo backfill and the credential re-encryption finish (`backend/src/index.js`), so `/api/health` refuses connections for a while on a first install. The kubelet's liveness default (3 x 10 s) would restart the pod mid-migration; this covers 300 s and holds liveness off until it passes once. Set it to `null` to drop the probe. |
 | backend.terminationGracePeriodSeconds | int | `30` | Upstream waits up to 25 s for a send in flight to finish; compose gives it a 30 s `stop_grace_period`. |
 | frontend.backendHost | string | `""` | `BACKEND_HOST`. Empty uses this release's backend Service. Never leave it at the image's compose default (`backend`), which resolves to nothing here (upstream #436). |
 | frontend.env | list | `[]` | Environment appended verbatim. `NGINX_TLS`, `TLS_MODE`, `BACKEND_HOST` and `BACKEND_PORT` are the chart's and are rejected here. |
 | frontend.image.repository | string | `"ghcr.io/maathimself/mailflow-frontend"` |  |
 | frontend.livenessProbe | object | `{"httpGet":{"path":"/","port":"http"}}` | `GET /` on port 80, not the image's own `/healthz`: 4.3.x has no such location, and the listener the later Caddy frontend puts it on binds `127.0.0.1:2080`, which no kubelet reaches. |
 | frontend.nginxTls | string | `"off"` | `NGINX_TLS`, which the 4.3.x nginx frontend reads. `off` comments out the HTTPS server and serves plain HTTP on port 80, for a TLS-terminating ingress; it then needs no certificate. |
-| frontend.podSecurityContext | object | `{}` |  |
+| frontend.podSecurityContext | object | `{}` | Root, deliberately. The three boot scripts `sed -i` root-owned files under `/etc/nginx/conf.d`, and the image is `nginx:alpine` with no `USER`, so the master runs as root and honours `user nginx;` from the image's `nginx.conf`. |
 | frontend.readinessProbe.httpGet.path | string | `"/"` |  |
 | frontend.readinessProbe.httpGet.port | string | `"http"` |  |
 | frontend.resources | object | `{}` |  |
-| frontend.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}` | No `readOnlyRootFilesystem`: the entrypoint rewrites `/etc/nginx/conf.d/default.conf` at boot for `NGINX_TLS`, for the backend upstream and for the cluster DNS resolver, and a failed rewrite leaves HTTPS on with no certificate and `/api/` pointed at nothing. |
+| frontend.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"add":["SETUID","SETGID","NET_BIND_SERVICE"],"drop":["ALL"]}}` | No `readOnlyRootFilesystem`: the entrypoint rewrites `/etc/nginx/conf.d/default.conf` at boot for `NGINX_TLS`, for the backend upstream and for the cluster DNS resolver, and a failed rewrite leaves HTTPS on with no certificate and `/api/` pointed at nothing. `SETUID`/`SETGID` are what the master needs to start its workers as `nginx`; `NET_BIND_SERVICE` is for port 80, so the pod does not depend on the node's `net.ipv4.ip_unprivileged_port_start`. |
 | frontend.service.port | int | `80` |  |
 | frontend.service.type | string | `"ClusterIP"` |  |
+| frontend.startupProbe | object | `{}` |  |
 | frontend.tlsMode | string | `"off"` | `TLS_MODE`, which the post-4.4 Caddy frontend reads while still honouring `NGINX_TLS`. Inert at this `appVersion`; set so the 4.4 bump stays a tag change. |
 | fullnameOverride | string | `""` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
@@ -162,7 +187,7 @@ so a rollout never runs two of either beside each other.
 | redis.image.tag | string | `"7-alpine"` |  |
 | redis.livenessProbe.exec.command[0] | string | `"redis-cli"` |  |
 | redis.livenessProbe.exec.command[1] | string | `"ping"` |  |
-| redis.podSecurityContext | object | `{}` |  |
+| redis.podSecurityContext | object | `{"fsGroup":1000,"runAsGroup":1000,"runAsNonRoot":true,"runAsUser":999}` | uid 999 / gid 1000, the `redis` user in the image. Required, not hardening: at uid 0 the entrypoint takes its root branch and `chown`s `/data` then `gosu`s, both of which `drop: [ALL]` forbids, and it runs under `set -e`, so the container exits before `redis-server`. `fsGroup` is what makes the `emptyDir` writable for that gid. |
 | redis.readinessProbe.exec.command[0] | string | `"redis-cli"` |  |
 | redis.readinessProbe.exec.command[1] | string | `"ping"` |  |
 | redis.resources | object | `{}` |  |
@@ -170,6 +195,7 @@ so a rollout never runs two of either beside each other.
 | redis.securityContext.capabilities.drop[0] | string | `"ALL"` |  |
 | redis.service.port | int | `6379` |  |
 | redis.service.type | string | `"ClusterIP"` |  |
+| redis.startupProbe | object | `{}` |  |
 | tolerations | list | `[]` |  |
 
 ## Maintainers

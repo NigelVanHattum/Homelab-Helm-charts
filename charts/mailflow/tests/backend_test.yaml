@@ -151,6 +151,28 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.port
           value: http
 
+  # /api/health refuses connections until Redis, the migrations and the backfills finish, so
+  # the kubelet's liveness default would restart the pod mid-migration.
+  - it: holds liveness off with a startup probe that covers 300 s
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.httpGet.path
+          value: /api/health
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].startupProbe.failureThreshold
+          value: 30
+
+  # Nulled, not {}: an empty map merges with the default instead of replacing it.
+  - it: drops the startup probe when nulled
+    set:
+      backend.startupProbe: null
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].startupProbe
+
   - it: runs one pod and recreates it, never two beside each other
     asserts:
       - equal:

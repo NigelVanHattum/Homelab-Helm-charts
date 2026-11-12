@@ -92,6 +92,21 @@ tests:
           path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
           value: false
 
+  # nginx:alpine has no USER, so the master is root and honours `user nginx;`: without
+  # SETUID/SETGID every worker dies at init and nothing is served.
+  - it: keeps the capabilities nginx needs to fork its workers and bind 80
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          value:
+            - ALL
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities.add
+          value:
+            - SETUID
+            - SETGID
+            - NET_BIND_SERVICE
+
   # The image's own /healthz does not exist in 4.3.x, and later binds 127.0.0.1:2080.
   - it: probes GET / on port 80
     asserts:

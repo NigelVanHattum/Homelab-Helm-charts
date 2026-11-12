@@ -115,15 +115,9 @@ yes
 {{- end }}
 
 {{/*
-Every guardrail that has to hold before anything renders.
-
-The chart owns four backend and four frontend variables, because it derives them from values
-the workloads, Services and mounts also use. A duplicate name in the raw env list would leave
-which one wins up to the kubelet, so it is refused here instead.
-
-The sensitive variables are Terraform's: it creates the kubernetes_secret_v1, the chart only
-ever emits a secretKeyRef. A plain value for one lands in the workload spec, which ClusterRole
-view reads.
+Every guardrail that has to hold before anything renders. A duplicate name in a raw env list
+would leave the winner to the kubelet, and a plain secret value would land in the workload
+spec, which ClusterRole view reads. README: "Configuration" and "Secrets".
 */}}
 {{- define "mailflow.validate" -}}
 {{- $managed := dict
