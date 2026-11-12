@@ -149,21 +149,20 @@ tests:
             value: "off"
 
   # An unset TLS_MODE is self-signed to the image, so the variable is never conditional: it
-  # renders even when every other TLS value is cleared.
+  # renders even with every other frontend value cleared.
   - it: renders TLS_MODE whatever else is set
     set:
       frontend.nginxTls: ""
-      frontend.tlsMode: letsencrypt
-      frontend.securityContext.readOnlyRootFilesystem: false
-      frontend.env:
-        - name: DOMAIN
-          value: mail.example.com
+      frontend.env: []
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: TLS_MODE
-            value: letsencrypt
+            value: "off"
+      - equal:
+          path: spec.template.spec.containers[0].env[0].name
+          value: TLS_MODE
       - lengthEqual:
           path: spec.template.spec.containers[0].env
-          count: 4
+          count: 3

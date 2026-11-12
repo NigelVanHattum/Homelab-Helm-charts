@@ -213,11 +213,11 @@ spec, which ClusterRole view reads. README: "Configuration" and "Secrets".
 {{- if and (include "mailflow.pre44" .) $frontendSec.readOnlyRootFilesystem -}}
 {{- fail (printf "image.tag %s serves the app from nginx, whose entrypoint rewrites /etc/nginx/conf.d/default.conf at boot: set frontend.securityContext.readOnlyRootFilesystem=false, or the pod comes up with HTTPS on, no certificate and /api/ pointed at nothing" (.Values.image.tag | default .Chart.AppVersion)) -}}
 {{- end -}}
-{{- if not (has (.Values.frontend.tlsMode | toString) (list "self-signed" "letsencrypt" "off")) -}}
-{{- fail (printf "frontend.tlsMode is %q: it has to be self-signed, letsencrypt or off, and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed and serves HTTPS with a certificate it made up" (.Values.frontend.tlsMode | toString)) -}}
+{{- if ne (.Values.frontend.tlsMode | toString) "off" -}}
+{{- if has (.Values.frontend.tlsMode | toString) (list "self-signed" "letsencrypt") -}}
+{{- fail (printf "frontend.tlsMode=%s serves HTTPS on port 443, which this chart does not publish: it gives the frontend port 80 only, for an ingress that terminates TLS. letsencrypt serves nothing else at all - its only Caddy site matches the DOMAIN host, so the kubelet's GET / on the pod IP answers 404 and liveness restarts the pod. Terminate TLS at the ingress and leave this off" (.Values.frontend.tlsMode | toString)) -}}
 {{- end -}}
-{{- if and (ne (.Values.frontend.tlsMode | toString) "off") $frontendSec.readOnlyRootFilesystem -}}
-{{- fail (printf "frontend.tlsMode=%s needs a writable filesystem - self-signed writes a certificate, letsencrypt writes the ACME account and certificate - so set frontend.securityContext.readOnlyRootFilesystem=false, or mount writable volumes at /etc/mailflow/certs and /data" (.Values.frontend.tlsMode | toString)) -}}
+{{- fail (printf "frontend.tlsMode is %q: this chart serves plain HTTP on port 80 behind a TLS-terminating ingress, so off is the only mode it can render - and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed" (.Values.frontend.tlsMode | toString)) -}}
 {{- end -}}
 {{- if and (contains "$(REDIS_PASSWORD)" (.Values.backend.redisUrl | toString)) (not (include "mailflow.backendRedisPassword" .)) -}}
 {{- fail "backend.redisUrl references $(REDIS_PASSWORD) but nothing defines it: set redis.auth.existingSecret (and keep redis.auth.enabled), or the literal string reaches Redis as the password" -}}

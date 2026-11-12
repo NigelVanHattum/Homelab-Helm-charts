@@ -90,21 +90,26 @@ backend:
 
 ## TLS on the frontend
 
-The 4.4.0 frontend is Caddy, and `TLS_MODE` decides what it serves. The chart always renders the
-variable, and refuses an empty or unknown value, because **the image reads an unset `TLS_MODE`
-as `self-signed`**: behind an ingress that already terminates TLS that serves a certificate no
+The 4.4.0 frontend is Caddy, and `TLS_MODE` decides what it serves. **`off` is the only value
+this chart renders**, and it always renders it. The other two serve HTTPS on **443**, which the
+chart does not publish — it gives the frontend port 80 alone, because the ingress terminates
+TLS — so both fail to render with that reason:
+
+| `frontend.tlsMode` | Caddy site | Why the chart refuses it |
+|---|---|---|
+| `off` (the default) | `:80` | — |
+| `self-signed` | `:443` + `:80` | 443 is not published, so the HTTPS listener is unreachable and the certificate it writes is pointless |
+| `letsencrypt` | `{$DOMAIN}` only | nothing answers the pod IP: the kubelet's `GET /` matches no site and gets a 404, so liveness restarts the pod |
+
+An empty or unknown value is refused too, because **the image reads an unset `TLS_MODE` as
+`self-signed`**: behind an ingress that already terminates TLS that serves a certificate no
 browser accepts, and HSTS from an earlier visit makes it unrecoverable without clearing it.
 
-| `frontend.tlsMode` | What the frontend serves |
-|---|---|
-| `off` (the default) | plain HTTP on port 80, for an ingress that terminates TLS |
-| `self-signed` | HTTPS on 443 with a certificate it generates, or `cert.pem`/`key.pem` mounted at `/etc/mailflow/certs` — or at the old `/etc/nginx/ssl`, which 4.4.0 still honours — plus HTTP on 80 |
-| `letsencrypt` | HTTPS for `DOMAIN` with a Let's Encrypt certificate; needs `DOMAIN` in `frontend.env` and ports 80 and 443 reachable from the internet |
-
-`NGINX_TLS` is still honoured by 4.4.0 and is all a 4.3.x `image.tag` reads, so the chart keeps
-it at `off` too: pinning back stays a tag change. `frontend.nginxTls: ""` drops the variable.
-A custom `nginx.conf` mount and `NGINX_BASE` no longer apply at all; `FRONTEND_BASE` replaced
-the latter, and it is a build argument, not a runtime one.
+`NGINX_TLS` is inert at 4.4.0 — the image consults it only when `TLS_MODE` is empty, which this
+chart never renders — and it is all a 4.3.x `image.tag` reads, so it stays at `off`: pinning back
+is then a tag change. `frontend.nginxTls: ""` drops the variable. A custom `nginx.conf` mount and
+`NGINX_BASE` no longer apply at all; `FRONTEND_BASE` replaced the latter, and it is a build
+argument, not a runtime one.
 
 The probe is `GET /` on port 80, not the image's own `/healthz`: Caddy binds that on
 `127.0.0.1:2080`, which no kubelet reaches, and 4.3.x has no such location.
@@ -115,13 +120,12 @@ Every container drops every capability and asks for the `RuntimeDefault` seccomp
 `helm test` hook included. What each workload needs beyond that, the images decide, not a
 preference:
 
-- `frontend` runs with a **read-only root filesystem** while `frontend.tlsMode` is `off`. The
-  Caddyfile sets `admin off` and `persist_config off` and takes every setting from the
-  environment, so nothing is written anywhere, which upstream keeps that way deliberately
-  (upstream #453). `self-signed` writes a certificate and `letsencrypt` writes the ACME account
-  and certificate, so the chart refuses either beside a read-only filesystem; so is a pre-4.4.0
-  tag, whose nginx entrypoint rewrites `/etc/nginx/conf.d/default.conf` at boot and fails soft
-  doing it.
+- `frontend` runs with a **read-only root filesystem**. `TLS_MODE=off` writes no certificate,
+  and the Caddyfile sets `admin off` and `persist_config off` and takes every setting from the
+  environment, so nothing is written anywhere — which upstream keeps that way deliberately
+  (upstream #453). A pre-4.4.0 `image.tag` is refused beside it: that nginx entrypoint rewrites
+  `/etc/nginx/conf.d/default.conf` at boot and fails soft doing it, which would leave HTTPS on
+  with no certificate and `/api/` pointed at nothing.
 - `frontend` still runs as **root**, and adds `NET_BIND_SERVICE` alone — `SETUID`/`SETGID` went
   with nginx, which forked its workers as another user. Caddy listens on port 80, and
   `drop: [ALL]` takes the capability away from root as well. A non-root uid cannot have it
@@ -237,16 +241,16 @@ so a rollout never runs two of either beside each other.
 | frontend.env | list | `[]` | Environment appended verbatim. `NGINX_TLS`, `TLS_MODE`, `BACKEND_HOST` and `BACKEND_PORT` are the chart's and are rejected here. |
 | frontend.image.repository | string | `"ghcr.io/maathimself/mailflow-frontend"` |  |
 | frontend.livenessProbe | object | `{"httpGet":{"path":"/","port":"http"}}` | `GET /` on port 80, not the image's own `/healthz`: the Caddy frontend binds that one on `127.0.0.1:2080`, which no kubelet reaches, and 4.3.x has no such location at all. |
-| frontend.nginxTls | string | `"off"` | `NGINX_TLS`, which 4.4 still honours and which is all a 4.3.x `image.tag` reads. Kept at `off` so pinning back stays a tag change. Empty drops the variable. |
+| frontend.nginxTls | string | `"off"` | `NGINX_TLS`. Inert at 4.4+ - the image reads it only when `TLS_MODE` is empty, which this chart never renders - and it is all a 4.3.x `image.tag` reads, so it stays at `off` to keep pinning back a tag change. Empty drops the variable. |
 | frontend.podSecurityContext | object | `{}` | Root, still. `caddy:2-alpine` has no `USER`, and Caddy listens on port 80, which it can only do as a non-root uid if the runtime grants `NET_BIND_SERVICE` as an *ambient* capability - containerd does not. A `restricted` namespace therefore needs an upstream change to the listening port, not a value here. |
 | frontend.readinessProbe.httpGet.path | string | `"/"` |  |
 | frontend.readinessProbe.httpGet.port | string | `"http"` |  |
 | frontend.resources | object | `{}` |  |
-| frontend.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"add":["NET_BIND_SERVICE"],"drop":["ALL"]},"readOnlyRootFilesystem":true,"seccompProfile":{"type":"RuntimeDefault"}}` | `NET_BIND_SERVICE` is what lets port 80 be bound beside `drop: [ALL]`; `SETUID`/`SETGID` are gone with nginx and its workers. `readOnlyRootFilesystem` holds while `frontend.tlsMode` is `off`: the Caddyfile sets `admin off` and `persist_config off`, so nothing is written at all, which upstream keeps that way on purpose (upstream #453). Any other `tlsMode` writes a certificate and the chart refuses the pair. |
+| frontend.securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"add":["NET_BIND_SERVICE"],"drop":["ALL"]},"readOnlyRootFilesystem":true,"seccompProfile":{"type":"RuntimeDefault"}}` | `NET_BIND_SERVICE` is what lets port 80 be bound beside `drop: [ALL]`; `SETUID`/`SETGID` are gone with nginx and its workers. `readOnlyRootFilesystem` holds because `TLS_MODE=off` writes no certificate and the Caddyfile sets `admin off` and `persist_config off`, so nothing is written at all - which upstream keeps that way on purpose (upstream #453). |
 | frontend.service.port | int | `80` |  |
 | frontend.service.type | string | `"ClusterIP"` |  |
 | frontend.startupProbe | object | `{}` |  |
-| frontend.tlsMode | string | `"off"` | `TLS_MODE`, how the 4.4+ Caddy frontend serves the app: `off` is plain HTTP on port 80 for a TLS-terminating ingress, `self-signed` is HTTPS with a certificate the container makes (or one mounted at `/etc/mailflow/certs`, or the old `/etc/nginx/ssl`), and `letsencrypt` needs `DOMAIN` in `frontend.env`. Always rendered, never empty: an unset `TLS_MODE` means `self-signed` to the image, which behind Traefik serves a certificate no browser accepts. |
+| frontend.tlsMode | string | `"off"` | `TLS_MODE`, how the 4.4+ Caddy frontend serves the app. `off` is the only value this chart renders: it publishes port 80 alone, for an ingress that terminates TLS, while the image's other two modes (`self-signed`, `letsencrypt`) serve HTTPS on 443. Always rendered, never empty, and the chart refuses anything else: an unset `TLS_MODE` means `self-signed` to the image, which behind Traefik serves a certificate no browser accepts. |
 | fullnameOverride | string | `""` |  |
 | image.pullPolicy | string | `"IfNotPresent"` |  |
 | image.tag | string | `""` | Tag for both MailFlow images. Upstream releases backend and frontend together, so one value moves both. Defaults to the chart `appVersion`. |

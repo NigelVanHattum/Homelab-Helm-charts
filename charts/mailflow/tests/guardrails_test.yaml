@@ -178,31 +178,38 @@ tests:
       frontend.tlsMode: ""
     asserts:
       - failedTemplate:
-          errorMessage: "frontend.tlsMode is \"\": it has to be self-signed, letsencrypt or off, and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed and serves HTTPS with a certificate it made up"
+          errorMessage: "frontend.tlsMode is \"\": this chart serves plain HTTP on port 80 behind a TLS-terminating ingress, so off is the only mode it can render - and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed"
 
   - it: refuses a tlsMode the image does not know
     set:
       frontend.tlsMode: "on"
     asserts:
       - failedTemplate:
-          errorMessage: "frontend.tlsMode is \"on\": it has to be self-signed, letsencrypt or off, and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed and serves HTTPS with a certificate it made up"
+          errorMessage: "frontend.tlsMode is \"on\": this chart serves plain HTTP on port 80 behind a TLS-terminating ingress, so off is the only mode it can render - and it is never empty, because the Caddy frontend reads an unset TLS_MODE as self-signed"
 
-  # self-signed writes a certificate and letsencrypt writes the ACME account; TLS_MODE=off is
-  # the one mode that writes nothing.
-  - it: refuses a read-only root filesystem with TLS on
+  # self-signed's HTTPS site is :443, which this chart does not publish, so the listener is
+  # unreachable and the certificate it writes is pointless. A writable filesystem does not
+  # make it work.
+  - it: refuses self-signed, whose HTTPS port is not published
     set:
       frontend.tlsMode: self-signed
+      frontend.securityContext.readOnlyRootFilesystem: false
     asserts:
       - failedTemplate:
-          errorMessage: "frontend.tlsMode=self-signed needs a writable filesystem - self-signed writes a certificate, letsencrypt writes the ACME account and certificate - so set frontend.securityContext.readOnlyRootFilesystem=false, or mount writable volumes at /etc/mailflow/certs and /data"
+          errorMessage: "frontend.tlsMode=self-signed serves HTTPS on port 443, which this chart does not publish: it gives the frontend port 80 only, for an ingress that terminates TLS. letsencrypt serves nothing else at all - its only Caddy site matches the DOMAIN host, so the kubelet's GET / on the pod IP answers 404 and liveness restarts the pod. Terminate TLS at the ingress and leave this off"
 
-  - it: accepts TLS on with a writable filesystem
+  # letsencrypt's only site is {$DOMAIN}: the kubelet probes the pod IP, matches no site, gets
+  # a 404, and liveness restarts the pod.
+  - it: refuses letsencrypt, which answers nothing on the pod IP
     set:
       frontend.tlsMode: letsencrypt
       frontend.securityContext.readOnlyRootFilesystem: false
+      frontend.env:
+        - name: DOMAIN
+          value: mail.example.com
     asserts:
-      - isKind:
-          of: Deployment
+      - failedTemplate:
+          errorMessage: "frontend.tlsMode=letsencrypt serves HTTPS on port 443, which this chart does not publish: it gives the frontend port 80 only, for an ingress that terminates TLS. letsencrypt serves nothing else at all - its only Caddy site matches the DOMAIN host, so the kubelet's GET / on the pod IP answers 404 and liveness restarts the pod. Terminate TLS at the ingress and leave this off"
 
   # Unresolved, the literal string "$(REDIS_PASSWORD)" becomes the password Redis is sent.
   - it: fails on a redisUrl referencing a password nothing defines

@@ -12,7 +12,7 @@ MailFlow {{ .Chart.AppVersion }} deployed: {{ include "mailflow.componentName" (
   echo "Visit http://127.0.0.1:8080"
 {{- end }}
 
-2. The frontend serves {{ if eq (.Values.frontend.tlsMode | toString) "off" }}plain HTTP on port 80 (TLS_MODE=off) and expects the ingress to terminate TLS{{ else if eq (.Values.frontend.tlsMode | toString) "letsencrypt" }}HTTPS for DOMAIN with a Let's Encrypt certificate (TLS_MODE=letsencrypt), which needs DOMAIN in frontend.env and ports 80 and 443 reachable from the internet{{ else }}HTTPS on port 443 with a self-signed certificate (TLS_MODE=self-signed) unless cert.pem and key.pem are mounted at /etc/mailflow/certs, and plain HTTP on port 80{{ end }}. Its API upstream is {{ include "mailflow.backendHost" . }}:{{ .Values.backend.service.port }}.
+2. The frontend serves plain HTTP on port 80 (TLS_MODE=off) and expects the ingress to terminate TLS. Its API upstream is {{ include "mailflow.backendHost" . }}:{{ .Values.backend.service.port }}.
 
 3. This chart deploys no database. Point DB_HOST, DB_PORT, DB_NAME, DB_USER and DB_PASSWORD at
    your PostgreSQL through backend.env; DB_PASSWORD and every other credential belong there as

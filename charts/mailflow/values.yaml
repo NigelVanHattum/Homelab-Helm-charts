@@ -113,15 +113,15 @@ frontend:
   # -- `BACKEND_HOST`. Empty uses this release's backend Service. Never leave it at the
   # image's compose default (`backend`), which resolves to nothing here (upstream #436).
   backendHost: ""
-  # -- `TLS_MODE`, how the 4.4+ Caddy frontend serves the app: `off` is plain HTTP on port 80
-  # for a TLS-terminating ingress, `self-signed` is HTTPS with a certificate the container
-  # makes (or one mounted at `/etc/mailflow/certs`, or the old `/etc/nginx/ssl`), and
-  # `letsencrypt` needs `DOMAIN` in `frontend.env`. Always rendered, never empty: an unset
-  # `TLS_MODE` means `self-signed` to the image, which behind Traefik serves a certificate no
-  # browser accepts.
+  # -- `TLS_MODE`, how the 4.4+ Caddy frontend serves the app. `off` is the only value this
+  # chart renders: it publishes port 80 alone, for an ingress that terminates TLS, while the
+  # image's other two modes (`self-signed`, `letsencrypt`) serve HTTPS on 443. Always
+  # rendered, never empty, and the chart refuses anything else: an unset `TLS_MODE` means
+  # `self-signed` to the image, which behind Traefik serves a certificate no browser accepts.
   tlsMode: "off"
-  # -- `NGINX_TLS`, which 4.4 still honours and which is all a 4.3.x `image.tag` reads. Kept
-  # at `off` so pinning back stays a tag change. Empty drops the variable.
+  # -- `NGINX_TLS`. Inert at 4.4+ - the image reads it only when `TLS_MODE` is empty, which
+  # this chart never renders - and it is all a 4.3.x `image.tag` reads, so it stays at `off`
+  # to keep pinning back a tag change. Empty drops the variable.
   nginxTls: "off"
   # -- Environment appended verbatim. `NGINX_TLS`, `TLS_MODE`, `BACKEND_HOST` and
   # `BACKEND_PORT` are the chart's and are rejected here.
@@ -132,10 +132,9 @@ frontend:
   # change to the listening port, not a value here.
   podSecurityContext: {}
   # -- `NET_BIND_SERVICE` is what lets port 80 be bound beside `drop: [ALL]`; `SETUID`/`SETGID`
-  # are gone with nginx and its workers. `readOnlyRootFilesystem` holds while
-  # `frontend.tlsMode` is `off`: the Caddyfile sets `admin off` and `persist_config off`, so
-  # nothing is written at all, which upstream keeps that way on purpose (upstream #453). Any
-  # other `tlsMode` writes a certificate and the chart refuses the pair.
+  # are gone with nginx and its workers. `readOnlyRootFilesystem` holds because `TLS_MODE=off`
+  # writes no certificate and the Caddyfile sets `admin off` and `persist_config off`, so
+  # nothing is written at all - which upstream keeps that way on purpose (upstream #453).
   securityContext:
     allowPrivilegeEscalation: false
     readOnlyRootFilesystem: true
