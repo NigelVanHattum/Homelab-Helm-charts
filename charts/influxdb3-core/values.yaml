@@ -410,7 +410,7 @@ explorer:
     repository: influxdata/influxdb3-ui
     # renovate: datasource=docker depName=influxdata/influxdb3-ui
     # -- Explorer image tag. Pin a version; see https://hub.docker.com/r/influxdata/influxdb3-ui/tags
-    tag: "1.8.0"
+    tag: "1.11.2"
     pullPolicy: IfNotPresent
 
   # -- UI mode: "admin" (full management) or "query" (read-only)
