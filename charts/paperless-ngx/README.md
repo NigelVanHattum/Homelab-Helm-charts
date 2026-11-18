@@ -1,6 +1,6 @@
 # paperless-ngx
 
-![Version: 1.3.2](https://img.shields.io/badge/Version-1.3.2-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 2.20.15](https://img.shields.io/badge/AppVersion-2.20.15-informational?style=flat-square)
+![Version: 1.4.0](https://img.shields.io/badge/Version-1.4.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 3.4.2](https://img.shields.io/badge/AppVersion-3.4.2-informational?style=flat-square)
 
 A Helm chart for Paperless-ngx - A community-supported open-source document management system
 
@@ -171,6 +171,7 @@ at them.
 | securityContext | object | `{}` |  |
 | service.port | int | `8000` |  |
 | service.type | string | `"ClusterIP"` |  |
+| tika.image.tag | string | `"3.3.3.0-full@sha256:6ef30abd65df4b6c478907904099d0245bdb0e0686f94fb9bc7493558442bb74"` | Tag for the Apache Tika server image, ahead of the subchart's own appVersion `3.2.2.0-full`. The subchart has no `image.digest` key, so the digest rides in this one string and renders as `<tag>@<digest>`; change both together. Stays on the 3.x line: Tika 4 dropped `/tika/form/*` and renamed the `X-TIKA:*` metadata keys, and paperless-ngx pins `tika-client~=1.0`, which speaks only Tika 3. |
 | tolerations | list | `[]` |  |
 | volumeMounts | list | `[]` |  |
 | volumes | list | `[]` |  |
