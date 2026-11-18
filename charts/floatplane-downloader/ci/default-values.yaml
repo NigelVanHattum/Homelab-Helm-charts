@@ -1,0 +1,5 @@
+# Minimum viable configuration for `helm template` / chart-testing.
+# `image.tag` has no default, so it belongs here: without it every render fails.
+# The `<tag>@sha256:<digest>` shape is the one the homelab deploys, so CI renders it too.
+image:
+  tag: "dev@sha256:738022a706847e11083058fe228b36bdeb9a28dc4a573b7a36143621abf971a0"

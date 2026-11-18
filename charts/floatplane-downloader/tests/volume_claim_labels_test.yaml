@@ -2,6 +2,9 @@ suite: volumeClaimTemplates carry no version label
 release:
   name: floatplane
   namespace: floatplane
+# image.tag has no default and fails the render when empty (image_default_test.yaml covers that).
+set:
+  image.tag: "dev@sha256:738022a706847e11083058fe228b36bdeb9a28dc4a573b7a36143621abf971a0"
 tests:
   # spec.volumeClaimTemplates is immutable (ValidateImmutableField), so any label that
   # changes with a chart or app version makes every bump an unsyncable diff. These claim
