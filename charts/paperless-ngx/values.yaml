@@ -293,3 +293,14 @@ gotenberg:
     # -- Tag for the gotenberg subchart's helm test pod image. Pinned to the same busybox
     # release this chart's own test hook uses; the subchart defaults to `latest`.
     tag: "1.37.0"
+
+# Values forwarded to the tika subchart (rendered only when
+# `paperless.tika.enabled` is true).
+tika:
+  image:
+    # -- Tag for the Apache Tika server image, ahead of the subchart's own appVersion
+    # `3.2.2.0-full`. The subchart has no `image.digest` key, so the digest rides in this one
+    # string and renders as `<tag>@<digest>`; change both together. Stays on the 3.x line:
+    # Tika 4 dropped `/tika/form/*` and renamed the `X-TIKA:*` metadata keys, and paperless-ngx
+    # pins `tika-client~=1.0`, which speaks only Tika 3.
+    tag: "3.3.3.0-full@sha256:6ef30abd65df4b6c478907904099d0245bdb0e0686f94fb9bc7493558442bb74"

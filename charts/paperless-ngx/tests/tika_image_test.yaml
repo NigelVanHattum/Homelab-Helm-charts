@@ -1,0 +1,30 @@
+suite: tika image pinning
+release:
+  name: paperless-ngx
+  namespace: paperless-ngx
+templates:
+  - charts/tika/templates/deployment.yaml
+tests:
+  # The tika subchart's own appVersion default (3.2.2.0-full) carries a critical CXF XXE plus
+  # ten more fixable jar CVEs, and no newer tika chart exists to bump to, so the parent pins
+  # the image instead. Keep the pin on the 3.x line: tika-client ~=1.0 cannot talk to Tika 4.
+  - it: pins the tika image by tag and digest by default
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: apache/tika:3.3.3.0-full@sha256:6ef30abd65df4b6c478907904099d0245bdb0e0686f94fb9bc7493558442bb74
+
+  - it: never ships a tika 4 tag or a moving tag as the default
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^apache/tika:3\.\d+\.\d+\.\d+-full@sha256:[0-9a-f]{64}$
+
+  - it: takes the tika image from values
+    set:
+      tika.image.repository: ghcr.io/mirror/tika
+      tika.image.tag: "3.3.3.0"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/mirror/tika:3.3.3.0
