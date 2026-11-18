@@ -3,17 +3,20 @@ release:
   name: paperclip
   namespace: paperclip
 set:
+  image.tag: "2026.1023.0"
   auth.betterAuthSecret.value: auth-secret
   secrets.masterKey.value: master-key
 tests:
   # ---- image ----
-  - it: defaults to latest without a digest, always pulled
+  - it: uses an explicit tag without a digest, always pulled
     templates:
       - templates/statefulset.yaml
+    set:
+      image.tag: "2026.1023.0"
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/paperclipai/paperclip:latest
+          value: ghcr.io/paperclipai/paperclip:2026.1023.0
       - equal:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: Always

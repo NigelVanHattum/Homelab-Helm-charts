@@ -8,7 +8,9 @@ image:
   repository: ghcr.io/paperclipai/paperclip
   # -- Image tag, e.g. `latest`, `latest-cloud`, `2026.916.1` or
   # `2026.916.1-cloud`. Combined with `digest` as `tag@digest` when both are set.
-  tag: latest
+  # No default: the chart never falls back to `appVersion`, and rendering fails
+  # unless this or `digest` is set.
+  tag: ""
   # -- Image digest (`sha256:...`). Takes precedence over `tag` at pull time.
   digest: ""
   # -- Image pull policy. `Always` so a moving tag like `latest` is re-resolved

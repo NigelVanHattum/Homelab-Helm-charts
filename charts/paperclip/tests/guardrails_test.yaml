@@ -5,6 +5,7 @@ release:
   name: paperclip
   namespace: paperclip
 set:
+  image.tag: "2026.1023.0"
   auth.betterAuthSecret.value: auth-secret
   secrets.masterKey.value: master-key
 tests:

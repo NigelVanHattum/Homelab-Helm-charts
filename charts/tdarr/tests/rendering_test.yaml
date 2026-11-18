@@ -11,7 +11,7 @@ tests:
           of: StatefulSet
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/haveagitgat/tdarr:latest
+          value: ghcr.io/haveagitgat/tdarr:3.06.00
 
   - it: honours an explicit image tag
     templates:

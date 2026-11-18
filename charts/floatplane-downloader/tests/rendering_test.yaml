@@ -11,7 +11,7 @@ tests:
           of: StatefulSet
       - equal:
           path: spec.template.spec.containers[0].image
-          value: inrix/floatplane-downloader:latest
+          value: inrix/floatplane-downloader:dev
 
   - it: honours an explicit image tag
     templates:

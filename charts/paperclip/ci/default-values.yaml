@@ -1,4 +1,7 @@
 # Minimum viable configuration for `helm template` / chart-testing.
+# `image.tag` has no default, so it belongs here: without it every render fails.
+image:
+  tag: "2026.1023.0"
 auth:
   betterAuthSecret:
     value: ci-better-auth-secret
