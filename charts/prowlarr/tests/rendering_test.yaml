@@ -19,7 +19,7 @@ tests:
           path: spec.replicas
           value: 1
 
-  - it: pulls the linuxserver image and defaults the tag to latest
+  - it: pulls the linuxserver image and defaults the tag to the chart appVersion
     templates:
       - templates/statefulset.yaml
     set:
@@ -27,7 +27,7 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: lscr.io/linuxserver/prowlarr:latest
+          value: lscr.io/linuxserver/prowlarr:2.7.0.5723-ls167
 
   - it: honours an explicit image tag
     templates:
