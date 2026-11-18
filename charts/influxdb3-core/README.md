@@ -1,6 +1,6 @@
 # influxdb3-core
 
-![Version: 0.4.3](https://img.shields.io/badge/Version-0.4.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 3.9.3](https://img.shields.io/badge/AppVersion-3.9.3-informational?style=flat-square)
+![Version: 0.4.3](https://img.shields.io/badge/Version-0.4.3-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 3.12.2](https://img.shields.io/badge/AppVersion-3.12.2-informational?style=flat-square)
 
 A Helm chart for deploying InfluxDB 3 Core on Kubernetes
 
@@ -148,7 +148,7 @@ extraManifests:
 | explorer.image.pullPolicy | string | `"IfNotPresent"` |  |
 | explorer.image.registry | string | `"docker.io"` |  |
 | explorer.image.repository | string | `"influxdata/influxdb3-ui"` |  |
-| explorer.image.tag | string | `"1.8.0"` | Explorer image tag. Pin a version; see https://hub.docker.com/r/influxdata/influxdb3-ui/tags |
+| explorer.image.tag | string | `"1.11.2"` | Explorer image tag. Pin a version; see https://hub.docker.com/r/influxdata/influxdb3-ui/tags |
 | explorer.ingress.annotations | object | `{}` |  |
 | explorer.ingress.className | string | `""` |  |
 | explorer.ingress.enabled | bool | `false` |  |
