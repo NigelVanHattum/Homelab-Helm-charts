@@ -1,0 +1,21 @@
+suite: image tag has no default
+templates:
+  - templates/statefulset.yaml
+release:
+  name: floatplane
+  namespace: floatplane
+# No image.tag here on purpose: this suite renders the chart defaults, which every other suite pins.
+tests:
+  - it: fails on the chart defaults, so no values file can ship a floating tag
+    asserts:
+      - failedTemplate:
+          errorPattern: "image.tag is required"
+
+  - it: renders once a values file pins tag and digest
+    set:
+      image.tag: "dev@sha256:738022a706847e11083058fe228b36bdeb9a28dc4a573b7a36143621abf971a0"
+    asserts:
+      - notFailedTemplate: {}
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: inrix/floatplane-downloader:dev@sha256:738022a706847e11083058fe228b36bdeb9a28dc4a573b7a36143621abf971a0

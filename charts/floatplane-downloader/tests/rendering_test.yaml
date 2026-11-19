@@ -2,6 +2,9 @@ suite: rendering behaviour
 release:
   name: floatplane
   namespace: floatplane
+# image.tag has no default and fails the render when empty (image_default_test.yaml covers that).
+set:
+  image.tag: "dev@sha256:738022a706847e11083058fe228b36bdeb9a28dc4a573b7a36143621abf971a0"
 tests:
   - it: renders a StatefulSet with the downloader image
     templates:
@@ -11,7 +14,7 @@ tests:
           of: StatefulSet
       - equal:
           path: spec.template.spec.containers[0].image
-          value: inrix/floatplane-downloader:latest
+          value: inrix/floatplane-downloader:dev@sha256:738022a706847e11083058fe228b36bdeb9a28dc4a573b7a36143621abf971a0
 
   - it: honours an explicit image tag
     templates:
