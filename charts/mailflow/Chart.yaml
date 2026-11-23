@@ -9,7 +9,7 @@ version: 0.2.0
 
 # image.tag defaults to this for both MailFlow images, which upstream releases together.
 # renovate: datasource=docker depName=ghcr.io/maathimself/mailflow-backend
-appVersion: "4.4.0"
+appVersion: "4.5.1"
 
 keywords:
   - mailflow
