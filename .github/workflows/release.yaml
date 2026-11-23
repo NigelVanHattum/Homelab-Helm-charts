@@ -50,7 +50,7 @@ jobs:
       # https://github.com/helm/chart-releaser/releases, then drop the Go and build steps and
       # install_dir below, and set the action's `version:` to that release.
       - name: Install Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           # chart-releaser's go.mod at the pinned commit needs 1.26.
           go-version: "1.26"
